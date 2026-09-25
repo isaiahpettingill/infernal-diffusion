@@ -1,0 +1,153 @@
+// Generated from proto/monster.proto for Godobuf 0.7.0.
+// Only the unsupported package declaration is removed; field numbers stay identical.
+syntax = "proto3";
+
+message Monster {
+  uint32 format_version = 1;
+  string id = 2;
+  string display_name = 3;
+  GenerationInfo generation = 4;
+  SpriteSet sprites = 5;
+  PhysicsInfo physics = 6;
+  GameplayInfo gameplay = 7;
+  repeated Animation animations = 8;
+  repeated Attack attacks = 9;
+  repeated Collider colliders = 10;
+  repeated MovementMode movement_modes = 11;
+  repeated string tags = 12;
+  string description = 13;
+  BehaviorInfo behavior = 14;
+  repeated Projectile projectiles = 15;
+  SizeInfo size = 16;
+  MountInfo mount = 17;
+}
+// Paths are package-relative and point to complete child monster packages.
+message MountInfo {
+  string rider_package = 1;
+  string mount_package = 2;
+  string survivor = 3; // RIDER or MOUNT after composite death.
+}
+message SpawnInfo {
+  string package_path = 1;
+  string monster_id = 2;
+  uint32 count = 3;
+  uint32 max_active = 4;
+}
+// Morphology is already baked at a shared pixel scale; do not scale the atlas again.
+message SizeInfo {
+  float normalized_size = 1;
+  string size_class = 2;
+  float morphology_scale = 3;
+  float pixels_per_unit = 4;
+  uint32 visible_width_px = 5;
+  uint32 visible_height_px = 6;
+  float anchor_x_px = 7;
+  float anchor_y_px = 8;
+}
+message BehaviorInfo {
+  string style = 1;
+  float aggro_range = 2;
+  float preferred_range = 3;
+  float aggression = 4;
+  float retreat_health_fraction = 5;
+  string approach_mode = 6;
+  string escape_mode = 7;
+  repeated AttackPreference attack_preferences = 8;
+}
+message AttackPreference {string attack_id = 1; float weight = 2;}
+message GenerationInfo {
+  string generator_version = 1;
+  string recipe_version = 2;
+  string prompt = 3;
+  uint64 seed = 4;
+  string parser = 5;
+  float parser_confidence = 6;
+  repeated string repairs = 7;
+  repeated string recipe_ids = 8;
+  repeated SemanticConfidence confidences = 9;
+  repeated TokenEvidence token_evidence = 10;
+}
+message SemanticConfidence {string key = 1; float confidence = 2;}
+message TokenEvidence {string label = 1; uint32 start = 2; uint32 end = 3; float confidence = 4;}
+message SpriteSet {
+  string image_file = 1;
+  uint32 frame_width = 2;
+  uint32 frame_height = 3;
+  uint32 columns = 4;
+  uint32 frame_count = 5;
+  uint32 palette_size = 6;
+  string emission_file = 7;
+  repeated float direction_angles_deg = 8;
+  uint32 direction_stride = 9;
+  string render_mode = 10;
+}
+message PhysicsInfo {
+  float mass = 1;
+  float gravity_scale = 2;
+  float speed = 3;
+  float knockback_scale = 4;
+  float center_of_mass_x = 5;
+  float center_of_mass_y = 6;
+  repeated string side_effects = 7;
+}
+message GameplayInfo {
+  uint32 health = 1;
+  uint32 defense = 2;
+  float threat = 3;
+  uint32 health_size_bonus = 4;
+  uint32 health_armor_bonus = 5;
+  uint32 health_magic_bonus = 6;
+}
+message Animation {
+  string id = 1;
+  string semantic_state = 2;
+  repeated AnimationFrame frames = 3;
+  repeated AnimationEvent events = 4;
+  bool looped = 5;
+  string movement_mode = 6;
+}
+message AnimationFrame { uint32 sprite_frame_id = 1; uint32 duration_ms = 2; float root_dx = 3; float root_dy = 4; }
+message AnimationEvent { uint32 time_ms = 1; string kind = 2; string reference_id = 3; }
+message Attack {
+  string id = 1;
+  string delivery = 2;
+  string element = 3;
+  string origin_node = 4;
+  uint32 damage = 5;
+  uint32 telegraph_ms = 6;
+  uint32 cooldown_ms = 7;
+  float range = 8;
+  string animation_id = 9;
+  repeated AttackStep steps = 10;
+  string projectile_id = 11;
+  SpawnInfo spawn = 12;
+}
+message Projectile {
+  string id = 1;
+  string kind = 2;
+  string image_file = 3;
+  uint32 frame_width = 4;
+  uint32 frame_height = 5;
+  uint32 columns = 6;
+  uint32 first_frame = 7;
+  uint32 frame_count = 8;
+  uint32 frame_duration_ms = 9;
+  float collision_radius = 10;
+  string orientation_mode = 11;
+}
+// Motion steps (DASH, LEAP, SWOOP, BURROW, TELEPORT, DODGE) start at
+// at_ms and travel for duration_ms. A later hit step determines impact time.
+message AttackStep {
+  string primitive = 1;
+  uint32 at_ms = 2;
+  float value = 3;
+  string target = 4;
+  uint32 count = 5;
+  float spread_deg = 6;
+  float speed = 7;
+  float radius = 8;
+  uint32 duration_ms = 9;
+}
+message Collider { string id = 1; string node_id = 2; float x = 3; float y = 4; float radius = 5; bool hurtbox = 6; repeated ColliderView views = 7; }
+message ColliderView { uint32 direction_index = 1; float x = 2; float y = 3; float radius = 4; }
+message MovementMode { string id = 1; float speed = 2; string animation_id = 3; }

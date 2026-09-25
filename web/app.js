@@ -39,7 +39,7 @@ function clipLength(clip) { return clip?.frames.reduce((sum, frame) => sum + Mat
 function combatFacing(monster, left) {
   const angles = monster?.sprites?.angles || [0];
   const direction = angles.reduce((best, angle, index) => {
-    const distance = Math.abs(((angle + 540) % 360) - 180);
+    const distance = Math.abs(((angle + 180) % 360) - 180);
     return distance < best.distance ? { index, distance } : best;
   }, { index: 0, distance: Infinity }).index;
   return { direction, mirror: left };

@@ -3,7 +3,7 @@ use crate::{
     animation::{node_offset, Pose},
 };
 use image::{Rgba, RgbaImage};
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
 pub(crate) const MAX_BASE_COLORS: usize = 48;
 
@@ -14,11 +14,16 @@ pub(crate) fn add_palette_color(palette: &mut Vec<[u8; 4]>, color: [u8; 4]) {
 }
 
 pub(crate) fn color_count(image: &RgbaImage) -> usize {
-    image
-        .pixels()
-        .map(|pixel| pixel.0)
-        .collect::<BTreeSet<_>>()
-        .len()
+    let mut colors = HashSet::new();
+    let mut transparent = false;
+    for pixel in image.pixels() {
+        if pixel.0 == [0, 0, 0, 0] {
+            transparent = true;
+        } else {
+            colors.insert(pixel.0);
+        }
+    }
+    colors.len() + usize::from(transparent)
 }
 
 pub(crate) fn quantized_alpha(alpha: u8) -> u8 {
@@ -169,22 +174,36 @@ fn palette(body: &Body) -> Vec<[u8; 4]> {
     palette_colors
 }
 pub(crate) fn quantize(img: &mut RgbaImage, palette: &[[u8; 4]]) {
+    quantize_cached(img, palette, &mut std::collections::HashMap::new());
+}
+
+pub(crate) fn quantize_cached(
+    img: &mut RgbaImage,
+    palette: &[[u8; 4]],
+    nearest: &mut std::collections::HashMap<[u8; 3], [u8; 3]>,
+) {
+    // Shading yields many repeated RGB triples within a sprite. Resolve each
+    // distinct color once instead of rescanning the palette for every pixel.
     for pixel in img.pixels_mut() {
         if pixel[3] == 0 {
             continue;
         }
-        let best = palette
-            .iter()
-            .min_by_key(|candidate| {
-                let dr = pixel[0] as i32 - candidate[0] as i32;
-                let dg = pixel[1] as i32 - candidate[1] as i32;
-                let db = pixel[2] as i32 - candidate[2] as i32;
-                2 * dr * dr + 4 * dg * dg + db * db
-            })
-            .expect("material palette is nonempty");
-        for channel in 0..3 {
-            pixel[channel] = best[channel];
-        }
+        let original = [pixel[0], pixel[1], pixel[2]];
+        let best = nearest.entry(original).or_insert_with(|| {
+            let color = palette
+                .iter()
+                .min_by_key(|candidate| {
+                    let dr = original[0] as i32 - candidate[0] as i32;
+                    let dg = original[1] as i32 - candidate[1] as i32;
+                    let db = original[2] as i32 - candidate[2] as i32;
+                    2 * dr * dr + 4 * dg * dg + db * db
+                })
+                .expect("material palette is nonempty");
+            [color[0], color[1], color[2]]
+        });
+        pixel[0] = best[0];
+        pixel[1] = best[1];
+        pixel[2] = best[2];
         // Alpha is quantized separately so spectral tissue survives palette reduction.
         pixel[3] = quantized_alpha(pixel[3]);
     }

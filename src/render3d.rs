@@ -10,6 +10,7 @@ use crate::{
 use image::{Rgba, RgbaImage};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+use rayon::prelude::*;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::sync::OnceLock;
@@ -414,6 +415,9 @@ fn noise(p: V3, seed: u32) -> f32 {
 }
 
 fn texture_value(kind: TextureKind, local: V3, seed: u32) -> f32 {
+    if kind == TextureKind::None {
+        return 0.0;
+    }
     let p = match kind {
         TextureKind::Fur => V3::new(local.x * 12.0, local.y * 4.0, local.z * 12.0),
         TextureKind::Scales | TextureKind::Chitin => local * 9.0,
@@ -425,7 +429,7 @@ fn texture_value(kind: TextureKind, local: V3, seed: u32) -> f32 {
     let broad = noise(p, seed) - 0.5;
     let fine = noise(p * 2.7, seed ^ 0xa341_316c) - 0.5;
     let amount = match kind {
-        TextureKind::None => 0.0,
+        TextureKind::None => unreachable!(),
         TextureKind::Fur | TextureKind::Stone | TextureKind::Slime => 0.95,
         TextureKind::Scales | TextureKind::Chitin => 0.8,
         TextureKind::Spectral => 0.7,
@@ -973,18 +977,44 @@ struct ScreenPoint {
     depth: f32,
 }
 
-fn project(point: V3, angle: f32, resolution: u32, supersample: f32) -> ScreenPoint {
-    let (s, c) = angle.sin_cos();
-    let front = point.x * s + point.z * c;
-    let right = point.x * c - point.z * s;
-    let elevation = 0.28_f32;
-    let scale = PIXELS_PER_UNIT * supersample;
-    ScreenPoint {
-        x: resolution as f32 * 0.5 + right * scale,
-        y: resolution as f32 * 0.57
-            + (-point.y * elevation.cos() + front * elevation.sin()) * scale,
-        depth: front * elevation.cos() + point.y * elevation.sin(),
+#[derive(Clone, Copy)]
+struct Camera {
+    sine: f32,
+    cosine: f32,
+    elevation_sine: f32,
+    elevation_cosine: f32,
+    scale: f32,
+    resolution: u32,
+}
+
+impl Camera {
+    fn new(angle: f32, resolution: u32, supersample: f32) -> Self {
+        let (sine, cosine) = angle.sin_cos();
+        let (elevation_sine, elevation_cosine) = 0.28_f32.sin_cos();
+        Self {
+            sine,
+            cosine,
+            elevation_sine,
+            elevation_cosine,
+            scale: PIXELS_PER_UNIT * supersample,
+            resolution,
+        }
     }
+}
+
+fn project_with_camera(point: V3, camera: Camera) -> ScreenPoint {
+    let front = point.x * camera.sine + point.z * camera.cosine;
+    let right = point.x * camera.cosine - point.z * camera.sine;
+    ScreenPoint {
+        x: camera.resolution as f32 * 0.5 + right * camera.scale,
+        y: camera.resolution as f32 * 0.57
+            + (-point.y * camera.elevation_cosine + front * camera.elevation_sine) * camera.scale,
+        depth: front * camera.elevation_cosine + point.y * camera.elevation_sine,
+    }
+}
+
+fn project(point: V3, angle: f32, resolution: u32, supersample: f32) -> ScreenPoint {
+    project_with_camera(point, Camera::new(angle, resolution, supersample))
 }
 
 pub fn collider_views(node: &Node, size: u32) -> Vec<proto::ColliderView> {
@@ -1005,11 +1035,12 @@ pub fn collider_views(node: &Node, size: u32) -> Vec<proto::ColliderView> {
         .collect()
 }
 
-fn draw_triangle(image: &mut RgbaImage, depths: &mut [f32], triangle: &Triangle, angle: f32) {
+#[inline(always)]
+fn draw_triangle(image: &mut RgbaImage, depths: &mut [f32], triangle: &Triangle, camera: Camera) {
     let size = image.width();
-    let a = project(triangle.a, angle, size, 2.0);
-    let b = project(triangle.b, angle, size, 2.0);
-    let c = project(triangle.c, angle, size, 2.0);
+    let a = project_with_camera(triangle.a, camera);
+    let b = project_with_camera(triangle.b, camera);
+    let c = project_with_camera(triangle.c, camera);
     let area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
     if area.abs() < 0.001 {
         return;
@@ -1021,18 +1052,27 @@ fn draw_triangle(image: &mut RgbaImage, depths: &mut [f32], triangle: &Triangle,
     if min_x > max_x || min_y > max_y {
         return;
     }
+    let inverse_area = 1.0 / area;
+    let w0_step = (b.y - c.y) * inverse_area;
+    let w1_step = (c.y - a.y) * inverse_area;
     let normal = (triangle.b - triangle.a)
         .cross(triangle.c - triangle.a)
         .normalized();
-    let light = V3::new(-0.42, 0.79, 0.45).normalized();
-    let shade = (0.49 + 0.51 * normal.dot(light).abs()).clamp(0.0, 1.0);
+    const LIGHT: V3 = V3 {
+        x: -0.420021,
+        y: 0.790039,
+        z: 0.450023,
+    };
+    let shade = (0.49 + 0.51 * normal.dot(LIGHT).abs()).clamp(0.0, 1.0);
     for y in min_y..=max_y {
+        let py = y as f32 + 0.5;
+        let px = min_x as f32 + 0.5;
+        let mut w0 = ((b.x - px) * (c.y - py) - (b.y - py) * (c.x - px)) * inverse_area;
+        let mut w1 = ((c.x - px) * (a.y - py) - (c.y - py) * (a.x - px)) * inverse_area;
         for x in min_x..=max_x {
-            let px = x as f32 + 0.5;
-            let py = y as f32 + 0.5;
-            let w0 = ((b.x - px) * (c.y - py) - (b.y - py) * (c.x - px)) / area;
-            let w1 = ((c.x - px) * (a.y - py) - (c.y - py) * (a.x - px)) / area;
             let w2 = 1.0 - w0 - w1;
+            w0 += w0_step;
+            w1 += w1_step;
             if w0 < -0.0001 || w1 < -0.0001 || w2 < -0.0001 {
                 continue;
             }
@@ -1053,21 +1093,121 @@ fn draw_triangle(image: &mut RgbaImage, depths: &mut [f32], triangle: &Triangle,
     }
 }
 
-fn frame(
-    spec: &MonsterSpec,
-    body: &Body,
+#[inline(always)]
+fn rasterize(triangles: &[Triangle], image: &mut RgbaImage, depths: &mut [f32], camera: Camera) {
+    for triangle in triangles {
+        draw_triangle(image, depths, triangle, camera);
+    }
+}
+
+type Rasterizer = unsafe fn(&[Triangle], &mut RgbaImage, &mut [f32], Camera);
+
+unsafe fn rasterize_baseline(
+    triangles: &[Triangle],
+    image: &mut RgbaImage,
+    depths: &mut [f32],
+    camera: Camera,
+) {
+    rasterize(triangles, image, depths, camera);
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "sse4.2,popcnt")]
+unsafe fn rasterize_x64_v2(
+    triangles: &[Triangle],
+    image: &mut RgbaImage,
+    depths: &mut [f32],
+    camera: Camera,
+) {
+    rasterize(triangles, image, depths, camera);
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2,fma,bmi1,bmi2,f16c,lzcnt")]
+unsafe fn rasterize_x64_v3(
+    triangles: &[Triangle],
+    image: &mut RgbaImage,
+    depths: &mut [f32],
+    camera: Camera,
+) {
+    rasterize(triangles, image, depths, camera);
+}
+
+fn select_rasterizer() -> (Rasterizer, &'static str) {
+    #[cfg(target_arch = "x86_64")]
+    {
+        // An override can only lower the selected tier. It is useful for
+        // comparing kernels and cannot execute unsupported instructions.
+        let ceiling = std::env::var("INFERNAL_CPU_KERNEL").unwrap_or_default();
+        use std::arch::x86_64::__cpuid;
+        let basic = __cpuid(1);
+        let extended = __cpuid(0x8000_0001);
+        let v2 = basic.ecx & (1 << 13) != 0
+            && extended.ecx & 1 != 0
+            && std::is_x86_feature_detected!("sse3")
+            && std::is_x86_feature_detected!("ssse3")
+            && std::is_x86_feature_detected!("sse4.1")
+            && std::is_x86_feature_detected!("sse4.2")
+            && std::is_x86_feature_detected!("popcnt");
+        let v3 = v2
+            && basic.ecx & (1 << 22) != 0
+            && extended.ecx & (1 << 5) != 0
+            && std::is_x86_feature_detected!("avx")
+            && std::is_x86_feature_detected!("avx2")
+            && std::is_x86_feature_detected!("bmi1")
+            && std::is_x86_feature_detected!("bmi2")
+            && std::is_x86_feature_detected!("f16c")
+            && std::is_x86_feature_detected!("fma");
+        if v3 && ceiling != "x64" && ceiling != "x64_v2" {
+            return (rasterize_x64_v3, "x64_v3");
+        }
+        if v2 && ceiling != "x64" {
+            return (rasterize_x64_v2, "x64_v2");
+        }
+        (rasterize_baseline, "x64")
+    }
+    #[cfg(not(target_arch = "x86_64"))]
+    {
+        (
+            rasterize_baseline,
+            if cfg!(target_arch = "aarch64") {
+                "arm64"
+            } else {
+                "x86"
+            },
+        )
+    }
+}
+
+fn rasterizer() -> (Rasterizer, &'static str) {
+    static SELECTED: std::sync::OnceLock<(Rasterizer, &'static str)> = std::sync::OnceLock::new();
+    *SELECTED.get_or_init(select_rasterizer)
+}
+
+/// Selected CPU kernel. The x64 library contains all three implementations.
+pub fn cpu_kernel_name() -> &'static str {
+    rasterizer().1
+}
+
+fn frame_with_stats(
+    triangles: &[Triangle],
     pose: &Pose,
     size: u32,
     angle: f32,
     palette: &[[u8; 4]],
-    seed: u64,
-) -> RgbaImage {
+    nearest: &mut std::collections::HashMap<[u8; 3], [u8; 3]>,
+) -> (RgbaImage, [std::time::Duration; 3]) {
+    let phase_started = std::time::Instant::now();
     let high_size = size * 2;
     let mut high = RgbaImage::new(high_size, high_size);
     let mut depths = vec![f32::NEG_INFINITY; (high_size * high_size) as usize];
-    for triangle in &scene(spec, body, pose, seed) {
-        draw_triangle(&mut high, &mut depths, triangle, angle);
+    let camera = Camera::new(angle, high_size, 2.0);
+    let kernel = rasterizer().0;
+    unsafe {
+        kernel(triangles, &mut high, &mut depths, camera);
     }
+    let raster_time = phase_started.elapsed();
+    let phase_started = std::time::Instant::now();
     let mut low = RgbaImage::new(size, size);
     for y in 0..size {
         for x in 0..size {
@@ -1093,13 +1233,27 @@ fn frame(
             low.put_pixel(x, y, Rgba(rgba));
         }
     }
-    render::quantize(&mut low, palette);
+    let downsample_time = phase_started.elapsed();
+    let phase_started = std::time::Instant::now();
+    render::quantize_cached(&mut low, palette, nearest);
     if pose.state == "DEATH" {
         for pixel in low.pixels_mut() {
             pixel[3] = render::quantized_alpha((pixel[3] as f32 * (1.0 - pose.phase * 0.2)) as u8);
         }
     }
-    low
+    (low, [raster_time, downsample_time, phase_started.elapsed()])
+}
+
+#[cfg(test)]
+fn frame(
+    triangles: &[Triangle],
+    pose: &Pose,
+    size: u32,
+    angle: f32,
+    palette: &[[u8; 4]],
+    nearest: &mut std::collections::HashMap<[u8; 3], [u8; 3]>,
+) -> RgbaImage {
+    frame_with_stats(triangles, pose, size, angle, palette, nearest).0
 }
 
 fn palette(body: &Body) -> Vec<[u8; 4]> {
@@ -1133,6 +1287,26 @@ fn palette(body: &Body) -> Vec<[u8; 4]> {
     colors
 }
 
+fn render_pool() -> Option<&'static rayon::ThreadPool> {
+    static POOL: std::sync::OnceLock<Option<rayon::ThreadPool>> = std::sync::OnceLock::new();
+    POOL.get_or_init(|| {
+        let logical_cores = std::thread::available_parallelism()
+            .map(|count| count.get())
+            .unwrap_or(2);
+        // Leave at least two logical cores for Godot and the OS. The generator
+        // itself already runs on a background job thread.
+        if logical_cores < 4 {
+            return None;
+        }
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(2)
+            .thread_name(|index| format!("infernal-render-{index}"))
+            .build()
+            .ok()
+    })
+    .as_ref()
+}
+
 pub fn sheet(
     spec: &MonsterSpec,
     body: &Body,
@@ -1140,26 +1314,61 @@ pub fn sheet(
     size: u32,
     seed: u64,
 ) -> (RgbaImage, u32, u32) {
+    let profile = std::env::var_os("INFERNAL_PROFILE").is_some();
+    let started = std::time::Instant::now();
+    let mut scene_time = std::time::Duration::ZERO;
+    let mut frame_time = std::time::Duration::ZERO;
+    let mut stage_times = [std::time::Duration::ZERO; 3];
     let columns = 8;
     let total = poses.len() as u32 * ANGLES_DEG.len() as u32;
     let rows = total.div_ceil(columns);
     let palette = palette(body);
     let mut output = RgbaImage::new(columns * size, rows * size);
-    for (direction, degrees) in ANGLES_DEG.iter().enumerate() {
-        let angle = degrees.to_radians();
-        for (index, pose) in poses.iter().enumerate() {
-            let frame = frame(spec, body, pose, size, angle, &palette, seed);
+    for (index, pose) in poses.iter().enumerate() {
+        let phase_started = std::time::Instant::now();
+        let triangles = scene(spec, body, pose, seed);
+        scene_time += phase_started.elapsed();
+        let make_frame = |(direction, degrees): (usize, &f32)| {
+            let phase_started = std::time::Instant::now();
+            let mut nearest = std::collections::HashMap::new();
+            let (frame, stages) = frame_with_stats(
+                &triangles,
+                pose,
+                size,
+                degrees.to_radians(),
+                &palette,
+                &mut nearest,
+            );
+            (direction, frame, stages, phase_started.elapsed())
+        };
+        let frames: Vec<_> = if let Some(pool) = render_pool() {
+            pool.install(|| ANGLES_DEG.par_iter().enumerate().map(make_frame).collect())
+        } else {
+            ANGLES_DEG.iter().enumerate().map(make_frame).collect()
+        };
+        for (direction, frame, stages, duration) in frames {
+            for (total, stage) in stage_times.iter_mut().zip(stages) {
+                *total += stage;
+            }
+            frame_time += duration;
             let frame_id = direction as u32 * poses.len() as u32 + index as u32;
             let ox = frame_id % columns * size;
             let oy = frame_id / columns * size;
-            for y in 0..size {
-                for x in 0..size {
-                    output.put_pixel(ox + x, oy + y, *frame.get_pixel(x, y));
-                }
+            let source = frame.as_raw();
+            let target = output.as_mut();
+            let row_len = (size * 4) as usize;
+            let stride = (columns * size * 4) as usize;
+            for y in 0..size as usize {
+                let destination = ((oy as usize + y) * stride) + ox as usize * 4;
+                target[destination..destination + row_len]
+                    .copy_from_slice(&source[y * row_len..(y + 1) * row_len]);
             }
         }
     }
     let color_count = render::color_count(&output) as u32;
+    if profile {
+        eprintln!("infernal profile: sprite_size={size} poses={} scene={:.1}ms raster={:.1}ms downsample={:.1}ms quantize={:.1}ms frame={:.1}ms sheet_total={:.1}ms", poses.len(), scene_time.as_secs_f64() * 1000.0, stage_times[0].as_secs_f64() * 1000.0, stage_times[1].as_secs_f64() * 1000.0, stage_times[2].as_secs_f64() * 1000.0, frame_time.as_secs_f64() * 1000.0, started.elapsed().as_secs_f64() * 1000.0);
+    }
     (output, columns, color_count)
 }
 
@@ -1268,7 +1477,14 @@ mod tests {
         let (_, _, _, poses) = crate::animation::make(&spec, &body);
         let idle = poses.iter().find(|pose| pose.clip_id == "idle").unwrap();
         let colors = palette(&body);
-        let sprite = frame(&spec, &body, idle, 128, 0.0, &colors, 7);
+        let sprite = frame(
+            &scene(&spec, &body, idle, 7),
+            idle,
+            128,
+            0.0,
+            &colors,
+            &mut std::collections::HashMap::new(),
+        );
         assert!(sprite.rows().next().unwrap().all(|pixel| pixel[3] == 0));
         let rider = body
             .nodes
@@ -1302,8 +1518,22 @@ mod tests {
             let moving: Vec<_> = poses.iter().filter(|pose| pose.clip_id == "move").collect();
             assert_eq!(moving.len(), 8, "{prompt}");
             let colors = palette(&body);
-            let first = frame(&spec, &body, moving[0], 96, 0.0, &colors, 31);
-            let later = frame(&spec, &body, moving[2], 96, 0.0, &colors, 31);
+            let first = frame(
+                &scene(&spec, &body, moving[0], 31),
+                moving[0],
+                96,
+                0.0,
+                &colors,
+                &mut std::collections::HashMap::new(),
+            );
+            let later = frame(
+                &scene(&spec, &body, moving[2], 31),
+                moving[2],
+                96,
+                0.0,
+                &colors,
+                &mut std::collections::HashMap::new(),
+            );
             let changed = first
                 .pixels()
                 .zip(later.pixels())

@@ -49,7 +49,14 @@ pub fn generate(
     output_dir: &Path,
     model_dir: Option<&Path>,
 ) -> Result<proto::Monster, Error> {
-    generate_prompt(prompt, seed, output_dir, model_dir, RenderStyle::Mesh3d)
+    generate_prompt(
+        prompt,
+        seed,
+        output_dir,
+        model_dir,
+        RenderStyle::Mesh3d,
+        &mut DiskSink,
+    )
 }
 
 pub fn generate_2d(
@@ -58,7 +65,14 @@ pub fn generate_2d(
     output_dir: &Path,
     model_dir: Option<&Path>,
 ) -> Result<proto::Monster, Error> {
-    generate_prompt(prompt, seed, output_dir, model_dir, RenderStyle::Flat2d)
+    generate_prompt(
+        prompt,
+        seed,
+        output_dir,
+        model_dir,
+        RenderStyle::Flat2d,
+        &mut DiskSink,
+    )
 }
 
 pub fn generate_3d(
@@ -67,7 +81,120 @@ pub fn generate_3d(
     output_dir: &Path,
     model_dir: Option<&Path>,
 ) -> Result<proto::Monster, Error> {
-    generate_prompt(prompt, seed, output_dir, model_dir, RenderStyle::Mesh3d)
+    generate_prompt(
+        prompt,
+        seed,
+        output_dir,
+        model_dir,
+        RenderStyle::Mesh3d,
+        &mut DiskSink,
+    )
+}
+
+pub struct GeneratedPackage {
+    pub path: std::path::PathBuf,
+    pub monster: proto::Monster,
+    pub sprites: image::RgbaImage,
+    pub emission: image::RgbaImage,
+    pub projectiles: Option<image::RgbaImage>,
+}
+
+pub struct GeneratedMonster {
+    pub packages: Vec<GeneratedPackage>,
+}
+
+/// Generate full runtime data in memory. No protobuf or image bytes are written.
+/// Call `save_generated` only when a package should be persisted.
+pub fn generate_in_memory(prompt: &str, seed: u64) -> Result<GeneratedMonster, Error> {
+    let mut sink = MemorySink {
+        packages: Vec::new(),
+    };
+    generate_prompt(
+        prompt,
+        seed,
+        Path::new("."),
+        None,
+        RenderStyle::Mesh3d,
+        &mut sink,
+    )?;
+    Ok(GeneratedMonster {
+        packages: sink.packages,
+    })
+}
+
+pub fn save_generated(generated: &GeneratedMonster, output_dir: &Path) -> Result<(), Error> {
+    for package in &generated.packages {
+        let destination = output_dir.join(&package.path);
+        std::fs::create_dir_all(&destination)?;
+        package.sprites.save(destination.join("sprites.png"))?;
+        package.emission.save(destination.join("emission.png"))?;
+        if let Some(projectiles) = &package.projectiles {
+            projectiles.save(destination.join("projectiles.png"))?;
+        }
+        std::fs::write(
+            destination.join("monster.pb"),
+            package.monster.encode_to_vec(),
+        )?;
+    }
+    Ok(())
+}
+
+trait PackageSink {
+    fn store(
+        &mut self,
+        path: &Path,
+        monster: &proto::Monster,
+        sheet: &image::RgbaImage,
+        projectiles: Option<&image::RgbaImage>,
+        preview: Option<(u32, u32, u32)>,
+    ) -> Result<(), Error>;
+}
+
+struct DiskSink;
+impl PackageSink for DiskSink {
+    fn store(
+        &mut self,
+        path: &Path,
+        monster: &proto::Monster,
+        sheet: &image::RgbaImage,
+        projectiles: Option<&image::RgbaImage>,
+        preview: Option<(u32, u32, u32)>,
+    ) -> Result<(), Error> {
+        std::fs::create_dir_all(path)?;
+        sheet.save(path.join("sprites.png"))?;
+        if let Some(atlas) = projectiles {
+            atlas.save(path.join("projectiles.png"))?;
+        }
+        render::emission_sheet(sheet).save(path.join("emission.png"))?;
+        if let Some((size, columns, stride)) = preview {
+            render3d::preview(sheet, size, columns, stride).save(path.join("preview.png"))?;
+        }
+        std::fs::write(path.join("monster.pb"), monster.encode_to_vec())?;
+        Ok(())
+    }
+}
+
+struct MemorySink {
+    packages: Vec<GeneratedPackage>,
+}
+impl PackageSink for MemorySink {
+    fn store(
+        &mut self,
+        path: &Path,
+        monster: &proto::Monster,
+        sheet: &image::RgbaImage,
+        projectiles: Option<&image::RgbaImage>,
+        _preview: Option<(u32, u32, u32)>,
+    ) -> Result<(), Error> {
+        self.packages.push(GeneratedPackage {
+            path: path.to_path_buf(),
+            monster: monster.clone(),
+            sprites: sheet.clone(),
+            emission: render::emission_sheet(sheet),
+            projectiles: projectiles.cloned(),
+        });
+        Ok(())
+    }
 }
 
 fn generate_prompt(
@@ -76,7 +203,10 @@ fn generate_prompt(
     output_dir: &Path,
     model_dir: Option<&Path>,
     render_style: RenderStyle,
+    sink: &mut dyn PackageSink,
 ) -> Result<proto::Monster, Error> {
+    let profile = std::env::var_os("INFERNAL_PROFILE").is_some();
+    let started = std::time::Instant::now();
     if prompt.trim().is_empty() || prompt.len() > 4096 {
         return Err(Error::InvalidPrompt);
     }
@@ -102,6 +232,7 @@ fn generate_prompt(
             parser::parse_vocabulary(prompt)
         }
     };
+    let parsing_ms = started.elapsed().as_secs_f64() * 1000.0;
     let recipe_version = if let Some(dir) = model_dir {
         let mut digest = Sha256::new();
         let mut buffer = [0u8; 65536];
@@ -149,19 +280,27 @@ fn generate_prompt(
             "recipe-v1".into()
         }
     };
-    generate_spec_internal(
+    let result = generate_spec_internal(
         spec,
         prompt,
         seed,
         output_dir,
         recipe_version,
         &recipes::DefaultStages,
+        sink,
         GenerationOptions {
             render_style,
             allow_auto_spawn: true,
             randomize_unknown: true,
         },
-    )
+    );
+    if profile {
+        eprintln!(
+            "infernal profile: parse={parsing_ms:.1}ms total={:.1}ms",
+            started.elapsed().as_secs_f64() * 1000.0
+        );
+    }
+    result
 }
 
 pub fn generate_from_spec(
@@ -177,6 +316,7 @@ pub fn generate_from_spec(
         output_dir,
         "recipe-v1-spec".into(),
         &recipes::DefaultStages,
+        &mut DiskSink,
         GenerationOptions {
             render_style: RenderStyle::Mesh3d,
             allow_auto_spawn: true,
@@ -198,6 +338,7 @@ pub fn generate_from_spec_2d(
         output_dir,
         "recipe-v1-spec".into(),
         &recipes::DefaultStages,
+        &mut DiskSink,
         GenerationOptions {
             render_style: RenderStyle::Flat2d,
             allow_auto_spawn: true,
@@ -219,6 +360,7 @@ pub fn generate_from_spec_3d(
         output_dir,
         "recipe-v1-spec".into(),
         &recipes::DefaultStages,
+        &mut DiskSink,
         GenerationOptions {
             render_style: RenderStyle::Mesh3d,
             allow_auto_spawn: true,
@@ -241,6 +383,7 @@ pub fn generate_from_spec_with_stages(
         output_dir,
         "recipe-v1-spec".into(),
         stages,
+        &mut DiskSink,
         GenerationOptions {
             render_style: RenderStyle::Flat2d,
             allow_auto_spawn: true,
@@ -263,6 +406,7 @@ fn generate_spec_internal(
     output_dir: &Path,
     recipe_version: String,
     stages: &dyn recipes::GenerationStages,
+    sink: &mut dyn PackageSink,
     options: GenerationOptions,
 ) -> Result<proto::Monster, Error> {
     let render_style = options.render_style;
@@ -580,6 +724,7 @@ fn generate_spec_internal(
             &output_dir.join("companions/rider"),
             recipe_version.clone(),
             stages,
+            sink,
             GenerationOptions {
                 render_style,
                 allow_auto_spawn: false,
@@ -596,6 +741,7 @@ fn generate_spec_internal(
             &output_dir.join("companions/mount"),
             recipe_version.clone(),
             stages,
+            sink,
             GenerationOptions {
                 render_style,
                 allow_auto_spawn: false,
@@ -635,6 +781,7 @@ fn generate_spec_internal(
             &output_dir.join("companions/minion"),
             recipe_version.clone(),
             stages,
+            sink,
             GenerationOptions {
                 render_style,
                 allow_auto_spawn: false,
@@ -781,20 +928,13 @@ fn generate_spec_internal(
             return Err(Error::InvalidMonster("invalid projectile atlas".into()));
         }
     }
-    std::fs::create_dir_all(output_dir)?;
-    let png_path = output_dir.join("sprites.png");
-    let emission_path = output_dir.join("emission.png");
-    let pb_path = output_dir.join("monster.pb");
-    sheet.save(&png_path)?;
-    if let Some(atlas) = projectile_sheet {
-        atlas.save(output_dir.join("projectiles.png"))?;
-    }
-    render::emission_sheet(&sheet).save(&emission_path)?;
-    if render_style == RenderStyle::Mesh3d {
-        render3d::preview(&sheet, size, columns, poses.len() as u32)
-            .save(output_dir.join("preview.png"))?;
-    }
-    std::fs::write(pb_path, monster.encode_to_vec())?;
+    sink.store(
+        output_dir,
+        &monster,
+        &sheet,
+        projectile_sheet.as_ref(),
+        (render_style == RenderStyle::Mesh3d).then_some((size, columns, poses.len() as u32)),
+    )?;
     Ok(monster)
 }
 
@@ -1436,6 +1576,17 @@ pub extern "C" fn infernal_abi_version() -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn infernal_cpu_kernel_name() -> *const c_char {
+    match render3d::cpu_kernel_name() {
+        "x64_v3" => c"x64_v3".as_ptr(),
+        "x64_v2" => c"x64_v2".as_ptr(),
+        "x64" => c"x64".as_ptr(),
+        "arm64" => c"arm64".as_ptr(),
+        _ => c"x86".as_ptr(),
+    }
+}
+
+#[no_mangle]
 /// # Safety
 /// String pointers must be valid NUL-terminated UTF-8. `error_out`, when non-null,
 /// must point to writable storage for one pointer.
@@ -1673,9 +1824,292 @@ pub unsafe extern "C" fn infernal_free_string(value: *mut c_char) {
     }
 }
 
+/// Opaque in-memory package; returned data remains valid until this handle is freed.
+#[no_mangle]
+/// # Safety
+/// `prompt` must be a valid NUL-terminated UTF-8 string and `error_out` must
+/// point to writable pointer storage when non-null.
+pub unsafe extern "C" fn infernal_generate_object(
+    prompt: *const c_char,
+    seed: u64,
+    error_out: *mut *mut c_char,
+) -> *mut GeneratedMonster {
+    if !error_out.is_null() {
+        *error_out = std::ptr::null_mut();
+    }
+    let result = std::panic::catch_unwind(|| {
+        if prompt.is_null() {
+            return Err("null prompt".to_string());
+        }
+        let text = CStr::from_ptr(prompt).to_str().map_err(|e| e.to_string())?;
+        generate_in_memory(text, seed).map_err(|e| e.to_string())
+    });
+    match result {
+        Ok(Ok(value)) => Box::into_raw(Box::new(value)),
+        other => {
+            let message = match other {
+                Ok(Err(e)) => e,
+                Err(_) => "panic during generation".into(),
+                _ => unreachable!(),
+            };
+            if !error_out.is_null() {
+                *error_out = CString::new(message).unwrap_or_default().into_raw();
+            }
+            std::ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+/// # Safety
+/// `handle` must be null or returned by `infernal_generate_object`, and freed once.
+pub unsafe extern "C" fn infernal_object_free(handle: *mut GeneratedMonster) {
+    if !handle.is_null() {
+        drop(Box::from_raw(handle));
+    }
+}
+
+#[no_mangle]
+/// # Safety
+/// `handle` must be a live `infernal_generate_object` result.
+pub unsafe extern "C" fn infernal_object_count(handle: *const GeneratedMonster) -> u32 {
+    if handle.is_null() {
+        0
+    } else {
+        (*handle).packages.len() as u32
+    }
+}
+
+#[no_mangle]
+/// # Safety
+/// `handle` must be live. The returned string must be freed with `infernal_free_string`.
+pub unsafe extern "C" fn infernal_object_package_path(
+    handle: *const GeneratedMonster,
+    index: u32,
+) -> *mut c_char {
+    if handle.is_null() {
+        return std::ptr::null_mut();
+    }
+    (&*handle)
+        .packages
+        .get(index as usize)
+        .and_then(|p| CString::new(p.path.to_string_lossy().as_bytes()).ok())
+        .map(CString::into_raw)
+        .unwrap_or(std::ptr::null_mut())
+}
+
+#[no_mangle]
+/// # Safety
+/// `handle` and all output pointers must be valid. The returned pixel pointer
+/// is borrowed from the handle and must be copied before freeing it.
+pub unsafe extern "C" fn infernal_object_pixels(
+    handle: *const GeneratedMonster,
+    index: u32,
+    kind: u32,
+    pixels_out: *mut *const u8,
+    len_out: *mut usize,
+    width_out: *mut u32,
+    height_out: *mut u32,
+) -> i32 {
+    if handle.is_null()
+        || pixels_out.is_null()
+        || len_out.is_null()
+        || width_out.is_null()
+        || height_out.is_null()
+    {
+        return -1;
+    }
+    let Some(package) = (&*handle).packages.get(index as usize) else {
+        return -1;
+    };
+    let image = match kind {
+        0 => Some(&package.sprites),
+        1 => Some(&package.emission),
+        2 => package.projectiles.as_ref(),
+        _ => None,
+    };
+    let Some(image) = image else {
+        return -1;
+    };
+    *pixels_out = image.as_raw().as_ptr();
+    *len_out = image.as_raw().len();
+    *width_out = image.width();
+    *height_out = image.height();
+    0
+}
+
+/// Event codes: 0 null, 1 object start, 2 object end, 3 array start,
+/// 4 array end, 5 string, 6 integer, 7 float, 8 boolean.
+pub type ObjectVisitor =
+    unsafe extern "C" fn(*mut std::ffi::c_void, u32, *const c_char, *const c_char, i64, f64);
+
+fn visit_value(
+    value: &serde_json::Value,
+    name: Option<&str>,
+    context: *mut std::ffi::c_void,
+    callback: ObjectVisitor,
+) {
+    use serde_json::Value;
+    let key = name.and_then(|name| CString::new(name).ok());
+    let key_ptr = key
+        .as_ref()
+        .map_or(std::ptr::null(), |value| value.as_ptr());
+    let emit = |kind, string: *const c_char, integer, real| unsafe {
+        callback(context, kind, key_ptr, string, integer, real)
+    };
+    match value {
+        Value::Null => emit(0, std::ptr::null(), 0, 0.0),
+        Value::Object(fields) => {
+            emit(1, std::ptr::null(), 0, 0.0);
+            for (key, child) in fields {
+                visit_value(child, Some(key), context, callback);
+            }
+            emit(2, std::ptr::null(), 0, 0.0);
+        }
+        Value::Array(items) => {
+            emit(3, std::ptr::null(), 0, 0.0);
+            for child in items {
+                visit_value(child, None, context, callback);
+            }
+            emit(4, std::ptr::null(), 0, 0.0);
+        }
+        Value::String(text) => {
+            if let Ok(text) = CString::new(text.as_str()) {
+                emit(5, text.as_ptr(), 0, 0.0);
+            }
+        }
+        Value::Number(number) => {
+            if let Some(value) = number.as_i64() {
+                emit(6, std::ptr::null(), value, 0.0);
+            } else if let Some(value) = number.as_u64() {
+                emit(6, std::ptr::null(), value as i64, 0.0);
+            } else if let Some(value) = number.as_f64() {
+                emit(7, std::ptr::null(), 0, value);
+            }
+        }
+        Value::Bool(value) => emit(8, std::ptr::null(), i64::from(*value), 0.0),
+    }
+}
+
+#[no_mangle]
+/// # Safety
+/// `handle` must be live. `context` must be valid for `callback` for the
+/// duration of the call. Callback pointers are borrowed only for that call.
+pub unsafe extern "C" fn infernal_object_visit(
+    handle: *const GeneratedMonster,
+    index: u32,
+    context: *mut std::ffi::c_void,
+    callback: Option<ObjectVisitor>,
+) -> i32 {
+    if handle.is_null() {
+        return -1;
+    }
+    let Some(package) = (&*handle).packages.get(index as usize) else {
+        return -1;
+    };
+    let Some(callback) = callback else {
+        return -1;
+    };
+    let Ok(value) = serde_json::to_value(&package.monster) else {
+        return -1;
+    };
+    visit_value(&value, None, context, callback);
+    0
+}
+
+#[no_mangle]
+/// # Safety
+/// `handle` must be live; `output_dir` must be a valid NUL-terminated UTF-8 path.
+/// `error_out` must point to writable pointer storage when non-null.
+pub unsafe extern "C" fn infernal_object_save(
+    handle: *const GeneratedMonster,
+    output_dir: *const c_char,
+    error_out: *mut *mut c_char,
+) -> i32 {
+    if !error_out.is_null() {
+        *error_out = std::ptr::null_mut();
+    }
+    let outcome = std::panic::catch_unwind(|| {
+        if handle.is_null() || output_dir.is_null() {
+            return Err("null object or path".to_string());
+        }
+        let path = CStr::from_ptr(output_dir)
+            .to_str()
+            .map_err(|e| e.to_string())?;
+        save_generated(&*handle, Path::new(path)).map_err(|e| e.to_string())
+    });
+    match outcome {
+        Ok(Ok(())) => 0,
+        other => {
+            let message = match other {
+                Ok(Err(e)) => e,
+                Err(_) => "panic while saving object".into(),
+                _ => unreachable!(),
+            };
+            if !error_out.is_null() {
+                *error_out = CString::new(message).unwrap_or_default().into_raw();
+            }
+            -1
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn generated_object_round_trip() {
+        unsafe extern "C" fn count_fields(
+            context: *mut std::ffi::c_void,
+            _kind: u32,
+            key: *const c_char,
+            _string: *const c_char,
+            _integer: i64,
+            _real: f64,
+        ) {
+            if !key.is_null() && CStr::from_ptr(key).to_bytes() == b"display_name" {
+                *(context as *mut usize) += 1;
+            }
+        }
+        let prompt = CString::new("wolf").unwrap();
+        let mut error = std::ptr::null_mut();
+        let object = unsafe { infernal_generate_object(prompt.as_ptr(), 42, &mut error) };
+        assert!(error.is_null());
+        assert!(!object.is_null());
+        assert_eq!(unsafe { infernal_object_count(object) }, 1);
+        let mut fields = 0usize;
+        assert_eq!(
+            unsafe {
+                infernal_object_visit(
+                    object,
+                    0,
+                    &mut fields as *mut _ as *mut _,
+                    Some(count_fields),
+                )
+            },
+            0
+        );
+        assert_eq!(fields, 1);
+        let (mut pixels, mut len, mut width, mut height) = (std::ptr::null(), 0, 0, 0);
+        assert_eq!(
+            unsafe {
+                infernal_object_pixels(object, 0, 0, &mut pixels, &mut len, &mut width, &mut height)
+            },
+            0
+        );
+        assert_eq!(len, width as usize * height as usize * 4);
+        assert!(!pixels.is_null());
+        let saved = tempfile::tempdir().unwrap();
+        let destination = CString::new(saved.path().to_str().unwrap()).unwrap();
+        assert_eq!(
+            unsafe { infernal_object_save(object, destination.as_ptr(), &mut error) },
+            0
+        );
+        assert!(error.is_null());
+        assert!(!load_package(saved.path()).unwrap().id.is_empty());
+        unsafe { infernal_object_free(object) };
+    }
+
     #[test]
     fn deterministic_complete_monster() {
         let a = tempfile::tempdir().unwrap();

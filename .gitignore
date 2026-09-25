@@ -1,3 +1,7 @@
 /target/
 /example/
 /web/generated/
+/godot/addons/infernal_diffusion/bin/
+/godot/addons/godobuf/test/
+/godot/extension/target/
+/tools/__pycache__/

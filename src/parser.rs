@@ -1433,13 +1433,85 @@ pub fn parse_with_bert(
 pub fn parse_with_embedded_bert(
     prompt: &str,
 ) -> Result<MonsterSpec, Box<dyn std::error::Error + Send + Sync>> {
-    parse_with_bert_bytes(
-        prompt,
-        include_bytes!("../models/bert-mini/config.json"),
-        include_bytes!("../models/bert-mini/tokenizer.json"),
-        include_bytes!("../models/bert-mini/model.safetensors").to_vec(),
-        None,
-    )
+    thread_local! {
+        static MODEL: std::cell::OnceCell<BertRuntime> = const { std::cell::OnceCell::new() };
+    }
+    MODEL.with(|cell| {
+        if cell.get().is_none() {
+            let runtime = BertRuntime::new(
+                include_bytes!("../models/bert-mini/config.json"),
+                include_bytes!("../models/bert-mini/tokenizer.json"),
+                include_bytes!("../models/bert-mini/model.safetensors").to_vec(),
+            )?;
+            let _ = cell.set(runtime);
+        }
+        parse_with_bert_runtime(prompt, cell.get().expect("initialized above"), None)
+    })
+}
+
+#[cfg(feature = "bert")]
+struct BertRuntime {
+    device: candle_core::Device,
+    tokenizer: tokenizers::Tokenizer,
+    model: candle_transformers::models::bert::BertModel,
+    candidates: std::cell::RefCell<std::collections::HashMap<String, Vec<f32>>>,
+}
+
+#[cfg(feature = "bert")]
+impl BertRuntime {
+    fn new(
+        config_json: &[u8],
+        tokenizer_json: &[u8],
+        weights: Vec<u8>,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        use candle_core::{DType, Device};
+        use candle_nn::VarBuilder;
+        use candle_transformers::models::bert::{BertModel, Config};
+        use tokenizers::Tokenizer;
+        let device = Device::Cpu;
+        let config: Config = serde_json::from_slice(config_json)?;
+        let tokenizer = Tokenizer::from_bytes(tokenizer_json)?;
+        let vb = VarBuilder::from_buffered_safetensors(weights, DType::F32, &device)?;
+        let model = BertModel::load(vb, &config)?;
+        Ok(Self {
+            device,
+            tokenizer,
+            model,
+            candidates: std::cell::RefCell::new(std::collections::HashMap::new()),
+        })
+    }
+
+    fn embed(
+        &self,
+        text: &str,
+    ) -> Result<
+        (Vec<f32>, Vec<Vec<f32>>, Vec<(usize, usize)>),
+        Box<dyn std::error::Error + Send + Sync>,
+    > {
+        use candle_core::{IndexOp, Tensor};
+        let encoding = self.tokenizer.encode(text, true)?;
+        let ids = encoding.get_ids();
+        let token_types = encoding.get_type_ids();
+        let mask = encoding.get_attention_mask();
+        let ids = Tensor::new(ids, &self.device)?.unsqueeze(0)?;
+        let token_types = Tensor::new(token_types, &self.device)?.unsqueeze(0)?;
+        let mask = Tensor::new(mask, &self.device)?.unsqueeze(0)?;
+        let output = self.model.forward(&ids, &token_types, Some(&mask))?;
+        let tokens = output.i(0)?.to_vec2::<f32>()?;
+        Ok((tokens[0].clone(), tokens, encoding.get_offsets().to_vec()))
+    }
+
+    fn candidate(&self, text: &str) -> Result<Vec<f32>, Box<dyn std::error::Error + Send + Sync>> {
+        if let Some(value) = self.candidates.borrow().get(text) {
+            return Ok(value.clone());
+        }
+        let value = self.embed(text)?.0;
+        let mut cache = self.candidates.borrow_mut();
+        if cache.len() < 4096 {
+            cache.insert(text.to_owned(), value.clone());
+        }
+        Ok(value)
+    }
 }
 
 #[cfg(feature = "bert")]
@@ -1450,37 +1522,23 @@ fn parse_with_bert_bytes(
     weights: Vec<u8>,
     head_json: Option<&[u8]>,
 ) -> Result<MonsterSpec, Box<dyn std::error::Error + Send + Sync>> {
-    use candle_core::{DType, Device, Tensor};
-    use candle_nn::VarBuilder;
-    use candle_transformers::models::bert::{BertModel, Config};
-    use tokenizers::Tokenizer;
-    let device = Device::Cpu;
-    let config: Config = serde_json::from_slice(config_json)?;
-    let tokenizer = Tokenizer::from_bytes(tokenizer_json)?;
-    let vb = VarBuilder::from_buffered_safetensors(weights, DType::F32, &device)?;
-    let model = BertModel::load(vb, &config)?;
-    type Embedding = (Vec<f32>, Vec<Vec<f32>>, Vec<(usize, usize)>);
-    type ModelError = Box<dyn std::error::Error + Send + Sync>;
-    let embed = |text: &str| -> Result<Embedding, ModelError> {
-        let encoding = tokenizer.encode(text, true)?;
-        let ids = encoding.get_ids();
-        let token_types = encoding.get_type_ids();
-        let mask = encoding.get_attention_mask();
-        let ids = Tensor::new(ids, &device)?.unsqueeze(0)?;
-        let token_types = Tensor::new(token_types, &device)?.unsqueeze(0)?;
-        let mask = Tensor::new(mask, &device)?.unsqueeze(0)?;
-        let output = model.forward(&ids, &token_types, Some(&mask))?;
-        let tokens = output.i(0)?.to_vec2::<f32>()?;
-        Ok((tokens[0].clone(), tokens, encoding.get_offsets().to_vec()))
-    };
-    use candle_core::IndexOp;
-    let (query, tokens, offsets) = embed(prompt)?;
+    let runtime = BertRuntime::new(config_json, tokenizer_json, weights)?;
+    parse_with_bert_runtime(prompt, &runtime, head_json)
+}
+
+#[cfg(feature = "bert")]
+fn parse_with_bert_runtime(
+    prompt: &str,
+    runtime: &BertRuntime,
+    head_json: Option<&[u8]>,
+) -> Result<MonsterSpec, Box<dyn std::error::Error + Send + Sync>> {
+    let (query, tokens, offsets) = runtime.embed(prompt)?;
     let mut spec = parse_vocabulary(prompt);
     let mut best = (f32::NEG_INFINITY, "HUMANOID", "UNKNOWN");
     let mut runner_up = f32::NEG_INFINITY;
     if spec.affinity == "UNKNOWN" {
         for (word, plan, affinity) in CONCEPTS {
-            let (candidate, _, _) = embed(&format!("a {word} monster"))?;
+            let candidate = runtime.candidate(&format!("a {word} monster"))?;
             let dot: f32 = query.iter().zip(&candidate).map(|(a, b)| a * b).sum();
             let qa: f32 = query.iter().map(|v| v * v).sum::<f32>().sqrt();
             let ca: f32 = candidate.iter().map(|v| v * v).sum::<f32>().sqrt();
@@ -1640,7 +1698,7 @@ fn parse_with_bert_bytes(
     ] {
         let mut ranked = Vec::new();
         for word in candidates {
-            let (candidate, _, _) = embed(&format!("a {word} {identity}"))?;
+            let candidate = runtime.candidate(&format!("a {word} {identity}"))?;
             let dot: f32 = query.iter().zip(&candidate).map(|(a, b)| a * b).sum();
             let qa: f32 = query.iter().map(|v| v * v).sum::<f32>().sqrt();
             let ca: f32 = candidate.iter().map(|v| v * v).sum::<f32>().sqrt();
