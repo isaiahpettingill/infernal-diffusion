@@ -1,0 +1,80 @@
+{"prompt":"typhon with three heads","body_plan":"HUMANOID","affinity":"TYPHON"}
+{"prompt":"roman strix with iron claws","body_plan":"WINGED","affinity":"STRIX"}
+{"prompt":"ammit with crocodile jaws","body_plan":"QUADRUPED","affinity":"AMMIT"}
+{"prompt":"apophis rises from the sand","body_plan":"SERPENT","affinity":"APOPHIS"}
+{"prompt":"naga with a spear","body_plan":"SERPENT","affinity":"NAGA"}
+{"prompt":"rakshasa with six arms","body_plan":"HUMANOID","affinity":"RAKSHASA"}
+{"prompt":"jormungandr spits poison","body_plan":"SERPENT","affinity":"JORMUNGANDR"}
+{"prompt":"draugr with an axe","body_plan":"HUMANOID","affinity":"DRAUGR"}
+{"prompt":"banshee with spectral wings","body_plan":"FLOATING","affinity":"BANSHEE"}
+{"prompt":"kelpie riding through mist","body_plan":"QUADRUPED","affinity":"KELPIE"}
+{"prompt":"grootslang with tusks","body_plan":"SERPENT","affinity":"GROOTSLANG"}
+{"prompt":"tokoloshe with a club","body_plan":"HUMANOID","affinity":"TOKOLOSHE"}
+{"prompt":"quetzalcoatl with feathers","body_plan":"SERPENT","affinity":"QUETZALCOATL"}
+{"prompt":"ahuizotl with a long tail","body_plan":"QUADRUPED","affinity":"AHUIZOTL"}
+{"prompt":"skeletal jackal with a shotgun","body_plan":"QUADRUPED","affinity":"JACKAL"}
+{"prompt":"zombie bear with claws","body_plan":"QUADRUPED","affinity":"BEAR"}
+{"prompt":"phantom lion that shoots fire","body_plan":"QUADRUPED","affinity":"LION"}
+{"prompt":"giant moose with antlers","body_plan":"QUADRUPED","affinity":"MOOSE"}
+{"prompt":"rhino with armor","body_plan":"QUADRUPED","affinity":"RHINO"}
+{"prompt":"buffalo with horns","body_plan":"QUADRUPED","affinity":"BUFFALO"}
+{"prompt":"yeti with a chainsaw","body_plan":"HUMANOID","affinity":"YETI"}
+{"prompt":"chubacabra with fangs","body_plan":"QUADRUPED","affinity":"CHUPACABRA"}
+{"prompt":"alien mushroom with spores","body_plan":"HUMANOID","affinity":"ALIEN","secondary":"MUSHROOM"}
+{"prompt":"goblin wolf chimera","body_plan":"HUMANOID","affinity":"GOBLIN","secondary":"WOLF"}
+{"prompt":"orc riding a bear; rider survives","body_plan":"HUMANOID","affinity":"ORC","mount":"BEAR"}
+{"prompt":"goblin riding a wolf; mount survives","body_plan":"HUMANOID","affinity":"GOBLIN","mount":"WOLF"}
+{"prompt":"small spider that spawns clones","body_plan":"ARACHNID","affinity":"SPIDER","spawn":"SELF"}
+{"prompt":"mushroom summons hornets","body_plan":"FUNGUS","affinity":"MUSHROOM","spawn":"HORNET"}
+{"prompt":"sand worm that burrows","body_plan":"SERPENT","affinity":"SAND_WORM"}
+{"prompt":"evil robot with laser eyes","body_plan":"HUMANOID","affinity":"ROBOT"}
+{"prompt":"tank with a cannon","body_plan":"TANK","affinity":"TANK"}
+{"prompt":"centipede with poison fangs","body_plan":"ARACHNID","affinity":"CENTIPEDE"}
+{"prompt":"hornet drone with a laser","body_plan":"WINGED","affinity":"HORNET","secondary":"DRONE"}
+{"prompt":"adolph hitler","body_plan":"HUMANOID","affinity":"HITLER"}
+{"prompt":"sharknado","body_plan":"FLOATING","affinity":"SHARKNADO","spawn":"SHARK"}
+{"prompt":"shark tornado shoots smaller sharks","body_plan":"FLOATING","affinity":"SHARKNADO","spawn":"SHARK"}
+{"prompt":"tornado","body_plan":"FLOATING","affinity":"TORNADO","spawn":"SHARK"}
+{"prompt":"shark","body_plan":"SERPENT","affinity":"SHARK","spawn":"SHARK"}
+{"prompt":"sea dragon","body_plan":"SERPENT","affinity":"SEA_DRAGON"}
+{"prompt":"sea serpent","body_plan":"SERPENT","affinity":"SEA_SERPENT"}
+{"prompt":"kraken","body_plan":"AMORPHOUS","affinity":"KRAKEN"}
+{"prompt":"octopus","body_plan":"AMORPHOUS","affinity":"CEPHALOPOD"}
+{"prompt":"fish","body_plan":"SERPENT","affinity":"FISH"}
+{"prompt":"eel","body_plan":"SERPENT","affinity":"EEL"}
+{"prompt":"jellyfish","body_plan":"FLOATING","affinity":"JELLYFISH"}
+{"prompt":"pig riding a pig riding a pig","body_plan":"QUADRUPED","affinity":"PIG","mount":"PIG"}
+{"prompt":"anime girl with axe riding horse","body_plan":"HUMANOID","affinity":"ANIME_GIRL","mount":"HORSE"}
+{"prompt":"orc with laser","body_plan":"HUMANOID","affinity":"ORC"}
+{"prompt":"bat","body_plan":"WINGED","affinity":"BAT"}
+{"prompt":"hawk","body_plan":"WINGED","affinity":"HAWK"}
+{"prompt":"owl","body_plan":"WINGED","affinity":"OWL"}
+{"prompt":"eagle","body_plan":"WINGED","affinity":"EAGLE"}
+{"prompt":"crow","body_plan":"WINGED","affinity":"CROW"}
+{"prompt":"condor","body_plan":"WINGED","affinity":"CONDOR"}
+{"prompt":"heron","body_plan":"WINGED","affinity":"HERON"}
+{"prompt":"pelican","body_plan":"WINGED","affinity":"PELICAN"}
+{"prompt":"albatross","body_plan":"WINGED","affinity":"ALBATROSS"}
+{"prompt":"hummingbird","body_plan":"WINGED","affinity":"HUMMINGBIRD"}
+{"prompt":"killer rabbit","body_plan":"QUADRUPED","affinity":"KILLER_RABBIT"}
+{"prompt":"jar-jar binks","body_plan":"HUMANOID","affinity":"JAR_JAR"}
+{"prompt":"evil tree monster","body_plan":"FUNGUS","affinity":"TREE_MONSTER"}
+{"prompt":"fish-man with crab hands","body_plan":"HUMANOID","affinity":"FISHMAN","secondary":"CRAB"}
+{"prompt":"merman","body_plan":"HUMANOID","affinity":"MERMAN"}
+{"prompt":"dino","body_plan":"QUADRUPED","affinity":"LONGNECK_DINO"}
+{"prompt":"brontosaurus","body_plan":"QUADRUPED","affinity":"LONGNECK_DINO"}
+{"prompt":"T-Rex","body_plan":"THEROPOD","affinity":"TREX"}
+{"prompt":"velociraptor","body_plan":"THEROPOD","affinity":"RAPTOR"}
+{"prompt":"stegosaurus","body_plan":"QUADRUPED","affinity":"STEGO"}
+{"prompt":"triceratops","body_plan":"QUADRUPED","affinity":"TRICERATOPS"}
+{"prompt":"ankylosaurus","body_plan":"QUADRUPED","affinity":"ANKYLOSAUR"}
+{"prompt":"woolly mammoth","body_plan":"QUADRUPED","affinity":"MAMMOTH"}
+{"prompt":"smilodon","body_plan":"QUADRUPED","affinity":"SABERTOOTH_CAT"}
+{"prompt":"killer whale","body_plan":"SERPENT","affinity":"ORCA"}
+{"prompt":"harpie with huge claws","body_plan":"WINGED","affinity":"HARPY"}
+{"prompt":"siren","body_plan":"WINGED","affinity":"SIREN"}
+{"prompt":"beetle","body_plan":"INSECT","affinity":"BEETLE"}
+{"prompt":"pigeon","body_plan":"WINGED","affinity":"PIGEON"}
+{"prompt":"giraffe","body_plan":"QUADRUPED","affinity":"GIRAFFE"}
+{"prompt":"rhinoceros","body_plan":"QUADRUPED","affinity":"RHINO"}
+{"prompt":"fox","body_plan":"QUADRUPED","affinity":"WOLF"}

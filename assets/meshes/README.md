@@ -1,0 +1,7 @@
+# Mesh recipes
+
+These checked-in triangle meshes are authored for Infernal Diffusion. They are geometry templates, not sprite images or copies of the referenced projects' assets. `tools/author_meshes.py` rebuilds the JSON files and is only an authoring tool; the Rust generator embeds the JSON files and needs no Python, Blender, GPU, or graphics window.
+
+Each asset contains normalized `vertices` and triangular `faces`. A face has three vertex indices and a material role. The 3D bake scales a selected skull to the generated head node, places parts on matching anatomy nodes, and fills the rest of the creature with procedural body volumes and connective cylinders. Skull recipes include canid, reptile, worm maw, feline, bovine, bear, moose, rhino, elephant, alien, goblin, robot, mushroom, clown, anime face, an explicit historical caricature, tank turret, humanoid, cyclops, arthropod, avian, and generic. Terminal parts include horn, claw, fang, membrane and feather wings, shell, hoof, paw, sword, club, axe, spear, bow, chainsaw, tank treads, and rotors. These are mesh templates rather than fixed sprite limbs.
+
+The approach follows the idea of combining a parameterized body with constrained head and limb templates discussed in [Pudgy Pals](https://github.com/nmagarino/Pudgy-Pals-Procedural-Creature-Generator), [Procedural Creature Generation and Animation for Games](https://nccastaff.bournemouth.ac.uk/jmacey/MastersProject/MSc22/01/ProceduralCreatureGenerationandAnimationforGames.pdf), and [animalclub](https://github.com/minimapletinytools/animalclub).

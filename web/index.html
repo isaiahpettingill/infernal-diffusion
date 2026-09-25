@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Infernal Diffusion · Arena</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div><p class="eyebrow">PROCEDURAL BESTIARY / LOCAL ARENA</p><h1>Infernal <span>Diffusion</span></h1></div>
+      <p>Describe a creature. Watch it move. Then see if your stickman can survive.</p>
+    </header>
+    <section class="workbench">
+      <form id="generator" class="generator">
+        <label for="prompt">Monster prompt</label>
+        <div class="prompt-row"><input id="prompt" name="prompt" value="giant spider that shoots fire" maxlength="4096" autocomplete="off" required><button type="submit" id="generate">Generate monster</button></div>
+        <div class="options"><label for="seed">Seed <input id="seed" type="number" min="0" step="1" value="7"></label><span>3D bake · shared pixel scale · seeded surface noise</span></div>
+        <p class="status" id="status" role="status">Ready. Generation can take a little while.</p>
+      </form>
+      <div class="preset-row" aria-label="Example prompts">
+        <button type="button" data-prompt="small armored snail">Armored snail</button>
+        <button type="button" data-prompt="six armed cyclops with swords">Six armed cyclops</button>
+        <button type="button" data-prompt="spectral dragon that shoots fire">Spectral dragon</button>
+        <button type="button" data-prompt="sharknado">Sharknado</button>
+      </div>
+    </section>
+    <section class="arena-panel">
+      <div class="arena-top"><div><p class="eyebrow">THE ARENA</p><h2 id="monster-name">Awaiting specimen</h2></div><div class="arena-actions"><button id="viewer-mode" class="active" type="button">Animation viewer</button><button id="fight-mode" type="button">Fight</button><button id="reset-fight" type="button" hidden>Restart</button></div></div>
+      <canvas id="arena" width="960" height="520" tabindex="0" aria-label="Animated monster and stickman arena"></canvas>
+      <div class="arena-bottom"><label id="clip-control">Animation <select id="clip"></select></label><label id="direction-control">Angle <select id="direction"></select></label><span id="controls" hidden>Move A/D or ←/→ · jump Space/Z · strike or block shots X/left click · fire C/right click</span><span id="arena-message">Generate a monster to begin.</span></div>
+    </section>
+    <section class="details" id="details" hidden>
+      <div class="detail-heading"><div><p class="eyebrow">SPECIMEN RECORD</p><h2 id="detail-name"></h2><p id="description"></p></div><div class="size-badge" id="size-badge"></div></div>
+      <div class="stats"><div><span>HIT POINTS</span><strong id="health"></strong></div><div><span>DEFENSE</span><strong id="defense"></strong></div><div><span>VISIBLE SIZE</span><strong id="visible-size"></strong></div></div>
+      <div class="health-formula"><h3>Where its health comes from</h3><div id="health-parts"></div></div>
+      <div class="tags" id="tags"></div>
+      <p class="download-note">The generated package is saved under <code>web/generated/</code> with its protobuf, sprite sheet, emission, and projectile art.</p>
+    </section>
+  </main>
+  <script src="/app.js" defer></script>
+</body>
+</html>
