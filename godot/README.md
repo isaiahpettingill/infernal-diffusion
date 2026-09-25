@@ -1,12 +1,20 @@
 # Godot desktop extension
 
-Copy `addons/infernal_diffusion` into a Godot 4.1+ project, including the binaries
+Copy `addons/infernal_diffusion` into a Godot 4.6+ project, including the binaries
 produced by `tools/build_gdextension.py`. Use a Godot editor matching the
 packaged extension architecture. `godot/extension` is the Rust GDExtension shim.
 
 For immediate gameplay use, generate in memory. This returns the Rust-generated
 monster as nested Godot dictionaries/arrays and each atlas as raw RGBA bytes;
 the generator does not encode or decode protobuf on this path.
+
+For an NPC that speaks its own monster prompts, call
+`suggest_prompt_async(seed, difficulty)` with difficulty 1, 2, or 3. The
+result from `poll_result()` has `prompt`, `difficulty`, and `monster_seed`.
+Speak `prompt`, then pass that exact string and `monster_seed` to
+`generate_in_memory_async`. `suggest_arena_prompt_async(run_seed, round)`
+uses one-based rounds; rounds 1–3 are difficulty 1, 4–6 are 2, and 7 onward
+are 3. See `godot/examples/throne_summoner.gd` for a complete wave director.
 
 ```gdscript
 var monsters := InfernalDiffusion.new()

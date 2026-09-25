@@ -5,6 +5,7 @@ pub mod mystery;
 pub mod parser;
 pub mod physics;
 pub mod projectile;
+pub mod prompt;
 pub mod proto;
 pub mod recipes;
 pub mod render;
@@ -1583,6 +1584,77 @@ pub extern "C" fn infernal_cpu_kernel_name() -> *const c_char {
         "x64" => c"x64".as_ptr(),
         "arm64" => c"arm64".as_ptr(),
         _ => c"x86".as_ptr(),
+    }
+}
+
+#[no_mangle]
+/// # Safety
+/// `error_out`, when non-null, must point to writable pointer storage. The
+/// returned UTF-8 string must be freed with `infernal_free_string`.
+pub unsafe extern "C" fn infernal_random_prompt(
+    seed: u64,
+    difficulty: u32,
+    error_out: *mut *mut c_char,
+) -> *mut c_char {
+    if !error_out.is_null() {
+        *error_out = std::ptr::null_mut();
+    }
+    match std::panic::catch_unwind(|| {
+        if !(1..=3).contains(&difficulty) {
+            return Err(prompt::PromptError::InvalidDifficulty.to_string());
+        }
+        prompt::random_prompt(seed, difficulty as u8).map_err(|error| error.to_string())
+    }) {
+        Ok(Ok(value)) => CString::new(value).unwrap_or_default().into_raw(),
+        other => {
+            if !error_out.is_null() {
+                let message = match other {
+                    Ok(Err(error)) => error,
+                    Err(_) => "panic while composing prompt".into(),
+                    _ => unreachable!(),
+                };
+                *error_out = CString::new(message).unwrap_or_default().into_raw();
+            }
+            std::ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+/// # Safety
+/// Output pointers, when non-null, must be writable. The returned UTF-8
+/// string must be freed with `infernal_free_string`.
+pub unsafe extern "C" fn infernal_arena_prompt(
+    run_seed: u64,
+    round: u32,
+    difficulty_out: *mut u32,
+    monster_seed_out: *mut u64,
+    error_out: *mut *mut c_char,
+) -> *mut c_char {
+    if !error_out.is_null() {
+        *error_out = std::ptr::null_mut();
+    }
+    match std::panic::catch_unwind(|| prompt::arena_prompt(run_seed, round)) {
+        Ok(Ok(value)) => {
+            if !difficulty_out.is_null() {
+                *difficulty_out = u32::from(value.difficulty);
+            }
+            if !monster_seed_out.is_null() {
+                *monster_seed_out = value.monster_seed;
+            }
+            CString::new(value.prompt).unwrap_or_default().into_raw()
+        }
+        other => {
+            if !error_out.is_null() {
+                let message = match other {
+                    Ok(Err(error)) => error.to_string(),
+                    Err(_) => "panic while composing arena prompt".into(),
+                    _ => unreachable!(),
+                };
+                *error_out = CString::new(message).unwrap_or_default().into_raw();
+            }
+            std::ptr::null_mut()
+        }
     }
 }
 

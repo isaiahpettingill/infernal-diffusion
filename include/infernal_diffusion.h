@@ -11,6 +11,14 @@ uint32_t infernal_abi_version(void);
 /* Selected CPU raster kernel: x64, x64_v2, x64_v3, x86, or arm64.
    The returned static string is owned by the library. */
 const char *infernal_cpu_kernel_name(void);
+/* Deterministic, recipe-aware NPC speech. Difficulty is 1..3.
+   The returned string is freed with infernal_free_string. */
+char *infernal_random_prompt(uint64_t seed, uint32_t difficulty, char **error_out);
+/* One-based round; difficulty rises after rounds 3 and 6. The monster seed
+   is safe to pass to Godot's signed 64-bit generation API. */
+char *infernal_arena_prompt(uint64_t run_seed, uint32_t round,
+                            uint32_t *difficulty_out, uint64_t *monster_seed_out,
+                            char **error_out);
 /* Bakes the default four-angle 3D atlas and portable package. Ranged attacks
    also write projectiles.png. Returns 0 on success. */
 int32_t infernal_generate(const char *prompt, uint64_t seed,

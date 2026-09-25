@@ -19,6 +19,12 @@ func generate_async(prompt: String, seed: int, output_dir: String) -> int:
 func generate_in_memory_async(prompt: String, seed: int) -> int:
 	return _generator.generate_in_memory_async(prompt, seed, _library_dir())
 
+func suggest_prompt_async(seed: int, difficulty: int) -> int:
+	return _generator.suggest_prompt_async(seed, difficulty, _library_dir())
+
+func suggest_arena_prompt_async(run_seed: int, round: int) -> int:
+	return _generator.suggest_arena_prompt_async(run_seed, round, _library_dir())
+
 func save_in_memory_async(object_job_id: int, output_dir: String) -> int:
 	return _generator.save_in_memory_async(object_job_id, ProjectSettings.globalize_path(output_dir))
 

@@ -1,6 +1,45 @@
 use std::path::Path;
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    if args.len() == 4 && args[1] == "suggest" {
+        let seed: u64 = args[2].parse().unwrap_or_else(|_| {
+            eprintln!("seed must be an unsigned integer");
+            std::process::exit(2)
+        });
+        let difficulty: u8 = args[3].parse().unwrap_or_else(|_| {
+            eprintln!("difficulty must be 1, 2, or 3");
+            std::process::exit(2)
+        });
+        match infernal_diffusion::prompt::random_prompt(seed, difficulty) {
+            Ok(prompt) => println!("{prompt}"),
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(2)
+            }
+        }
+        return;
+    }
+    if args.len() == 4 && args[1] == "arena-suggest" {
+        let run_seed: u64 = args[2].parse().unwrap_or_else(|_| {
+            eprintln!("seed must be an unsigned integer");
+            std::process::exit(2)
+        });
+        let round: u32 = args[3].parse().unwrap_or_else(|_| {
+            eprintln!("round must be a positive integer");
+            std::process::exit(2)
+        });
+        match infernal_diffusion::prompt::arena_prompt(run_seed, round) {
+            Ok(wave) => println!(
+                "{}",
+                serde_json::json!({"prompt":wave.prompt,"difficulty":wave.difficulty,"monster_seed":wave.monster_seed})
+            ),
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(2)
+            }
+        }
+        return;
+    }
     if (args.len() == 2 || args.len() == 3) && args[1] == "serve" {
         let port = args.get(2).map_or(Ok(8799), |value| value.parse::<u16>());
         let port = port.unwrap_or_else(|_| {
@@ -113,6 +152,8 @@ fn main() {
         eprintln!("       infernal validate <package-dir>");
         eprintln!("       infernal inspect <package-dir>");
         eprintln!("       infernal parse <prompt> [bert-model-dir]");
+        eprintln!("       infernal suggest <seed> <difficulty-1-to-3>");
+        eprintln!("       infernal arena-suggest <run-seed> <round>");
         eprintln!("       infernal bake3d <prompt> <seed> <output-dir> [bert-model-dir]");
         eprintln!("       infernal bake2d <prompt> <seed> <output-dir> [bert-model-dir]");
         eprintln!("       infernal serve [port]");

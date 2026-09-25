@@ -20,12 +20,17 @@ struct Job {
 #[derive(Clone, Copy)]
 enum Command {
     Generate,
+    Suggest(u32),
+    SuggestArena(u32),
     Save(i64),
     Release(i64),
 }
 
 struct JobResult {
     id: i64,
+    prompt: String,
+    difficulty: u32,
+    monster_seed: u64,
     path: String,
     backend: String,
     error: String,
@@ -174,6 +179,38 @@ impl InfernalGenerator {
             .is_ok()
     }
 
+    /// Queue a cheap recipe-aware prompt for an NPC to speak before spawning.
+    #[func]
+    fn suggest_prompt_async(&mut self, seed: i64, difficulty: i32, library_dir: GString) -> i64 {
+        self.queue_suggestion(seed, difficulty, library_dir, false)
+    }
+
+    /// Queue a one-based arena round. Difficulty rises every three rounds.
+    #[func]
+    fn suggest_arena_prompt_async(&mut self, run_seed: i64, round: i32, library_dir: GString) -> i64 {
+        self.queue_suggestion(run_seed, round, library_dir, true)
+    }
+
+    fn queue_suggestion(&mut self, seed: i64, value: i32, library_dir: GString, arena: bool) -> i64 {
+        let libraries = PathBuf::from(library_dir.to_string());
+        if seed < 0 || value < 1 || !libraries.is_absolute() || (!arena && value > 3) {
+            return -1;
+        }
+        let id = self.next_id;
+        let job = Job {
+            id,
+            prompt: String::new(),
+            seed: seed as u64,
+            output_dir: None,
+            library_dir: libraries,
+            command: if arena { Command::SuggestArena(value as u32) } else { Command::Suggest(value as u32) },
+        };
+        match self.jobs.try_send(job) {
+            Ok(()) => { self.next_id += 1; id }
+            Err(TrySendError::Full(_)) | Err(TrySendError::Disconnected(_)) => -1,
+        }
+    }
+
     /// Poll once per frame. Empty Dictionary means no completed job.
     #[func]
     fn poll_result(&mut self) -> VarDictionary {
@@ -181,6 +218,9 @@ impl InfernalGenerator {
             Ok(result) => {
                 let mut value = VarDictionary::new();
                 value.set("job_id", result.id);
+                value.set("prompt", result.prompt);
+                value.set("difficulty", result.difficulty);
+                value.set("monster_seed", result.monster_seed as i64);
                 value.set("ok", result.error.is_empty());
                 value.set("package_dir", result.path);
                 value.set("backend", result.backend);
@@ -258,12 +298,17 @@ fn worker(incoming: Receiver<Job>, outgoing: SyncSender<JobResult>) {
             Command::Save(source) => save_object(&job, source, backend.as_ref(), &objects),
             Command::Generate if job.output_dir.is_none() && objects.len() >= 4 => JobResult {
                 id: job.id,
+                prompt: job.prompt.clone(),
+                difficulty: 0,
+                monster_seed: job.seed,
                 path: String::new(),
                 backend: String::new(),
                 error: "release an in-memory monster before generating another".into(),
                 packages: Vec::new(),
             },
-            Command::Generate => run_job(&job, &mut backend, &mut objects),
+            Command::Generate | Command::Suggest(_) | Command::SuggestArena(_) => {
+                run_job(&job, &mut backend, &mut objects)
+            }
             Command::Release(_) => unreachable!(),
         };
         if outgoing.send(result).is_err() {
@@ -285,6 +330,9 @@ fn save_object(
 ) -> JobResult {
     let mut result = JobResult {
         id: job.id,
+        prompt: String::new(),
+        difficulty: 0,
+        monster_seed: 0,
         path: job
             .output_dir
             .as_ref()
@@ -320,6 +368,8 @@ type Generate = unsafe extern "C" fn(*const c_char, u64, *const c_char, *mut *mu
 type FreeString = unsafe extern "C" fn(*mut c_char);
 type AbiVersion = unsafe extern "C" fn() -> u32;
 type CpuKernelName = unsafe extern "C" fn() -> *const c_char;
+type RandomPrompt = unsafe extern "C" fn(u64, u32, *mut *mut c_char) -> *mut c_char;
+type ArenaPrompt = unsafe extern "C" fn(u64, u32, *mut u32, *mut u64, *mut *mut c_char) -> *mut c_char;
 type GenerateObject = unsafe extern "C" fn(*const c_char, u64, *mut *mut c_char) -> *mut c_void;
 type FreeObject = unsafe extern "C" fn(*mut c_void);
 type ObjectCount = unsafe extern "C" fn(*const c_void) -> u32;
@@ -341,6 +391,8 @@ type ObjectSave = unsafe extern "C" fn(*const c_void, *const c_char, *mut *mut c
 struct Backend {
     path: PathBuf,
     cpu_kernel_name: CpuKernelName,
+    random_prompt: RandomPrompt,
+    arena_prompt: ArenaPrompt,
     _library: libloading::Library,
     generate: Generate,
     free: FreeString,
@@ -420,6 +472,8 @@ fn load_backend(library_dir: &PathBuf) -> Result<Backend, String> {
                 generate,
                 free,
                 symbol!(b"infernal_cpu_kernel_name", CpuKernelName),
+                symbol!(b"infernal_random_prompt", RandomPrompt),
+                symbol!(b"infernal_arena_prompt", ArenaPrompt),
                 symbol!(b"infernal_generate_object", GenerateObject),
                 symbol!(b"infernal_object_free", FreeObject),
                 symbol!(b"infernal_object_count", ObjectCount),
@@ -432,16 +486,18 @@ fn load_backend(library_dir: &PathBuf) -> Result<Backend, String> {
         return Ok(Backend {
             path,
             cpu_kernel_name: functions.2,
+            random_prompt: functions.3,
+            arena_prompt: functions.4,
             _library: library,
             generate: functions.0,
             free: functions.1,
-            generate_object: functions.3,
-            free_object: functions.4,
-            object_count: functions.5,
-            object_path: functions.6,
-            object_pixels: functions.7,
-            object_visit: functions.8,
-            object_save: functions.9,
+            generate_object: functions.5,
+            free_object: functions.6,
+            object_count: functions.7,
+            object_path: functions.8,
+            object_pixels: functions.9,
+            object_visit: functions.10,
+            object_save: functions.11,
         });
     }
     if last_error.is_empty() {
@@ -461,6 +517,9 @@ fn run_job(
 ) -> JobResult {
     let mut result = JobResult {
         id: job.id,
+        prompt: job.prompt.clone(),
+        difficulty: 0,
+        monster_seed: job.seed,
         path: job
             .output_dir
             .as_ref()
@@ -495,6 +554,43 @@ fn run_job(
     }
     let active = backend.as_ref().expect("loaded above");
     result.backend = active.kernel_name();
+    match job.command {
+        Command::Suggest(difficulty) => {
+            let mut error_ptr = std::ptr::null_mut();
+            let pointer = unsafe { (active.random_prompt)(job.seed, difficulty, &mut error_ptr) };
+            if pointer.is_null() {
+                result.error = copy_error(error_ptr, active.free);
+                if result.error.is_empty() {
+                    result.error = "prompt composition failed".into();
+                }
+            } else {
+                result.prompt = copy_error(pointer, active.free);
+                result.difficulty = difficulty;
+            }
+            return result;
+        }
+        Command::SuggestArena(round) => {
+            let mut difficulty = 0;
+            let mut monster_seed = 0;
+            let mut error_ptr = std::ptr::null_mut();
+            let pointer = unsafe {
+                (active.arena_prompt)(job.seed, round, &mut difficulty, &mut monster_seed, &mut error_ptr)
+            };
+            if pointer.is_null() {
+                result.error = copy_error(error_ptr, active.free);
+                if result.error.is_empty() {
+                    result.error = "arena prompt composition failed".into();
+                }
+            } else {
+                result.prompt = copy_error(pointer, active.free);
+                result.difficulty = difficulty;
+                result.monster_seed = monster_seed;
+            }
+            return result;
+        }
+        Command::Generate => {}
+        Command::Save(_) | Command::Release(_) => unreachable!(),
+    }
     if job.output_dir.is_none() {
         let mut error_ptr: *mut c_char = std::ptr::null_mut();
         let object = unsafe { (active.generate_object)(prompt.as_ptr(), job.seed, &mut error_ptr) };
