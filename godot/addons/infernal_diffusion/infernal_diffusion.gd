@@ -1,6 +1,9 @@
 class_name InfernalDiffusion
 extends RefCounted
 
+const FORMAT_PROTOBUF := 0
+const FORMAT_CBOR := 1
+
 var _generator: InfernalGenerator = InfernalGenerator.new()
 
 static func _library_dir() -> String:
@@ -16,6 +19,9 @@ static func _library_dir() -> String:
 func generate_async(prompt: String, seed: int, output_dir: String) -> int:
 	return _generator.generate_async(prompt, seed, ProjectSettings.globalize_path(output_dir), _library_dir())
 
+func generate_async_format(prompt: String, seed: int, output_dir: String, format: int) -> int:
+	return _generator.generate_async_format(prompt, seed, ProjectSettings.globalize_path(output_dir), format, _library_dir())
+
 func generate_in_memory_async(prompt: String, seed: int) -> int:
 	return _generator.generate_in_memory_async(prompt, seed, _library_dir())
 
@@ -27,6 +33,9 @@ func suggest_arena_prompt_async(run_seed: int, round: int) -> int:
 
 func save_in_memory_async(object_job_id: int, output_dir: String) -> int:
 	return _generator.save_in_memory_async(object_job_id, ProjectSettings.globalize_path(output_dir))
+
+func save_in_memory_async_format(object_job_id: int, output_dir: String, format: int) -> int:
+	return _generator.save_in_memory_async_format(object_job_id, ProjectSettings.globalize_path(output_dir), format)
 
 func release_in_memory(object_job_id: int) -> bool:
 	return _generator.release_in_memory(object_job_id)

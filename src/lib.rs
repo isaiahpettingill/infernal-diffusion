@@ -38,6 +38,71 @@ pub enum Error {
     Model(String),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u32)]
+pub enum PackageFormat {
+    Protobuf = 0,
+    Cbor = 1,
+}
+
+impl TryFrom<u32> for PackageFormat {
+    type Error = Error;
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Protobuf),
+            1 => Ok(Self::Cbor),
+            _ => Err(Error::InvalidMonster(format!(
+                "unknown package format {value}"
+            ))),
+        }
+    }
+}
+
+impl PackageFormat {
+    pub fn filename(self) -> &'static str {
+        match self {
+            Self::Protobuf => "monster.pb",
+            Self::Cbor => "monster.cbor",
+        }
+    }
+}
+
+fn write_metadata(
+    path: &Path,
+    monster: &proto::Monster,
+    format: PackageFormat,
+) -> Result<(), Error> {
+    let bytes = match format {
+        PackageFormat::Protobuf => monster.encode_to_vec(),
+        PackageFormat::Cbor => {
+            let mut bytes = Vec::new();
+            ciborium::into_writer(monster, &mut bytes)
+                .map_err(|e| Error::InvalidMonster(format!("CBOR encoding failed: {e}")))?;
+            bytes
+        }
+    };
+    std::fs::write(path.join(format.filename()), bytes)?;
+    let other = match format {
+        PackageFormat::Protobuf => PackageFormat::Cbor,
+        PackageFormat::Cbor => PackageFormat::Protobuf,
+    };
+    let stale = path.join(other.filename());
+    if stale.exists() {
+        std::fs::remove_file(stale)?;
+    }
+    Ok(())
+}
+
+fn read_metadata(path: &Path, format: PackageFormat) -> Result<proto::Monster, Error> {
+    let bytes = std::fs::read(path.join(format.filename()))?;
+    match format {
+        PackageFormat::Protobuf => proto::Monster::decode(bytes.as_slice())
+            .map_err(|e| Error::InvalidMonster(format!("invalid protobuf: {e}"))),
+        PackageFormat::Cbor => ciborium::from_reader(bytes.as_slice())
+            .map_err(|e| Error::InvalidMonster(format!("invalid CBOR: {e}"))),
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum RenderStyle {
     Flat2d,
@@ -50,13 +115,23 @@ pub fn generate(
     output_dir: &Path,
     model_dir: Option<&Path>,
 ) -> Result<proto::Monster, Error> {
+    generate_with_format(prompt, seed, output_dir, model_dir, PackageFormat::Protobuf)
+}
+
+pub fn generate_with_format(
+    prompt: &str,
+    seed: u64,
+    output_dir: &Path,
+    model_dir: Option<&Path>,
+    format: PackageFormat,
+) -> Result<proto::Monster, Error> {
     generate_prompt(
         prompt,
         seed,
         output_dir,
         model_dir,
         RenderStyle::Mesh3d,
-        &mut DiskSink,
+        &mut DiskSink { format },
     )
 }
 
@@ -66,13 +141,23 @@ pub fn generate_2d(
     output_dir: &Path,
     model_dir: Option<&Path>,
 ) -> Result<proto::Monster, Error> {
+    generate_2d_with_format(prompt, seed, output_dir, model_dir, PackageFormat::Protobuf)
+}
+
+pub fn generate_2d_with_format(
+    prompt: &str,
+    seed: u64,
+    output_dir: &Path,
+    model_dir: Option<&Path>,
+    format: PackageFormat,
+) -> Result<proto::Monster, Error> {
     generate_prompt(
         prompt,
         seed,
         output_dir,
         model_dir,
         RenderStyle::Flat2d,
-        &mut DiskSink,
+        &mut DiskSink { format },
     )
 }
 
@@ -82,13 +167,23 @@ pub fn generate_3d(
     output_dir: &Path,
     model_dir: Option<&Path>,
 ) -> Result<proto::Monster, Error> {
+    generate_with_format(prompt, seed, output_dir, model_dir, PackageFormat::Protobuf)
+}
+
+pub fn generate_3d_with_format(
+    prompt: &str,
+    seed: u64,
+    output_dir: &Path,
+    model_dir: Option<&Path>,
+    format: PackageFormat,
+) -> Result<proto::Monster, Error> {
     generate_prompt(
         prompt,
         seed,
         output_dir,
         model_dir,
         RenderStyle::Mesh3d,
-        &mut DiskSink,
+        &mut DiskSink { format },
     )
 }
 
@@ -124,6 +219,14 @@ pub fn generate_in_memory(prompt: &str, seed: u64) -> Result<GeneratedMonster, E
 }
 
 pub fn save_generated(generated: &GeneratedMonster, output_dir: &Path) -> Result<(), Error> {
+    save_generated_with_format(generated, output_dir, PackageFormat::Protobuf)
+}
+
+pub fn save_generated_with_format(
+    generated: &GeneratedMonster,
+    output_dir: &Path,
+    format: PackageFormat,
+) -> Result<(), Error> {
     for package in &generated.packages {
         let destination = output_dir.join(&package.path);
         std::fs::create_dir_all(&destination)?;
@@ -132,10 +235,7 @@ pub fn save_generated(generated: &GeneratedMonster, output_dir: &Path) -> Result
         if let Some(projectiles) = &package.projectiles {
             projectiles.save(destination.join("projectiles.png"))?;
         }
-        std::fs::write(
-            destination.join("monster.pb"),
-            package.monster.encode_to_vec(),
-        )?;
+        write_metadata(&destination, &package.monster, format)?;
     }
     Ok(())
 }
@@ -151,7 +251,9 @@ trait PackageSink {
     ) -> Result<(), Error>;
 }
 
-struct DiskSink;
+struct DiskSink {
+    format: PackageFormat,
+}
 impl PackageSink for DiskSink {
     fn store(
         &mut self,
@@ -170,7 +272,7 @@ impl PackageSink for DiskSink {
         if let Some((size, columns, stride)) = preview {
             render3d::preview(sheet, size, columns, stride).save(path.join("preview.png"))?;
         }
-        std::fs::write(path.join("monster.pb"), monster.encode_to_vec())?;
+        write_metadata(path, monster, self.format)?;
         Ok(())
     }
 }
@@ -309,6 +411,15 @@ pub fn generate_from_spec(
     seed: u64,
     output_dir: &Path,
 ) -> Result<proto::Monster, Error> {
+    generate_from_spec_with_format(spec, seed, output_dir, PackageFormat::Protobuf)
+}
+
+pub fn generate_from_spec_with_format(
+    spec: parser::MonsterSpec,
+    seed: u64,
+    output_dir: &Path,
+    format: PackageFormat,
+) -> Result<proto::Monster, Error> {
     let source = serde_json::to_string(&spec).map_err(|e| Error::InvalidMonster(e.to_string()))?;
     generate_spec_internal(
         spec,
@@ -317,7 +428,7 @@ pub fn generate_from_spec(
         output_dir,
         "recipe-v1-spec".into(),
         &recipes::DefaultStages,
-        &mut DiskSink,
+        &mut DiskSink { format },
         GenerationOptions {
             render_style: RenderStyle::Mesh3d,
             allow_auto_spawn: true,
@@ -331,6 +442,15 @@ pub fn generate_from_spec_2d(
     seed: u64,
     output_dir: &Path,
 ) -> Result<proto::Monster, Error> {
+    generate_from_spec_2d_with_format(spec, seed, output_dir, PackageFormat::Protobuf)
+}
+
+pub fn generate_from_spec_2d_with_format(
+    spec: parser::MonsterSpec,
+    seed: u64,
+    output_dir: &Path,
+    format: PackageFormat,
+) -> Result<proto::Monster, Error> {
     let source = serde_json::to_string(&spec).map_err(|e| Error::InvalidMonster(e.to_string()))?;
     generate_spec_internal(
         spec,
@@ -339,7 +459,7 @@ pub fn generate_from_spec_2d(
         output_dir,
         "recipe-v1-spec".into(),
         &recipes::DefaultStages,
-        &mut DiskSink,
+        &mut DiskSink { format },
         GenerationOptions {
             render_style: RenderStyle::Flat2d,
             allow_auto_spawn: true,
@@ -353,21 +473,16 @@ pub fn generate_from_spec_3d(
     seed: u64,
     output_dir: &Path,
 ) -> Result<proto::Monster, Error> {
-    let source = serde_json::to_string(&spec).map_err(|e| Error::InvalidMonster(e.to_string()))?;
-    generate_spec_internal(
-        spec,
-        &source,
-        seed,
-        output_dir,
-        "recipe-v1-spec".into(),
-        &recipes::DefaultStages,
-        &mut DiskSink,
-        GenerationOptions {
-            render_style: RenderStyle::Mesh3d,
-            allow_auto_spawn: true,
-            randomize_unknown: false,
-        },
-    )
+    generate_from_spec_with_format(spec, seed, output_dir, PackageFormat::Protobuf)
+}
+
+pub fn generate_from_spec_3d_with_format(
+    spec: parser::MonsterSpec,
+    seed: u64,
+    output_dir: &Path,
+    format: PackageFormat,
+) -> Result<proto::Monster, Error> {
+    generate_from_spec_with_format(spec, seed, output_dir, format)
 }
 
 pub fn generate_from_spec_with_stages(
@@ -375,6 +490,22 @@ pub fn generate_from_spec_with_stages(
     seed: u64,
     output_dir: &Path,
     stages: &dyn recipes::GenerationStages,
+) -> Result<proto::Monster, Error> {
+    generate_from_spec_with_stages_and_format(
+        spec,
+        seed,
+        output_dir,
+        stages,
+        PackageFormat::Protobuf,
+    )
+}
+
+pub fn generate_from_spec_with_stages_and_format(
+    spec: parser::MonsterSpec,
+    seed: u64,
+    output_dir: &Path,
+    stages: &dyn recipes::GenerationStages,
+    format: PackageFormat,
 ) -> Result<proto::Monster, Error> {
     let source = serde_json::to_string(&spec).map_err(|e| Error::InvalidMonster(e.to_string()))?;
     generate_spec_internal(
@@ -384,7 +515,7 @@ pub fn generate_from_spec_with_stages(
         output_dir,
         "recipe-v1-spec".into(),
         stages,
-        &mut DiskSink,
+        &mut DiskSink { format },
         GenerationOptions {
             render_style: RenderStyle::Flat2d,
             allow_auto_spawn: true,
@@ -953,6 +1084,22 @@ pub fn export_handcrafted_with_projectiles(
     projectile_sheet: Option<&image::RgbaImage>,
     output_dir: &Path,
 ) -> Result<(), Error> {
+    export_handcrafted_with_format(
+        monster,
+        sheet,
+        projectile_sheet,
+        output_dir,
+        PackageFormat::Protobuf,
+    )
+}
+
+pub fn export_handcrafted_with_format(
+    monster: &proto::Monster,
+    sheet: &image::RgbaImage,
+    projectile_sheet: Option<&image::RgbaImage>,
+    output_dir: &Path,
+    format: PackageFormat,
+) -> Result<(), Error> {
     validate(monster, sheet)?;
     if !monster.projectiles.is_empty()
         && !projectile_sheet
@@ -974,18 +1121,43 @@ pub fn export_handcrafted_with_projectiles(
     {
         render::emission_sheet(sheet).save(output_dir.join("emission.png"))?;
     }
-    std::fs::write(output_dir.join("monster.pb"), monster.encode_to_vec())?;
+    write_metadata(output_dir, monster, format)?;
     Ok(())
 }
 
 pub fn load_package(output_dir: &Path) -> Result<proto::Monster, Error> {
-    load_package_inner(output_dir, 0)
+    let pb = output_dir.join(PackageFormat::Protobuf.filename()).exists();
+    let cbor = output_dir.join(PackageFormat::Cbor.filename()).exists();
+    let format = match (pb, cbor) {
+        (true, false) => PackageFormat::Protobuf,
+        (false, true) => PackageFormat::Cbor,
+        (true, true) => {
+            return Err(Error::InvalidMonster(
+                "ambiguous package: both monster.pb and monster.cbor exist".into(),
+            ))
+        }
+        (false, false) => {
+            return Err(Error::InvalidMonster(
+                "missing monster.pb or monster.cbor".into(),
+            ))
+        }
+    };
+    load_package_with_format(output_dir, format)
 }
 
-fn load_package_inner(output_dir: &Path, depth: u8) -> Result<proto::Monster, Error> {
-    let bytes = std::fs::read(output_dir.join("monster.pb"))?;
-    let monster = proto::Monster::decode(bytes.as_slice())
-        .map_err(|e| Error::InvalidMonster(format!("invalid protobuf: {e}")))?;
+pub fn load_package_with_format(
+    output_dir: &Path,
+    format: PackageFormat,
+) -> Result<proto::Monster, Error> {
+    load_package_inner(output_dir, 0, format)
+}
+
+fn load_package_inner(
+    output_dir: &Path,
+    depth: u8,
+    format: PackageFormat,
+) -> Result<proto::Monster, Error> {
+    let monster = read_metadata(output_dir, format)?;
     let sprites = monster
         .sprites
         .as_ref()
@@ -1009,15 +1181,16 @@ fn load_package_inner(output_dir: &Path, depth: u8) -> Result<proto::Monster, Er
     if depth < 4 {
         for attack in &monster.attacks {
             if let Some(spawn) = &attack.spawn {
-                let child = load_package_inner(&output_dir.join(&spawn.package_path), depth + 1)?;
+                let child =
+                    load_package_inner(&output_dir.join(&spawn.package_path), depth + 1, format)?;
                 if child.id != spawn.monster_id {
                     return Err(Error::InvalidMonster("spawned package ID mismatch".into()));
                 }
             }
         }
         if let Some(mount) = &monster.mount {
-            load_package_inner(&output_dir.join(&mount.rider_package), depth + 1)?;
-            load_package_inner(&output_dir.join(&mount.mount_package), depth + 1)?;
+            load_package_inner(&output_dir.join(&mount.rider_package), depth + 1, format)?;
+            load_package_inner(&output_dir.join(&mount.mount_package), depth + 1, format)?;
         }
     } else if monster.mount.is_some() || monster.attacks.iter().any(|attack| attack.spawn.is_some())
     {
@@ -1673,12 +1846,13 @@ pub unsafe extern "C" fn infernal_generate(
 
 #[no_mangle]
 /// # Safety
-/// String pointers must be valid NUL-terminated UTF-8. `error_out`, when non-null,
-/// must point to writable storage for one pointer.
-pub unsafe extern "C" fn infernal_generate_2d(
+/// String pointers must be valid NUL-terminated UTF-8. `format` is 0 for
+/// protobuf or 1 for CBOR; `error_out` must be writable when non-null.
+pub unsafe extern "C" fn infernal_generate_with_format(
     prompt: *const c_char,
     seed: u64,
     output_dir: *const c_char,
+    format: u32,
     error_out: *mut *mut c_char,
 ) -> i32 {
     if !error_out.is_null() {
@@ -1688,11 +1862,68 @@ pub unsafe extern "C" fn infernal_generate_2d(
         if prompt.is_null() || output_dir.is_null() {
             return Err("null prompt or output path".to_string());
         }
+        let format = PackageFormat::try_from(format).map_err(|e| e.to_string())?;
         let prompt = CStr::from_ptr(prompt).to_str().map_err(|e| e.to_string())?;
         let output = CStr::from_ptr(output_dir)
             .to_str()
             .map_err(|e| e.to_string())?;
-        generate_2d(prompt, seed, Path::new(output), None)
+        generate_with_format(prompt, seed, Path::new(output), None, format)
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    });
+    match outcome {
+        Ok(Ok(())) => 0,
+        other => {
+            if !error_out.is_null() {
+                let message = match other {
+                    Ok(Err(e)) => e,
+                    Err(_) => "panic during generation".into(),
+                    _ => unreachable!(),
+                };
+                *error_out = CString::new(message).unwrap_or_default().into_raw();
+            }
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+/// # Safety
+/// String pointers must be valid NUL-terminated UTF-8. `error_out`, when non-null,
+/// must point to writable storage for one pointer.
+pub unsafe extern "C" fn infernal_generate_2d(
+    prompt: *const c_char,
+    seed: u64,
+    output_dir: *const c_char,
+    error_out: *mut *mut c_char,
+) -> i32 {
+    infernal_generate_2d_with_format(prompt, seed, output_dir, 0, error_out)
+}
+
+#[no_mangle]
+/// # Safety
+/// String pointers must be valid NUL-terminated UTF-8. `format` is 0 for
+/// protobuf or 1 for CBOR; `error_out` must be writable when non-null.
+pub unsafe extern "C" fn infernal_generate_2d_with_format(
+    prompt: *const c_char,
+    seed: u64,
+    output_dir: *const c_char,
+    format: u32,
+    error_out: *mut *mut c_char,
+) -> i32 {
+    if !error_out.is_null() {
+        *error_out = std::ptr::null_mut();
+    }
+    let outcome = std::panic::catch_unwind(|| {
+        if prompt.is_null() || output_dir.is_null() {
+            return Err("null prompt or output path".to_string());
+        }
+        let format = PackageFormat::try_from(format).map_err(|e| e.to_string())?;
+        let prompt = CStr::from_ptr(prompt).to_str().map_err(|e| e.to_string())?;
+        let output = CStr::from_ptr(output_dir)
+            .to_str()
+            .map_err(|e| e.to_string())?;
+        generate_2d_with_format(prompt, seed, Path::new(output), None, format)
             .map(|_| ())
             .map_err(|e| e.to_string())
     });
@@ -2098,6 +2329,19 @@ pub unsafe extern "C" fn infernal_object_save(
     output_dir: *const c_char,
     error_out: *mut *mut c_char,
 ) -> i32 {
+    infernal_object_save_with_format(handle, output_dir, 0, error_out)
+}
+
+#[no_mangle]
+/// # Safety
+/// `handle` must be live; `output_dir` must be valid UTF-8; `format` is 0
+/// for protobuf or 1 for CBOR; `error_out` must be writable when non-null.
+pub unsafe extern "C" fn infernal_object_save_with_format(
+    handle: *const GeneratedMonster,
+    output_dir: *const c_char,
+    format: u32,
+    error_out: *mut *mut c_char,
+) -> i32 {
     if !error_out.is_null() {
         *error_out = std::ptr::null_mut();
     }
@@ -2108,7 +2352,8 @@ pub unsafe extern "C" fn infernal_object_save(
         let path = CStr::from_ptr(output_dir)
             .to_str()
             .map_err(|e| e.to_string())?;
-        save_generated(&*handle, Path::new(path)).map_err(|e| e.to_string())
+        let format = PackageFormat::try_from(format).map_err(|e| e.to_string())?;
+        save_generated_with_format(&*handle, Path::new(path), format).map_err(|e| e.to_string())
     });
     match outcome {
         Ok(Ok(())) => 0,
@@ -2178,8 +2423,41 @@ mod tests {
             0
         );
         assert!(error.is_null());
-        assert!(!load_package(saved.path()).unwrap().id.is_empty());
+        let protobuf = load_package(saved.path()).unwrap();
+        let protobuf_bytes = std::fs::read(saved.path().join("monster.pb")).unwrap();
+        assert!(!protobuf.id.is_empty());
+        assert_eq!(
+            unsafe {
+                infernal_object_save_with_format(object, destination.as_ptr(), 1, &mut error)
+            },
+            0
+        );
+        assert!(error.is_null());
+        assert!(!saved.path().join("monster.pb").exists());
+        assert!(saved.path().join("monster.cbor").exists());
+        assert_eq!(load_package(saved.path()).unwrap(), protobuf);
+        assert_eq!(
+            load_package_with_format(saved.path(), PackageFormat::Cbor).unwrap(),
+            protobuf
+        );
+        std::fs::write(saved.path().join("monster.pb"), protobuf_bytes).unwrap();
+        assert!(load_package(saved.path()).is_err());
+        assert_eq!(
+            load_package_with_format(saved.path(), PackageFormat::Cbor).unwrap(),
+            protobuf
+        );
+        std::fs::remove_file(saved.path().join("monster.pb")).unwrap();
+        assert_eq!(
+            unsafe {
+                infernal_object_save_with_format(object, destination.as_ptr(), 3, &mut error)
+            },
+            -1
+        );
+        assert!(!error.is_null());
+        unsafe { infernal_free_string(error) };
         unsafe { infernal_object_free(object) };
+        std::fs::write(saved.path().join("monster.cbor"), b"broken").unwrap();
+        assert!(load_package(saved.path()).is_err());
     }
 
     #[test]
@@ -2524,8 +2802,16 @@ mod tests {
     #[test]
     fn mounted_monster_exports_playable_survivor() {
         let dir = tempfile::tempdir().unwrap();
-        let monster =
-            generate("goblin riding a wolf; mount survives", 17, dir.path(), None).unwrap();
+        let monster = generate_with_format(
+            "goblin riding a wolf; mount survives",
+            17,
+            dir.path(),
+            None,
+            PackageFormat::Cbor,
+        )
+        .unwrap();
+        assert!(dir.path().join("monster.cbor").exists());
+        assert!(dir.path().join("companions/mount/monster.cbor").exists());
         assert_eq!(monster.mount.as_ref().unwrap().survivor, "MOUNT");
         assert_eq!(monster.format_version, 7);
         assert!(monster.tags.contains(&"MOUNTED".into()));
@@ -2550,7 +2836,15 @@ mod tests {
     #[test]
     fn spore_summoner_exports_minions_and_projectile_art() {
         let dir = tempfile::tempdir().unwrap();
-        let monster = generate("mushroom summons hornets", 18, dir.path(), None).unwrap();
+        let monster = generate_with_format(
+            "mushroom summons hornets",
+            18,
+            dir.path(),
+            None,
+            PackageFormat::Cbor,
+        )
+        .unwrap();
+        assert!(dir.path().join("companions/minion/monster.cbor").exists());
         assert!(monster.tags.contains(&"SUMMONER".into()));
         let summon = monster
             .attacks

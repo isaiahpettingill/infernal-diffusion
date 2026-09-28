@@ -14,6 +14,7 @@ struct Job {
     seed: u64,
     output_dir: Option<PathBuf>,
     library_dir: PathBuf,
+    format: u32,
     command: Command,
 }
 
@@ -87,9 +88,21 @@ impl InfernalGenerator {
         output_dir: GString,
         library_dir: GString,
     ) -> i64 {
+        self.generate_async_format(prompt, seed, output_dir, 0, library_dir)
+    }
+
+    #[func]
+    fn generate_async_format(
+        &mut self,
+        prompt: GString,
+        seed: i64,
+        output_dir: GString,
+        format: i32,
+        library_dir: GString,
+    ) -> i64 {
         let path = PathBuf::from(output_dir.to_string());
         let libraries = PathBuf::from(library_dir.to_string());
-        if !path.is_absolute() || !libraries.is_absolute() || seed < 0 {
+        if !path.is_absolute() || !libraries.is_absolute() || seed < 0 || !(0..=1).contains(&format) {
             return -1;
         }
         let id = self.next_id;
@@ -99,6 +112,7 @@ impl InfernalGenerator {
             seed: seed as u64,
             output_dir: Some(path),
             library_dir: libraries,
+            format: format as u32,
             command: Command::Generate,
         };
         match self.jobs.try_send(job) {
@@ -129,6 +143,7 @@ impl InfernalGenerator {
             seed: seed as u64,
             output_dir: None,
             library_dir: libraries,
+            format: 0,
             command: Command::Generate,
         };
         match self.jobs.try_send(job) {
@@ -143,8 +158,13 @@ impl InfernalGenerator {
     /// Persist a previously generated in-memory object without regenerating it.
     #[func]
     fn save_in_memory_async(&mut self, object_job_id: i64, output_dir: GString) -> i64 {
+        self.save_in_memory_async_format(object_job_id, output_dir, 0)
+    }
+
+    #[func]
+    fn save_in_memory_async_format(&mut self, object_job_id: i64, output_dir: GString, format: i32) -> i64 {
         let path = PathBuf::from(output_dir.to_string());
-        if !path.is_absolute() {
+        if !path.is_absolute() || !(0..=1).contains(&format) {
             return -1;
         }
         let id = self.next_id;
@@ -154,6 +174,7 @@ impl InfernalGenerator {
             seed: 0,
             output_dir: Some(path),
             library_dir: PathBuf::new(),
+            format: format as u32,
             command: Command::Save(object_job_id),
         };
         match self.jobs.try_send(job) {
@@ -174,6 +195,7 @@ impl InfernalGenerator {
                 seed: 0,
                 output_dir: None,
                 library_dir: PathBuf::new(),
+                format: 0,
                 command: Command::Release(object_job_id),
             })
             .is_ok()
@@ -203,6 +225,7 @@ impl InfernalGenerator {
             seed: seed as u64,
             output_dir: None,
             library_dir: libraries,
+            format: 0,
             command: if arena { Command::SuggestArena(value as u32) } else { Command::Suggest(value as u32) },
         };
         match self.jobs.try_send(job) {
@@ -352,7 +375,7 @@ fn save_object(
         return result;
     };
     let mut error_ptr = std::ptr::null_mut();
-    let code = unsafe { (active.object_save)(object, path.as_ptr(), &mut error_ptr) };
+    let code = unsafe { (active.object_save)(object, path.as_ptr(), job.format, &mut error_ptr) };
     let message = copy_error(error_ptr, active.free);
     if code != 0 {
         result.error = if message.is_empty() {
@@ -364,7 +387,7 @@ fn save_object(
     result
 }
 
-type Generate = unsafe extern "C" fn(*const c_char, u64, *const c_char, *mut *mut c_char) -> i32;
+type Generate = unsafe extern "C" fn(*const c_char, u64, *const c_char, u32, *mut *mut c_char) -> i32;
 type FreeString = unsafe extern "C" fn(*mut c_char);
 type AbiVersion = unsafe extern "C" fn() -> u32;
 type CpuKernelName = unsafe extern "C" fn() -> *const c_char;
@@ -386,7 +409,7 @@ type ObjectPixels = unsafe extern "C" fn(
 type VisitCallback = unsafe extern "C" fn(*mut c_void, u32, *const c_char, *const c_char, i64, f64);
 type ObjectVisit =
     unsafe extern "C" fn(*const c_void, u32, *mut c_void, Option<VisitCallback>) -> i32;
-type ObjectSave = unsafe extern "C" fn(*const c_void, *const c_char, *mut *mut c_char) -> i32;
+type ObjectSave = unsafe extern "C" fn(*const c_void, *const c_char, u32, *mut *mut c_char) -> i32;
 
 struct Backend {
     path: PathBuf,
@@ -443,7 +466,7 @@ fn load_backend(library_dir: &PathBuf) -> Result<Backend, String> {
                 last_error = "unsupported generator ABI".into();
                 continue;
             }
-            let generate: Generate = match library.get(b"infernal_generate_3d") {
+            let generate: Generate = match library.get(b"infernal_generate_with_format") {
                 Ok(value) => *value,
                 Err(error) => {
                     last_error = error.to_string();
@@ -480,7 +503,7 @@ fn load_backend(library_dir: &PathBuf) -> Result<Backend, String> {
                 symbol!(b"infernal_object_package_path", ObjectPath),
                 symbol!(b"infernal_object_pixels", ObjectPixels),
                 symbol!(b"infernal_object_visit", ObjectVisit),
-                symbol!(b"infernal_object_save", ObjectSave),
+                symbol!(b"infernal_object_save_with_format", ObjectSave),
             )
         };
         return Ok(Backend {
@@ -620,8 +643,9 @@ fn run_job(
         }
     };
     let mut error_ptr: *mut c_char = std::ptr::null_mut();
-    let code =
-        unsafe { (active.generate)(prompt.as_ptr(), job.seed, output.as_ptr(), &mut error_ptr) };
+    let code = unsafe {
+        (active.generate)(prompt.as_ptr(), job.seed, output.as_ptr(), job.format, &mut error_ptr)
+    };
     let message = copy_error(error_ptr, active.free);
     if code != 0 {
         result.error = if message.is_empty() {

@@ -1,6 +1,7 @@
 use prost::Message;
 
-#[derive(Clone, PartialEq, Message, serde::Serialize)]
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct Monster {
     #[prost(uint32, tag = "1")]
     pub format_version: u32,
@@ -37,7 +38,8 @@ pub struct Monster {
     #[prost(message, optional, tag = "17")]
     pub mount: Option<MountInfo>,
 }
-#[derive(Clone, PartialEq, Message, serde::Serialize)]
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct MountInfo {
     #[prost(string, tag = "1")]
     pub rider_package: String,
@@ -46,7 +48,8 @@ pub struct MountInfo {
     #[prost(string, tag = "3")]
     pub survivor: String,
 }
-#[derive(Clone, PartialEq, Message, serde::Serialize)]
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct SpawnInfo {
     #[prost(string, tag = "1")]
     pub package_path: String,
@@ -57,7 +60,8 @@ pub struct SpawnInfo {
     #[prost(uint32, tag = "4")]
     pub max_active: u32,
 }
-#[derive(Clone, PartialEq, Message, serde::Serialize)]
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct SizeInfo {
     #[prost(float, tag = "1")]
     pub normalized_size: f32,
@@ -76,7 +80,8 @@ pub struct SizeInfo {
     #[prost(float, tag = "8")]
     pub anchor_y_px: f32,
 }
-#[derive(Clone, PartialEq, Message, serde::Serialize)]
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct BehaviorInfo {
     #[prost(string, tag = "1")]
     pub style: String,
@@ -95,14 +100,16 @@ pub struct BehaviorInfo {
     #[prost(message, repeated, tag = "8")]
     pub attack_preferences: Vec<AttackPreference>,
 }
-#[derive(Clone, PartialEq, Message, serde::Serialize)]
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct AttackPreference {
     #[prost(string, tag = "1")]
     pub attack_id: String,
     #[prost(float, tag = "2")]
     pub weight: f32,
 }
-#[derive(Clone, PartialEq, Message, serde::Serialize)]
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct GenerationInfo {
     #[prost(string, tag = "1")]
     pub generator_version: String,
@@ -125,14 +132,16 @@ pub struct GenerationInfo {
     #[prost(message, repeated, tag = "10")]
     pub token_evidence: Vec<TokenEvidence>,
 }
-#[derive(Clone, PartialEq, Message, serde::Serialize)]
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct SemanticConfidence {
     #[prost(string, tag = "1")]
     pub key: String,
     #[prost(float, tag = "2")]
     pub confidence: f32,
 }
-#[derive(Clone, PartialEq, Message, serde::Serialize)]
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct TokenEvidence {
     #[prost(string, tag = "1")]
     pub label: String,
@@ -143,7 +152,8 @@ pub struct TokenEvidence {
     #[prost(float, tag = "4")]
     pub confidence: f32,
 }
-#[derive(Clone, PartialEq, Message, serde::Serialize)]
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct SpriteSet {
     #[prost(string, tag = "1")]
     pub image_file: String,
@@ -166,7 +176,8 @@ pub struct SpriteSet {
     #[prost(string, tag = "10")]
     pub render_mode: String,
 }
-#[derive(Clone, PartialEq, Message, serde::Serialize)]
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct PhysicsInfo {
     #[prost(float, tag = "1")]
     pub mass: f32,
@@ -183,7 +194,8 @@ pub struct PhysicsInfo {
     #[prost(string, repeated, tag = "7")]
     pub side_effects: Vec<String>,
 }
-#[derive(Clone, PartialEq, Message, serde::Serialize)]
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct GameplayInfo {
     #[prost(uint32, tag = "1")]
     pub health: u32,
@@ -198,7 +210,8 @@ pub struct GameplayInfo {
     #[prost(uint32, tag = "6")]
     pub health_magic_bonus: u32,
 }
-#[derive(Clone, PartialEq, Message, serde::Serialize)]
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct Animation {
     #[prost(string, tag = "1")]
     pub id: String,
@@ -213,7 +226,8 @@ pub struct Animation {
     #[prost(string, tag = "6")]
     pub movement_mode: String,
 }
-#[derive(Clone, PartialEq, Message, serde::Serialize)]
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct AnimationFrame {
     #[prost(uint32, tag = "1")]
     pub sprite_frame_id: u32,
@@ -224,7 +238,8 @@ pub struct AnimationFrame {
     #[prost(float, tag = "4")]
     pub root_dy: f32,
 }
-#[derive(Clone, PartialEq, Message, serde::Serialize)]
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct AnimationEvent {
     #[prost(uint32, tag = "1")]
     pub time_ms: u32,
@@ -233,7 +248,8 @@ pub struct AnimationEvent {
     #[prost(string, tag = "3")]
     pub reference_id: String,
 }
-#[derive(Clone, PartialEq, Message, serde::Serialize)]
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct Attack {
     #[prost(string, tag = "1")]
     pub id: String,
@@ -260,7 +276,8 @@ pub struct Attack {
     #[prost(message, optional, tag = "12")]
     pub spawn: Option<SpawnInfo>,
 }
-#[derive(Clone, PartialEq, Message, serde::Serialize)]
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct Projectile {
     #[prost(string, tag = "1")]
     pub id: String,
@@ -285,7 +302,8 @@ pub struct Projectile {
     #[prost(string, tag = "11")]
     pub orientation_mode: String,
 }
-#[derive(Clone, PartialEq, Message, serde::Serialize)]
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct AttackStep {
     #[prost(string, tag = "1")]
     pub primitive: String,
@@ -306,7 +324,8 @@ pub struct AttackStep {
     #[prost(uint32, tag = "9")]
     pub duration_ms: u32,
 }
-#[derive(Clone, PartialEq, Message, serde::Serialize)]
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct Collider {
     #[prost(string, tag = "1")]
     pub id: String,
@@ -323,7 +342,8 @@ pub struct Collider {
     #[prost(message, repeated, tag = "7")]
     pub views: Vec<ColliderView>,
 }
-#[derive(Clone, PartialEq, Message, serde::Serialize)]
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct ColliderView {
     #[prost(uint32, tag = "1")]
     pub direction_index: u32,
@@ -334,7 +354,8 @@ pub struct ColliderView {
     #[prost(float, tag = "4")]
     pub radius: f32,
 }
-#[derive(Clone, PartialEq, Message, serde::Serialize)]
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct MovementMode {
     #[prost(string, tag = "1")]
     pub id: String,

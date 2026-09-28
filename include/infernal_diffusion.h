@@ -11,6 +11,9 @@ uint32_t infernal_abi_version(void);
 /* Selected CPU raster kernel: x64, x64_v2, x64_v3, x86, or arm64.
    The returned static string is owned by the library. */
 const char *infernal_cpu_kernel_name(void);
+/* Package metadata format. PNG atlases remain separate files. */
+#define INFERNAL_FORMAT_PROTOBUF 0u
+#define INFERNAL_FORMAT_CBOR 1u
 /* Deterministic, recipe-aware NPC speech. Difficulty is 1..3.
    The returned string is freed with infernal_free_string. */
 char *infernal_random_prompt(uint64_t seed, uint32_t difficulty, char **error_out);
@@ -23,9 +26,16 @@ char *infernal_arena_prompt(uint64_t run_seed, uint32_t round,
    also write projectiles.png. Returns 0 on success. */
 int32_t infernal_generate(const char *prompt, uint64_t seed,
                           const char *output_dir, char **error_out);
+/* Writes monster.pb or monster.cbor according to format. */
+int32_t infernal_generate_with_format(const char *prompt, uint64_t seed,
+                                      const char *output_dir, uint32_t format,
+                                      char **error_out);
 /* Explicit legacy single-view 2D bake. */
 int32_t infernal_generate_2d(const char *prompt, uint64_t seed,
                              const char *output_dir, char **error_out);
+int32_t infernal_generate_2d_with_format(const char *prompt, uint64_t seed,
+                                         const char *output_dir, uint32_t format,
+                                         char **error_out);
 /* Bakes a four-angle 3D mesh atlas using the same runtime package format. */
 int32_t infernal_generate_3d(const char *prompt, uint64_t seed,
                              const char *output_dir, char **error_out);
@@ -38,7 +48,7 @@ int32_t infernal_generate_with_model(const char *prompt, uint64_t seed,
 /* Accepts a UTF-8 JSON MonsterSpec, bypassing natural-language parsing. */
 int32_t infernal_generate_spec_json(const char *spec_json, uint64_t seed,
                                    const char *output_dir, char **error_out);
-/* Reads and validates monster.pb, sprites.png, and emission.png when present. */
+/* Detects and validates monster.pb or monster.cbor plus its PNG atlases. */
 int32_t infernal_validate_package(const char *package_dir, char **error_out);
 
 /* In-memory generation avoids protobuf and PNG encode/decode until saved.
@@ -64,6 +74,9 @@ int32_t infernal_object_visit(const InfernalGeneratedMonster *handle, uint32_t i
                              void *context, InfernalObjectVisitor callback);
 int32_t infernal_object_save(const InfernalGeneratedMonster *handle,
                             const char *output_dir, char **error_out);
+int32_t infernal_object_save_with_format(const InfernalGeneratedMonster *handle,
+                                        const char *output_dir, uint32_t format,
+                                        char **error_out);
 void infernal_free_string(char *value);
 #ifdef __cplusplus
 }

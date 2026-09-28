@@ -5,3 +5,9 @@
 /godot/addons/godobuf/test/
 /godot/extension/target/
 /tools/__pycache__/
+/bindings/cbor/rust/target/
+/bindings/cbor/rust/Cargo.lock
+/bindings/cbor/csharp/bin/
+/bindings/cbor/csharp/obj/
+/bindings/cbor/csharp-smoke/bin/
+/bindings/cbor/csharp-smoke/obj/

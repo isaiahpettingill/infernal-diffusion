@@ -16,7 +16,7 @@
       <form id="generator" class="generator">
         <label for="prompt">Monster prompt</label>
         <div class="prompt-row"><input id="prompt" name="prompt" value="giant spider that shoots fire" maxlength="4096" autocomplete="off" required><button type="submit" id="generate">Generate monster</button></div>
-        <div class="options"><label for="seed">Seed <input id="seed" type="number" min="0" step="1" value="7"></label><span>3D bake · shared pixel scale · seeded surface noise</span></div>
+        <div class="options"><label for="seed">Seed <input id="seed" type="number" min="0" step="1" value="7"></label><label for="package-format">Save as <select id="package-format"><option value="protobuf">Protobuf</option><option value="cbor">CBOR</option></select></label><span>3D bake · shared pixel scale · seeded surface noise</span></div>
         <p class="status" id="status" role="status">Ready. Generation can take a little while.</p>
       </form>
       <div class="preset-row" aria-label="Example prompts">
@@ -36,7 +36,7 @@
       <div class="stats"><div><span>HIT POINTS</span><strong id="health"></strong></div><div><span>DEFENSE</span><strong id="defense"></strong></div><div><span>VISIBLE SIZE</span><strong id="visible-size"></strong></div></div>
       <div class="health-formula"><h3>Where its health comes from</h3><div id="health-parts"></div></div>
       <div class="tags" id="tags"></div>
-      <p class="download-note">The generated package is saved under <code>web/generated/</code> with its protobuf, sprite sheet, emission, and projectile art.</p>
+      <p class="download-note">The generated package is saved under <code>web/generated/</code> with protobuf or CBOR metadata, sprite sheet, emission, and projectile art.</p>
     </section>
   </main>
   <script src="/app.js" defer></script>

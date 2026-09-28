@@ -19,6 +19,7 @@ bert = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:toke
 [dependencies]
 image = { version = "0.25", default-features = false, features = ["png"] }
 prost = "0.14"
+ciborium = "0.2"
 rand = "0.9"
 rand_chacha = "0.9"
 rayon = "1.12"

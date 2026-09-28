@@ -1,0 +1,9 @@
+[package]
+name = "infernal-cbor-types"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+ciborium = "0.2"
+serde = { version = "1", features = ["derive"] }

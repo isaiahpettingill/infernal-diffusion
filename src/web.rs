@@ -212,7 +212,12 @@ fn package_json_inner(
     Ok(value)
 }
 
-fn package_dir(root: &Path, prompt: &str, seed: u64) -> (String, PathBuf) {
+fn package_dir(
+    root: &Path,
+    prompt: &str,
+    seed: u64,
+    format: crate::PackageFormat,
+) -> (String, PathBuf) {
     let mut digest = Sha256::new();
     digest.update(env!("CARGO_PKG_VERSION").as_bytes());
     digest.update(crate::render3d::recipe_fingerprint().as_bytes());
@@ -227,6 +232,7 @@ fn package_dir(root: &Path, prompt: &str, seed: u64) -> (String, PathBuf) {
     }
     digest.update(prompt.as_bytes());
     digest.update(seed.to_le_bytes());
+    digest.update([format as u8]);
     let key = digest.finalize()[..10]
         .iter()
         .map(|byte| format!("{byte:02x}"))
@@ -282,15 +288,30 @@ fn handle(mut stream: TcpStream, root: Arc<PathBuf>, generation_lock: Arc<Mutex<
                     "seed must be an unsigned integer",
                 );
             };
-            let (key, directory) = package_dir(&root, prompt, seed);
+            let format = match input
+                .get("format")
+                .and_then(Value::as_str)
+                .unwrap_or("protobuf")
+            {
+                "protobuf" => crate::PackageFormat::Protobuf,
+                "cbor" => crate::PackageFormat::Cbor,
+                _ => {
+                    return error(
+                        &mut stream,
+                        "400 Bad Request",
+                        "format must be protobuf or cbor",
+                    )
+                }
+            };
+            let (key, directory) = package_dir(&root, prompt, seed, format);
             let monster = {
                 let _guard = generation_lock
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
-                if directory.join("monster.pb").exists() {
-                    crate::load_package(&directory)
+                if directory.join(format.filename()).exists() {
+                    crate::load_package_with_format(&directory, format)
                 } else {
-                    crate::generate(prompt, seed, &directory, None)
+                    crate::generate_with_format(prompt, seed, &directory, None, format)
                 }
             };
             match monster.and_then(|monster| package_json(&monster, &key, &directory)) {

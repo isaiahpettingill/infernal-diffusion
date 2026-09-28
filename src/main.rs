@@ -123,21 +123,29 @@ fn main() {
         }
         return;
     }
-    if (args.len() == 5 || args.len() == 6) && (args[1] == "bake3d" || args[1] == "bake2d") {
+    if (args.len() == 5 || args.len() == 6)
+        && ["bake3d", "bake2d", "bake3d-cbor", "bake2d-cbor"].contains(&args[1].as_str())
+    {
         let seed: u64 = args[3].parse().unwrap_or_else(|_| {
             eprintln!("seed must be an unsigned integer");
             std::process::exit(2)
         });
-        let bake = if args[1] == "bake2d" {
-            infernal_diffusion::generate_2d
+        let format = if args[1].ends_with("-cbor") {
+            infernal_diffusion::PackageFormat::Cbor
         } else {
-            infernal_diffusion::generate_3d
+            infernal_diffusion::PackageFormat::Protobuf
+        };
+        let bake = if args[1].starts_with("bake2d") {
+            infernal_diffusion::generate_2d_with_format
+        } else {
+            infernal_diffusion::generate_3d_with_format
         };
         match bake(
             &args[2],
             seed,
             Path::new(&args[4]),
             args.get(5).map(Path::new),
+            format,
         ) {
             Ok(monster) => println!("{}: {}", monster.id, monster.display_name),
             Err(error) => {
@@ -156,6 +164,8 @@ fn main() {
         eprintln!("       infernal arena-suggest <run-seed> <round>");
         eprintln!("       infernal bake3d <prompt> <seed> <output-dir> [bert-model-dir]");
         eprintln!("       infernal bake2d <prompt> <seed> <output-dir> [bert-model-dir]");
+        eprintln!("       infernal bake3d-cbor <prompt> <seed> <output-dir> [bert-model-dir]");
+        eprintln!("       infernal bake2d-cbor <prompt> <seed> <output-dir> [bert-model-dir]");
         eprintln!("       infernal serve [port]");
         std::process::exit(2);
     }
