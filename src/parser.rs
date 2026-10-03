@@ -114,248 +114,6 @@ impl MonsterSpec {
     }
 }
 
-#[cfg(test)]
-mod vocabulary_tests {
-    use super::*;
-
-    #[derive(Deserialize)]
-    struct Example {
-        prompt: String,
-        body_plan: String,
-        affinity: String,
-        secondary: Option<String>,
-        spawn: Option<String>,
-        mount: Option<String>,
-    }
-
-    #[test]
-    fn curated_semantic_examples_parse() {
-        for line in include_str!("../data/semantic_examples.jsonl").lines() {
-            let example: Example = serde_json::from_str(line).unwrap();
-            let spec = parse_vocabulary(&example.prompt);
-            assert_eq!(spec.body_plan, example.body_plan, "{}", example.prompt);
-            assert_eq!(spec.affinity, example.affinity, "{}", example.prompt);
-            if let Some(secondary) = example.secondary {
-                assert!(
-                    spec.secondary_affinities.contains(&secondary),
-                    "{}",
-                    example.prompt
-                );
-            }
-            if let Some(spawn) = example.spawn {
-                assert_eq!(
-                    spec.spawn.as_ref().map(|s| &s.target),
-                    Some(&spawn),
-                    "{}",
-                    example.prompt
-                );
-            }
-            if let Some(mount) = example.mount {
-                assert_eq!(
-                    spec.mount.as_ref().map(|m| &m.affinity),
-                    Some(&mount),
-                    "{}",
-                    example.prompt
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn nearby_size_words_apply_to_their_parts() {
-        let sword = parse_vocabulary("orc with a huge sword");
-        assert_eq!(sword.size, 0.55);
-        assert_eq!(sword.part_scales.get("WEAPON"), Some(&1.8));
-        let mixed = parse_vocabulary("huge orc with a tiny sword");
-        assert_eq!(mixed.size, 0.9);
-        assert_eq!(mixed.part_scales.get("WEAPON"), Some(&0.65));
-        let wings = parse_vocabulary("small dragon with huge wings");
-        assert_eq!(wings.size, 0.25);
-        assert_eq!(wings.part_scales.get("WING"), Some(&1.8));
-        let head = parse_vocabulary("troll with a huge head and a huge arm");
-        assert_eq!(head.size, 0.55);
-        assert_eq!(head.part_scales.get("HEAD_0"), Some(&1.8));
-        assert_eq!(head.part_scales.get("ARM_0"), Some(&1.8));
-    }
-
-    #[test]
-    fn riding_clauses_keep_creature_traits_and_weapons_local() {
-        use rand::SeedableRng;
-        use rand_chacha::ChaCha8Rng;
-        let stack = parse_vocabulary(
-            "anime girl with axe riding a two headed ghost pig riding a slime pig",
-        );
-        assert_eq!(stack.affinity, "ANIME_GIRL");
-        assert_eq!(stack.attack.concept, "AXE");
-        let middle = stack.mount.as_ref().unwrap().spec.as_ref().unwrap();
-        assert_eq!(middle.affinity, "PIG");
-        assert_eq!(middle.heads, 2);
-        assert!(middle.materials.contains(&"SPECTRAL".into()));
-        assert_eq!(middle.attack.concept, "MELEE");
-        let bottom = middle.mount.as_ref().unwrap().spec.as_ref().unwrap();
-        assert_eq!(bottom.affinity, "PIG");
-        assert!(bottom.materials.contains(&"SLIME".into()));
-        assert_eq!(bottom.heads, 1);
-        assert!(bottom.mount.is_none());
-        let body = crate::anatomy::build(&stack, &mut ChaCha8Rng::seed_from_u64(73));
-        for (id, material) in [
-            ("torso", "SLIME"),
-            ("mount_rider_torso", "SPECTRAL"),
-            ("rider_torso", "CLOTH_IVORY"),
-        ] {
-            assert!(
-                body.nodes
-                    .iter()
-                    .any(|node| node.id == id && node.material == material),
-                "{id}: {:?}",
-                body.nodes
-                    .iter()
-                    .filter(|node| node.id == id)
-                    .map(|node| node.material.as_str())
-                    .collect::<Vec<_>>()
-            );
-        }
-        assert!(body
-            .nodes
-            .iter()
-            .any(|node| node.id == "mount_rider_head_1"));
-        assert!(body.nodes.iter().any(|node| node.id == "rider_weapon"));
-        assert!(!body
-            .nodes
-            .iter()
-            .any(|node| node.id == "mount_rider_weapon"));
-    }
-
-    #[test]
-    fn repeated_riding_and_standalone_laser_parse() {
-        let stack = parse_vocabulary("pig riding a pig riding a pig");
-        assert_eq!(stack.affinity, "PIG");
-        assert_eq!(stack.mount.as_ref().unwrap().affinity, "PIG");
-        assert_eq!(
-            stack
-                .mount
-                .as_ref()
-                .unwrap()
-                .spec
-                .as_ref()
-                .unwrap()
-                .mount
-                .as_ref()
-                .unwrap()
-                .affinity,
-            "PIG"
-        );
-        let laser = parse_vocabulary("orc with laser");
-        assert_eq!(laser.attack.concept, "LASER");
-        assert_eq!(laser.attack.delivery, "PROJECTILE");
-        assert!(parse_vocabulary("kelpie riding through mist")
-            .mount
-            .is_none());
-        let skeletal_mount = parse_vocabulary("pig riding a skeleton horse");
-        assert!(!skeletal_mount.materials.contains(&"BONE".into()));
-        assert!(skeletal_mount
-            .mount
-            .unwrap()
-            .spec
-            .unwrap()
-            .materials
-            .contains(&"BONE".into()));
-    }
-
-    #[test]
-    fn flying_animals_and_new_archetypes_have_local_recipes() {
-        for bird in [
-            "hawk",
-            "vulture",
-            "owl",
-            "eagle",
-            "crow",
-            "condor",
-            "heron",
-            "pelican",
-            "albatross",
-            "hummingbird",
-        ] {
-            let spec = parse_vocabulary(bird);
-            assert_eq!(spec.body_plan, "WINGED", "{bird}");
-            assert!(spec.is_bird(), "{bird}");
-            assert!(spec.materials[0].starts_with("FEATHER"), "{bird}");
-        }
-        let bat = parse_vocabulary("bat");
-        assert_eq!(bat.body_plan, "WINGED");
-        assert_eq!(bat.materials[0], "FUR_DARK");
-        assert!(!bat.is_bird());
-        let rabbit = parse_vocabulary("killer rabbit");
-        assert_eq!(rabbit.affinity, "KILLER_RABBIT");
-        assert!(rabbit.features.contains(&"LONG_EARS".into()));
-        let jar = parse_vocabulary("Jar-Jar Binks");
-        assert_eq!(jar.affinity, "JAR_JAR");
-        assert!(jar.features.contains(&"EYE_STALKS".into()));
-        let tree = parse_vocabulary("evil tree monster");
-        assert!(tree.features.contains(&"ANCHORED".into()));
-        assert_eq!(tree.materials[0], "WOOD");
-        assert!(!parse_vocabulary("walking tree monster")
-            .features
-            .contains(&"ANCHORED".into()));
-        let fishman = parse_vocabulary("fish-man with crab hands");
-        assert_eq!(fishman.affinity, "FISHMAN");
-        assert!(fishman.features.contains(&"PINCER_HANDS".into()));
-        assert!(fishman.features.contains(&"GILL".into()));
-        assert_eq!(
-            parse_vocabulary("skeleton with crab hands").affinity,
-            "SKELETON"
-        );
-        assert!(parse_vocabulary("kraken").size >= 0.9);
-    }
-
-    #[test]
-    fn prehistoric_and_aquatic_archetypes_are_distinct() {
-        use rand::SeedableRng;
-        for (prompt, plan, affinity, feature) in [
-            ("dino", "QUADRUPED", "LONGNECK_DINO", "LONG_NECK"),
-            ("T-Rex", "THEROPOD", "TREX", "TAIL"),
-            ("raptor", "THEROPOD", "RAPTOR", "TAIL"),
-            ("stegosaurus", "QUADRUPED", "STEGO", "BACK_PLATES"),
-            ("triceratops", "QUADRUPED", "TRICERATOPS", "TRIPLE_HORN"),
-            ("ankylosaurus", "QUADRUPED", "ANKYLOSAUR", "TAIL_CLUB"),
-            ("mammoth", "QUADRUPED", "MAMMOTH", "TRUNK"),
-            ("smilodon", "QUADRUPED", "SABERTOOTH_CAT", "SABER_FANGS"),
-            ("killer whale", "SERPENT", "ORCA", "FIN"),
-            ("harpie", "WINGED", "HARPY", "CLAW"),
-            ("siren", "WINGED", "SIREN", "CLAW"),
-            ("beetle", "INSECT", "BEETLE", "SHELL"),
-        ] {
-            let spec = parse_vocabulary(prompt);
-            assert_eq!(spec.body_plan, plan, "{prompt}");
-            assert_eq!(spec.affinity, affinity, "{prompt}");
-            assert!(
-                spec.features.iter().any(|value| value == feature),
-                "{prompt}"
-            );
-        }
-        let whale = parse_vocabulary("killer whale");
-        let body = crate::anatomy::build(&whale, &mut rand_chacha::ChaCha8Rng::seed_from_u64(3));
-        let (_, modes, _, _) = crate::animation::make(&whale, &body);
-        assert_eq!(modes[0].id, "BEACHED_FLOP");
-        assert!(modes[0].speed < 10.0);
-        assert_eq!(parse_vocabulary("bracchiosaurus").affinity, "LONGNECK_DINO");
-        assert_eq!(parse_vocabulary("stegasaurus").affinity, "STEGO");
-        assert_eq!(parse_vocabulary("rhinocerous").affinity, "RHINO");
-        let beetle = parse_vocabulary("beetle");
-        let insect_body =
-            crate::anatomy::build(&beetle, &mut rand_chacha::ChaCha8Rng::seed_from_u64(4));
-        assert_eq!(
-            insect_body
-                .nodes
-                .iter()
-                .filter(|node| node.kind == "FOOT")
-                .count(),
-            6
-        );
-        assert!(insect_body.nodes.iter().any(|node| node.kind == "SHELL"));
-    }
-}
-
 const CONCEPTS: &[(&str, &str, &str)] = &[
     // Greek and Roman traditions.
     ("typhon", "HUMANOID", "TYPHON"),
@@ -461,7 +219,7 @@ const CONCEPTS: &[(&str, &str, &str)] = &[
     ("tank", "TANK", "TANK"),
     ("drone", "FLOATING", "DRONE"),
     ("mushroom", "FUNGUS", "MUSHROOM"),
-    ("hornet", "WINGED", "HORNET"),
+    ("hornet", "INSECT", "HORNET"),
     ("centipede", "ARACHNID", "CENTIPEDE"),
     ("beetle", "INSECT", "BEETLE"),
     // Extinct fauna. The short form intentionally selects the long-necked archetype.
@@ -1743,5 +1501,247 @@ mod bundled_model_tests {
         assert!(spec.confidence < 0.5);
         assert_eq!(spec.description_synonyms["prefix"].len(), 6);
         assert_eq!(spec.description_synonyms["noun"].len(), 4);
+    }
+}
+
+#[cfg(test)]
+mod vocabulary_tests {
+    use super::*;
+
+    #[derive(Deserialize)]
+    struct Example {
+        prompt: String,
+        body_plan: String,
+        affinity: String,
+        secondary: Option<String>,
+        spawn: Option<String>,
+        mount: Option<String>,
+    }
+
+    #[test]
+    fn curated_semantic_examples_parse() {
+        for line in include_str!("../data/semantic_examples.jsonl").lines() {
+            let example: Example = serde_json::from_str(line).unwrap();
+            let spec = parse_vocabulary(&example.prompt);
+            assert_eq!(spec.body_plan, example.body_plan, "{}", example.prompt);
+            assert_eq!(spec.affinity, example.affinity, "{}", example.prompt);
+            if let Some(secondary) = example.secondary {
+                assert!(
+                    spec.secondary_affinities.contains(&secondary),
+                    "{}",
+                    example.prompt
+                );
+            }
+            if let Some(spawn) = example.spawn {
+                assert_eq!(
+                    spec.spawn.as_ref().map(|s| &s.target),
+                    Some(&spawn),
+                    "{}",
+                    example.prompt
+                );
+            }
+            if let Some(mount) = example.mount {
+                assert_eq!(
+                    spec.mount.as_ref().map(|m| &m.affinity),
+                    Some(&mount),
+                    "{}",
+                    example.prompt
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn nearby_size_words_apply_to_their_parts() {
+        let sword = parse_vocabulary("orc with a huge sword");
+        assert_eq!(sword.size, 0.55);
+        assert_eq!(sword.part_scales.get("WEAPON"), Some(&1.8));
+        let mixed = parse_vocabulary("huge orc with a tiny sword");
+        assert_eq!(mixed.size, 0.9);
+        assert_eq!(mixed.part_scales.get("WEAPON"), Some(&0.65));
+        let wings = parse_vocabulary("small dragon with huge wings");
+        assert_eq!(wings.size, 0.25);
+        assert_eq!(wings.part_scales.get("WING"), Some(&1.8));
+        let head = parse_vocabulary("troll with a huge head and a huge arm");
+        assert_eq!(head.size, 0.55);
+        assert_eq!(head.part_scales.get("HEAD_0"), Some(&1.8));
+        assert_eq!(head.part_scales.get("ARM_0"), Some(&1.8));
+    }
+
+    #[test]
+    fn riding_clauses_keep_creature_traits_and_weapons_local() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
+        let stack = parse_vocabulary(
+            "anime girl with axe riding a two headed ghost pig riding a slime pig",
+        );
+        assert_eq!(stack.affinity, "ANIME_GIRL");
+        assert_eq!(stack.attack.concept, "AXE");
+        let middle = stack.mount.as_ref().unwrap().spec.as_ref().unwrap();
+        assert_eq!(middle.affinity, "PIG");
+        assert_eq!(middle.heads, 2);
+        assert!(middle.materials.contains(&"SPECTRAL".into()));
+        assert_eq!(middle.attack.concept, "MELEE");
+        let bottom = middle.mount.as_ref().unwrap().spec.as_ref().unwrap();
+        assert_eq!(bottom.affinity, "PIG");
+        assert!(bottom.materials.contains(&"SLIME".into()));
+        assert_eq!(bottom.heads, 1);
+        assert!(bottom.mount.is_none());
+        let body = crate::anatomy::build(&stack, &mut ChaCha8Rng::seed_from_u64(73));
+        for (id, material) in [
+            ("torso", "SLIME"),
+            ("mount_rider_torso", "SPECTRAL"),
+            ("rider_torso", "CLOTH_IVORY"),
+        ] {
+            assert!(
+                body.nodes
+                    .iter()
+                    .any(|node| node.id == id && node.material == material),
+                "{id}: {:?}",
+                body.nodes
+                    .iter()
+                    .filter(|node| node.id == id)
+                    .map(|node| node.material.as_str())
+                    .collect::<Vec<_>>()
+            );
+        }
+        assert!(body
+            .nodes
+            .iter()
+            .any(|node| node.id == "mount_rider_head_1"));
+        assert!(body.nodes.iter().any(|node| node.id == "rider_weapon"));
+        assert!(!body
+            .nodes
+            .iter()
+            .any(|node| node.id == "mount_rider_weapon"));
+    }
+
+    #[test]
+    fn repeated_riding_and_standalone_laser_parse() {
+        let stack = parse_vocabulary("pig riding a pig riding a pig");
+        assert_eq!(stack.affinity, "PIG");
+        assert_eq!(stack.mount.as_ref().unwrap().affinity, "PIG");
+        assert_eq!(
+            stack
+                .mount
+                .as_ref()
+                .unwrap()
+                .spec
+                .as_ref()
+                .unwrap()
+                .mount
+                .as_ref()
+                .unwrap()
+                .affinity,
+            "PIG"
+        );
+        let laser = parse_vocabulary("orc with laser");
+        assert_eq!(laser.attack.concept, "LASER");
+        assert_eq!(laser.attack.delivery, "PROJECTILE");
+        assert!(parse_vocabulary("kelpie riding through mist")
+            .mount
+            .is_none());
+        let skeletal_mount = parse_vocabulary("pig riding a skeleton horse");
+        assert!(!skeletal_mount.materials.contains(&"BONE".into()));
+        assert!(skeletal_mount
+            .mount
+            .unwrap()
+            .spec
+            .unwrap()
+            .materials
+            .contains(&"BONE".into()));
+    }
+
+    #[test]
+    fn flying_animals_and_new_archetypes_have_local_recipes() {
+        for bird in [
+            "hawk",
+            "vulture",
+            "owl",
+            "eagle",
+            "crow",
+            "condor",
+            "heron",
+            "pelican",
+            "albatross",
+            "hummingbird",
+        ] {
+            let spec = parse_vocabulary(bird);
+            assert_eq!(spec.body_plan, "WINGED", "{bird}");
+            assert!(spec.is_bird(), "{bird}");
+            assert!(spec.materials[0].starts_with("FEATHER"), "{bird}");
+        }
+        let bat = parse_vocabulary("bat");
+        assert_eq!(bat.body_plan, "WINGED");
+        assert_eq!(bat.materials[0], "FUR_DARK");
+        assert!(!bat.is_bird());
+        let rabbit = parse_vocabulary("killer rabbit");
+        assert_eq!(rabbit.affinity, "KILLER_RABBIT");
+        assert!(rabbit.features.contains(&"LONG_EARS".into()));
+        let jar = parse_vocabulary("Jar-Jar Binks");
+        assert_eq!(jar.affinity, "JAR_JAR");
+        assert!(jar.features.contains(&"EYE_STALKS".into()));
+        let tree = parse_vocabulary("evil tree monster");
+        assert!(tree.features.contains(&"ANCHORED".into()));
+        assert_eq!(tree.materials[0], "WOOD");
+        assert!(!parse_vocabulary("walking tree monster")
+            .features
+            .contains(&"ANCHORED".into()));
+        let fishman = parse_vocabulary("fish-man with crab hands");
+        assert_eq!(fishman.affinity, "FISHMAN");
+        assert!(fishman.features.contains(&"PINCER_HANDS".into()));
+        assert!(fishman.features.contains(&"GILL".into()));
+        assert_eq!(
+            parse_vocabulary("skeleton with crab hands").affinity,
+            "SKELETON"
+        );
+        assert!(parse_vocabulary("kraken").size >= 0.9);
+    }
+
+    #[test]
+    fn prehistoric_and_aquatic_archetypes_are_distinct() {
+        use rand::SeedableRng;
+        for (prompt, plan, affinity, feature) in [
+            ("dino", "QUADRUPED", "LONGNECK_DINO", "LONG_NECK"),
+            ("T-Rex", "THEROPOD", "TREX", "TAIL"),
+            ("raptor", "THEROPOD", "RAPTOR", "TAIL"),
+            ("stegosaurus", "QUADRUPED", "STEGO", "BACK_PLATES"),
+            ("triceratops", "QUADRUPED", "TRICERATOPS", "TRIPLE_HORN"),
+            ("ankylosaurus", "QUADRUPED", "ANKYLOSAUR", "TAIL_CLUB"),
+            ("mammoth", "QUADRUPED", "MAMMOTH", "TRUNK"),
+            ("smilodon", "QUADRUPED", "SABERTOOTH_CAT", "SABER_FANGS"),
+            ("killer whale", "SERPENT", "ORCA", "FIN"),
+            ("harpie", "WINGED", "HARPY", "CLAW"),
+            ("siren", "WINGED", "SIREN", "CLAW"),
+            ("beetle", "INSECT", "BEETLE", "SHELL"),
+        ] {
+            let spec = parse_vocabulary(prompt);
+            assert_eq!(spec.body_plan, plan, "{prompt}");
+            assert_eq!(spec.affinity, affinity, "{prompt}");
+            assert!(
+                spec.features.iter().any(|value| value == feature),
+                "{prompt}"
+            );
+        }
+        let whale = parse_vocabulary("killer whale");
+        let body = crate::anatomy::build(&whale, &mut rand_chacha::ChaCha8Rng::seed_from_u64(3));
+        let (_, modes, _, _) = crate::animation::make(&whale, &body);
+        assert_eq!(modes[0].id, "BEACHED_FLOP");
+        assert!(modes[0].speed < 10.0);
+        assert_eq!(parse_vocabulary("bracchiosaurus").affinity, "LONGNECK_DINO");
+        assert_eq!(parse_vocabulary("stegasaurus").affinity, "STEGO");
+        assert_eq!(parse_vocabulary("rhinocerous").affinity, "RHINO");
+        let beetle = parse_vocabulary("beetle");
+        let insect_body =
+            crate::anatomy::build(&beetle, &mut rand_chacha::ChaCha8Rng::seed_from_u64(4));
+        assert_eq!(
+            insect_body
+                .nodes
+                .iter()
+                .filter(|node| node.kind == "FOOT")
+                .count(),
+            6
+        );
+        assert!(insect_body.nodes.iter().any(|node| node.kind == "ELYTRON"));
     }
 }

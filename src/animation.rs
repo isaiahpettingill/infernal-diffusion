@@ -1,5 +1,8 @@
 use crate::{anatomy::Body, parser::MonsterSpec, proto::*};
 
+#[path = "motion.rs"]
+mod motion;
+
 #[derive(Clone, Debug)]
 pub struct Pose {
     pub clip_id: String,
@@ -27,7 +30,13 @@ fn clip(
         poses.push(Pose {
             clip_id: id.into(),
             state: state.into(),
-            phase: i as f32 / count as f32,
+            // One-shot clips include their final rest pose; loops omit the duplicate.
+            phase: i as f32
+                / if looped {
+                    count.max(1)
+                } else {
+                    count.saturating_sub(1).max(1)
+                } as f32,
             root_x: 0.0,
             root_y: 0.0,
             root_angle: 0.0,
@@ -74,7 +83,17 @@ fn mobility_attack(
     travel_ms: u32,
 ) -> Attack {
     let animation_id = format!("attack_{id}");
-    animations.push(clip(&animation_id, "ATTACK", 10, 100, false, "", poses));
+    // Include the entire travel and a readable recovery, even for long swoops.
+    let duration = (telegraph_ms + travel_ms + 260).div_ceil(16);
+    animations.push(clip(
+        &animation_id,
+        "ATTACK",
+        16,
+        duration,
+        false,
+        "",
+        poses,
+    ));
     let mut movement = step(motion, telegraph_ms, 1.0);
     movement.target = if motion == "DODGE" {
         "AWAY_FROM_PLAYER"
@@ -126,7 +145,7 @@ fn mobility_attack(
             step("TELEGRAPH", 0, 1.0),
             movement,
             hit,
-            step("COOLDOWN", (telegraph_ms + travel_ms + 80).min(990), 1.0),
+            step("COOLDOWN", telegraph_ms + travel_ms + 80, 1.0),
         ],
         projectile_id: String::new(),
         spawn: None,
@@ -176,49 +195,42 @@ pub fn make(
     body: &Body,
 ) -> (Vec<Animation>, Vec<MovementMode>, Vec<Attack>, Vec<Pose>) {
     let mut poses = Vec::new();
-    let anchored = spec.features.iter().any(|feature| feature == "ANCHORED");
+    let locomotor = crate::locomotion::substrate(spec);
+    let anchored = locomotor
+        .features
+        .iter()
+        .any(|feature| feature == "ANCHORED");
     let can_fly = !anchored
-        && (spec.body_plan == "WINGED"
-            || spec.affinity == "DRONE"
-            || spec.features.iter().any(|f| f == "WING")
-            || spec
-                .mount
-                .as_ref()
-                .is_some_and(|mount| mount.body_plan == "WINGED"));
+        && (locomotor.body_plan == "WINGED"
+            || locomotor.affinity == "DRONE"
+            || locomotor.features.iter().any(|f| f == "WING"));
     let has_special =
         spec.attack.element != "PHYSICAL" || spec.size > 0.8 || spec.affinity == "MUSHROOM";
     let mut animations = vec![clip("idle", "IDLE", 4, 160, true, "", &mut poses)];
-    let movement = if let Some(mount) = &spec.mount {
-        match mount.body_plan.as_str() {
-            "WINGED" => "QUADRUPED_WALK",
-            "ARACHNID" | "INSECT" => "MULTILEG_SCUTTLE",
-            "SERPENT" if spec.features.iter().any(|f| f == "FIN") => "FLOAT",
-            "SERPENT" if mount.affinity == "ORCA" || mount.affinity == "WHALE" => "BEACHED_FLOP",
-            "SERPENT" => "SERPENTINE_SLITHER",
-            _ => "QUADRUPED_WALK",
-        }
-    } else if anchored {
+    let movement = if anchored {
         "ANCHORED_SWAY"
-    } else if spec.features.iter().any(|f| f == "LIMP") {
+    } else if locomotor.features.iter().any(|f| f == "LIMP") {
         "LIMP"
-    } else if spec.features.iter().any(|f| f == "HOP") {
+    } else if locomotor.features.iter().any(|f| f == "HOP") {
         "HOP"
     } else {
-        match spec.body_plan.as_str() {
+        match locomotor.body_plan.as_str() {
             "ARACHNID" | "INSECT" => "MULTILEG_SCUTTLE",
             "FUNGUS" => "ROOT_SHUFFLE",
             "TANK" => "TREAD_ROLL",
-            "SERPENT" if spec.affinity == "ORCA" || spec.affinity == "WHALE" => "BEACHED_FLOP",
+            "SERPENT" if locomotor.affinity == "ORCA" || locomotor.affinity == "WHALE" => {
+                "BEACHED_FLOP"
+            }
             "SERPENT" => "SERPENTINE_SLITHER",
-            "GASTROPOD" if spec.affinity == "SNAIL" => "SNAIL_CRAWL",
+            "GASTROPOD" if locomotor.affinity == "SNAIL" => "SNAIL_CRAWL",
             "GASTROPOD" => "GLIDE",
             "QUADRUPED" => "QUADRUPED_WALK",
             "THEROPOD" => "THEROPOD_STRIDE",
-            "WINGED" if spec.is_dragon() => "QUADRUPED_WALK",
-            "WINGED" if spec.is_bird() => "HOP",
-            "WINGED" if spec.affinity == "BAT" => "CRAWL",
+            "WINGED" if locomotor.is_dragon() => "QUADRUPED_WALK",
+            "WINGED" if locomotor.is_bird() => "HOP",
+            "WINGED" if locomotor.affinity == "BAT" => "CRAWL",
             "WINGED" => "BIPED_WALK",
-            "AMORPHOUS" if spec.is_blob() => "OOZE_CRAWL",
+            "AMORPHOUS" if locomotor.is_blob() => "OOZE_CRAWL",
             "FLOATING" | "AMORPHOUS" => "FLOAT",
             _ => "BIPED_WALK",
         }
@@ -251,47 +263,50 @@ pub fn make(
         fast_mode,
         &mut poses,
     ));
-    animations.push(clip("turn", "TURN", 3, 90, false, "", &mut poses));
+    animations.push(clip("turn", "TURN", 6, 65, false, "", &mut poses));
     if can_fly {
-        animations.push(clip("takeoff", "TAKEOFF", 3, 110, false, "", &mut poses));
+        animations.push(clip("takeoff", "TAKEOFF", 8, 70, false, "", &mut poses));
         animations.push(clip("fly", "FLY", 6, 105, true, "FLY", &mut poses));
-        animations.push(clip("fly_turn", "FLY_TURN", 3, 105, false, "", &mut poses));
+        animations.push(clip("fly_turn", "FLY_TURN", 6, 70, false, "", &mut poses));
         animations.push(clip(
             "land_from_flight",
             "LAND_FROM_FLIGHT",
-            3,
-            110,
+            8,
+            70,
             false,
             "",
             &mut poses,
         ));
-    } else if ![
-        "FLOAT",
-        "SERPENTINE_SLITHER",
-        "BEACHED_FLOP",
-        "GLIDE",
-        "SNAIL_CRAWL",
-        "OOZE_CRAWL",
-    ]
-    .contains(&movement)
+    } else if !anchored
+        && ![
+            "FLOAT",
+            "SERPENTINE_SLITHER",
+            "BEACHED_FLOP",
+            "GLIDE",
+            "SNAIL_CRAWL",
+            "OOZE_CRAWL",
+        ]
+        .contains(&movement)
     {
         animations.push(clip(
             "jump_start",
             "JUMP_START",
-            2,
-            105,
+            6,
+            55,
             false,
             "",
             &mut poses,
         ));
-        animations.push(clip("jump_air", "JUMP_AIR", 2, 125, true, "", &mut poses));
-        animations.push(clip("land", "LAND", 3, 90, false, "", &mut poses));
+        animations.push(clip("jump_air", "JUMP_AIR", 6, 80, true, "", &mut poses));
+        animations.push(clip("land", "LAND", 6, 65, false, "", &mut poses));
     }
-    if spec.features.iter().any(|f| f == "CLIMB") || spec.body_plan == "ARACHNID" {
+    if !anchored
+        && (locomotor.features.iter().any(|f| f == "CLIMB") || locomotor.body_plan == "ARACHNID")
+    {
         animations.push(clip("climb", "CLIMB", 6, 115, true, "CLIMB", &mut poses));
     }
-    if spec.features.iter().any(|f| f == "BURROW") {
-        animations.push(clip("burrow", "BURROW", 4, 110, false, "", &mut poses));
+    if !anchored && locomotor.features.iter().any(|f| f == "BURROW") {
+        animations.push(clip("burrow", "BURROW", 8, 65, false, "", &mut poses));
         animations.push(clip(
             "burrowed_move",
             "BURROWED_MOVE",
@@ -301,13 +316,13 @@ pub fn make(
             "BURROW",
             &mut poses,
         ));
-        animations.push(clip("emerge", "EMERGE", 4, 110, false, "", &mut poses));
+        animations.push(clip("emerge", "EMERGE", 8, 65, false, "", &mut poses));
     }
     animations.push(clip(
         "attack_primary",
         "ATTACK",
-        6,
-        85,
+        12,
+        60,
         false,
         "",
         &mut poses,
@@ -315,8 +330,8 @@ pub fn make(
     animations.push(clip(
         "attack_secondary",
         "ATTACK_SECONDARY",
-        5,
-        85,
+        10,
+        55,
         false,
         "",
         &mut poses,
@@ -325,8 +340,8 @@ pub fn make(
         animations.push(clip(
             "attack_special",
             "SPECIAL_ATTACK",
-            8,
-            90,
+            12,
+            80,
             false,
             "",
             &mut poses,
@@ -344,19 +359,19 @@ pub fn make(
         ));
     }
     for (id, state, n) in [
-        ("impact_light_front", "IMPACT_LIGHT", 3),
-        ("impact_light_back", "IMPACT_LIGHT", 3),
-        ("impact_heavy_front", "IMPACT_HEAVY", 4),
-        ("impact_heavy_back", "IMPACT_HEAVY", 4),
-        ("knockback", "KNOCKBACK", 4),
-        ("stun", "STUN", 3),
-        ("death", "DEATH", 8),
+        ("impact_light_front", "IMPACT_LIGHT", 6),
+        ("impact_light_back", "IMPACT_LIGHT", 6),
+        ("impact_heavy_front", "IMPACT_HEAVY", 8),
+        ("impact_heavy_back", "IMPACT_HEAVY", 8),
+        ("knockback", "KNOCKBACK", 8),
+        ("stun", "STUN", 8),
+        ("death", "DEATH", 16),
     ] {
         animations.push(clip(
             id,
             state,
             n,
-            if state == "DEATH" { 125 } else { 95 },
+            if state == "DEATH" { 90 } else { 65 },
             false,
             "",
             &mut poses,
@@ -574,12 +589,20 @@ pub fn make(
         bind_attack(&mut animations, &summon);
         attacks.push(summon);
     }
-    let can_burrow = spec.features.iter().any(|f| f == "BURROW");
-    let spectral = spec.body_plan == "FLOATING"
-        || spec.materials.iter().any(|material| material == "SPECTRAL")
-        || ["GHOST", "PHANTOM", "BANSHEE"].contains(&spec.affinity.as_str());
-    let heavy = spec.size > 0.72 && body.nodes.iter().any(|node| node.kind == "FOOT");
-    let mobile = body.nodes.iter().any(|node| node.kind == "FOOT") || spec.body_plan == "SERPENT";
+    let can_burrow = !anchored && locomotor.features.iter().any(|f| f == "BURROW");
+    let spectral = !anchored
+        && (locomotor.body_plan == "FLOATING"
+            || locomotor
+                .materials
+                .iter()
+                .any(|material| material == "SPECTRAL")
+            || ["GHOST", "PHANTOM", "BANSHEE"].contains(&locomotor.affinity.as_str()));
+    let support_feet = body
+        .nodes
+        .iter()
+        .any(|node| node.kind == "FOOT" && !node.id.contains("rider_"));
+    let heavy = !anchored && locomotor.size > 0.72 && support_feet;
+    let mobile = !anchored && (support_feet || locomotor.body_plan == "SERPENT");
     let mut patterns = Vec::new();
     if can_fly {
         patterns.push(("swoop", "SWOOP", "SWIPE", 74.0, 350, 800));
@@ -590,16 +613,17 @@ pub fn make(
     if spectral {
         patterns.push(("blink_strike", "TELEPORT", "SWIPE", 67.0, 330, 250));
     }
-    if spec.body_plan == "QUADRUPED"
-        || spec.body_plan == "TANK"
-        || ["BULL", "RHINO", "BUFFALO"].contains(&spec.affinity.as_str())
+    if !anchored
+        && (locomotor.body_plan == "QUADRUPED"
+            || locomotor.body_plan == "TANK"
+            || ["BULL", "RHINO", "BUFFALO"].contains(&locomotor.affinity.as_str()))
     {
         patterns.push(("charge", "DASH", "SLAM", 68.0, 300, 440));
     }
     if heavy {
         patterns.push(("leap_slam", "LEAP", "SLAM", 92.0, 380, 490));
     }
-    if mobile && spec.size < 0.8 && !can_burrow && !spectral {
+    if mobile && locomotor.size < 0.8 && !can_burrow && !spectral {
         patterns.push(("dodge_counter", "DODGE", "SWIPE", 56.0, 250, 390));
     }
     for (id, motion, impact, radius, telegraph, travel) in patterns.into_iter().take(2) {
@@ -655,74 +679,74 @@ pub fn make(
         .unwrap()
         .events
         .push(AnimationEvent {
-            time_ms: 1000,
+            time_ms: 1440,
             kind: "DEATH_COMPLETE".into(),
             reference_id: String::new(),
         });
-    let archetype = if spec.mount.is_some() {
-        "MOUNTED"
-    } else if spec.affinity == "SAND_WORM" {
+    let archetype = if locomotor.affinity == "SAND_WORM" {
         "SAND_WORM"
-    } else if spec.features.iter().any(|f| f == "WHIRLWIND") {
+    } else if locomotor.features.iter().any(|f| f == "WHIRLWIND") {
         "WHIRLWIND"
-    } else if spec.features.iter().any(|f| f == "FIN") {
+    } else if locomotor.features.iter().any(|f| f == "FIN") {
         "AQUATIC"
-    } else if spec.affinity == "CENTIPEDE" {
+    } else if locomotor.affinity == "CENTIPEDE" {
         "CENTIPEDE"
-    } else if spec.affinity == "DRONE" {
+    } else if locomotor.affinity == "DRONE" {
         "DRONE"
-    } else if spec.body_plan == "FUNGUS" {
+    } else if locomotor.body_plan == "FUNGUS" {
         "FUNGUS"
-    } else if spec.body_plan == "TANK" {
+    } else if locomotor.body_plan == "TANK" {
         "TANK"
-    } else if spec.is_dragon() {
+    } else if locomotor.is_dragon() {
         "DRAGON"
-    } else if spec.is_blob() {
+    } else if locomotor.is_blob() {
         "BLOB"
     } else {
-        spec.body_plan.as_str()
+        locomotor.body_plan.as_str()
     };
     for pose in &mut poses {
         pose.motion_archetype = archetype.into();
     }
-    crate::physics::apply_simulated_reactions(body, &mut poses);
     let mut modes = vec![
         MovementMode {
             id: movement.into(),
-            speed: (28.0 + spec.size * 15.0)
+            speed: (28.0 + locomotor.size * 15.0)
                 * if anchored { 0.0 } else { 1.0 }
-                * if spec.affinity == "ORCA" || spec.affinity == "WHALE" {
+                * if locomotor.affinity == "ORCA" || locomotor.affinity == "WHALE" {
                     0.18
-                } else if spec.affinity == "SNAIL" {
+                } else if locomotor.affinity == "SNAIL" {
                     0.35
-                } else if spec.is_gastropod() {
+                } else if locomotor.is_gastropod() {
                     0.7
                 } else {
                     1.0
                 },
             animation_id: "move".into(),
+            ..Default::default()
         },
         MovementMode {
             id: fast_mode.into(),
-            speed: (55.0 + spec.size * 22.0)
+            speed: (55.0 + locomotor.size * 22.0)
                 * if anchored { 0.0 } else { 1.0 }
-                * if spec.affinity == "ORCA" || spec.affinity == "WHALE" {
+                * if locomotor.affinity == "ORCA" || locomotor.affinity == "WHALE" {
                     0.25
-                } else if spec.affinity == "SNAIL" {
+                } else if locomotor.affinity == "SNAIL" {
                     0.4
-                } else if spec.is_gastropod() {
+                } else if locomotor.is_gastropod() {
                     0.75
                 } else {
                     1.0
                 },
             animation_id: "fast_move".into(),
+            ..Default::default()
         },
     ];
     if can_fly {
         modes.push(MovementMode {
             id: "FLY".into(),
-            speed: 65.0 + spec.size * 20.0,
+            speed: 65.0 + locomotor.size * 20.0,
             animation_id: "fly".into(),
+            ..Default::default()
         });
     }
     if animations.iter().any(|a| a.id == "climb") {
@@ -730,6 +754,7 @@ pub fn make(
             id: "CLIMB".into(),
             speed: 25.0,
             animation_id: "climb".into(),
+            ..Default::default()
         });
     }
     if animations.iter().any(|a| a.id == "burrowed_move") {
@@ -737,8 +762,11 @@ pub fn make(
             id: "BURROW".into(),
             speed: 23.0,
             animation_id: "burrowed_move".into(),
+            ..Default::default()
         });
     }
+    motion::limit_ground_speed(body, &animations, &mut modes);
+    crate::locomotion::describe(spec, &animations, &mut modes);
     for mode in &modes {
         if let Some(clip) = animations.iter_mut().find(|a| a.id == mode.animation_id) {
             for frame in &mut clip.frames {
@@ -752,6 +780,8 @@ pub fn make(
             }
         }
     }
+    motion::sync_contacts(body, &mut animations, &modes, &poses);
+    motion::bake(body, &animations, &modes, &attacks, &mut poses);
     (animations, modes, attacks, poses)
 }
 

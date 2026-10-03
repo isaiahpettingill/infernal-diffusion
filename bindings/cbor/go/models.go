@@ -199,7 +199,9 @@ type ColliderView struct {
 }
 
 type MovementMode struct {
-	ID          string  `cbor:"id"`
-	Speed       float32 `cbor:"speed"`
-	AnimationID string  `cbor:"animation_id"`
+	ID          string   `cbor:"id"`
+	Speed       float32  `cbor:"speed"`
+	AnimationID string   `cbor:"animation_id"`
+	Category    string   `cbor:"category"`
+	Modifiers   []string `cbor:"modifiers"`
 }

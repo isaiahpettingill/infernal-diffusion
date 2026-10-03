@@ -12,6 +12,9 @@ pub struct Node {
     pub rx: f32,
     pub ry: f32,
     pub angle: f32,
+    /// Explicit lateral position/radius for true 3D anatomy. None retains legacy layout.
+    pub z: Option<f32>,
+    pub rz: Option<f32>,
     pub material: String,
     pub density: f32,
     pub feature: bool,
@@ -56,6 +59,8 @@ fn add(
         rx,
         ry,
         angle,
+        z: None,
+        rz: None,
         material: material.into(),
         density,
         feature,
@@ -138,6 +143,9 @@ fn apply_part_scales(spec: &MonsterSpec, nodes: &mut [Node]) {
         .unwrap_or(1.0);
         node.rx *= factor;
         node.ry *= factor;
+        if let Some(rz) = node.rz.as_mut() {
+            *rz *= factor;
+        }
         if matches!(node.kind.as_str(), "ARM" | "HAND") {
             if let Some(number) = number {
                 if let Some(shoulder) = original
@@ -1967,6 +1975,11 @@ pub fn build(spec: &MonsterSpec, rng: &mut ChaCha8Rng) -> Body {
             );
         }
     }
+    if matches!(spec.body_plan.as_str(), "ARACHNID" | "INSECT") || spec.affinity == "HORNET" {
+        specialize_arthropod(spec, &mut nodes, rng);
+    } else {
+        vary_proportions(spec, &mut nodes, rng);
+    }
     apply_part_scales(spec, &mut nodes);
     // Choose one coherent body palette per specimen, keeping explicit material intent.
     let variants: &[&str] = match primary.as_str() {
@@ -2047,6 +2060,578 @@ pub fn build(spec: &MonsterSpec, rng: &mut ChaCha8Rng) -> Body {
     }
 }
 
+/// Replace the generic silhouette while retaining user-requested extra parts by ID.
+/// Paired limbs use adjacent indices and explicit lateral coordinates, so geometry,
+/// gait groups and attachment topology agree in all four camera directions.
+fn specialize_arthropod(spec: &MonsterSpec, nodes: &mut Vec<Node>, rng: &mut ChaCha8Rng) {
+    let old = nodes.clone();
+    let mut n = Vec::new();
+    let s = morphology_scale(spec.size);
+    let material = &spec.materials[0];
+    let insect = spec.body_plan == "INSECT" || spec.affinity == "HORNET";
+    let hornet = spec.affinity == "HORNET";
+    let beetle = matches!(spec.affinity.as_str(), "BEETLE" | "SCARAB");
+    let centipede = spec.affinity == "CENTIPEDE";
+    let scorpion = spec.affinity == "SCORPION";
+    // Coherent independent shape parameters, not random offsets on each limb.
+    let length = rng.random_range(0.88..1.13);
+    let width = (0.78 + spec.bulk * 0.48) * rng.random_range(0.91..1.09);
+    let leg_span = rng.random_range(0.91..1.14);
+    let abdomen_shape = rng.random_range(0.85..1.18);
+    let torso_rx = if insect {
+        4.5
+    } else if centipede {
+        3.4
+    } else {
+        5.5
+    };
+    let torso_ry = if scorpion {
+        2.8
+    } else if centipede {
+        2.2
+    } else {
+        3.6
+    };
+    let torso = add(
+        &mut n,
+        "torso".into(),
+        "TORSO",
+        None,
+        4.0 * s,
+        -2.5 * s,
+        torso_rx * length * s,
+        torso_ry * width * s,
+        0.0,
+        material,
+        false,
+    );
+    n[torso].z = Some(0.0);
+    n[torso].rz = Some(if centipede {
+        2.7 * s * width
+    } else {
+        4.0 * s * width
+    });
+    let mut segments = vec![torso];
+    let abdomen = if centipede {
+        let mut parent = torso;
+        for i in 0..(spec.limb_count.clamp(2, 12).div_ceil(2) - 1) {
+            let segment = add(
+                &mut n,
+                format!("body_segment_{i}"),
+                "BODY_SEGMENT",
+                Some(parent),
+                (0.3 - i as f32 * 3.8) * length * s,
+                -2.1 * s,
+                2.8 * length * s,
+                2.2 * width * s,
+                0.0,
+                material,
+                false,
+            );
+            n[segment].z = Some(0.0);
+            n[segment].rz = Some(2.7 * width * s);
+            segments.push(segment);
+            parent = segment;
+        }
+        parent
+    } else {
+        let petiole = add(
+            &mut n,
+            "petiole".into(),
+            "WAIST",
+            Some(torso),
+            if hornet { -2.2 * s } else { -1.7 * s },
+            -2.0 * s,
+            if hornet { 2.6 * s } else { 1.7 * s },
+            if hornet { 0.85 * s } else { 1.4 * s },
+            0.0,
+            material,
+            false,
+        );
+        n[petiole].z = Some(0.0);
+        n[petiole].rz = Some(if hornet { 0.95 * s } else { 1.8 * s });
+        let a = add(
+            &mut n,
+            "abdomen".into(),
+            "ABDOMEN",
+            Some(petiole),
+            (if hornet {
+                -9.8
+            } else if scorpion {
+                -7.8
+            } else {
+                -7.2
+            }) * length
+                * s,
+            if hornet { -2.6 * s } else { -2.0 * s },
+            (if hornet {
+                6.8
+            } else if beetle {
+                7.8
+            } else if scorpion {
+                6.0
+            } else {
+                7.4
+            }) * length
+                * abdomen_shape
+                * s,
+            (if scorpion {
+                2.4
+            } else if hornet {
+                3.5
+            } else {
+                5.0
+            }) * width
+                * s,
+            0.0,
+            material,
+            false,
+        );
+        n[a].z = Some(0.0);
+        n[a].rz = Some(
+            (if scorpion {
+                4.0
+            } else if hornet {
+                3.2
+            } else {
+                6.1
+            }) * width
+                * s,
+        );
+        a
+    };
+    for h in 0..spec.heads.min(5) {
+        let hz = (h as f32 - (spec.heads.min(5) as f32 - 1.0) * 0.5) * 5.8 * s;
+        let neck = add(
+            &mut n,
+            format!("neck_{h}"),
+            "NECK",
+            Some(torso),
+            (if insect { 8.3 } else { 7.0 }) * s,
+            -2.4 * s,
+            1.4 * s,
+            1.8 * s,
+            0.0,
+            material,
+            false,
+        );
+        n[neck].z = Some(hz);
+        n[neck].rz = Some(1.8 * s);
+        let hx = if insect { 10.5 } else { 7.7 };
+        let head = add(
+            &mut n,
+            format!("head_{h}"),
+            "HEAD",
+            Some(neck),
+            hx * s,
+            -2.4 * s,
+            (if insect { 2.7 } else { 2.5 }) * s,
+            (if insect { 2.9 } else { 2.3 }) * s,
+            0.0,
+            material,
+            false,
+        );
+        n[head].z = Some(hz);
+        n[head].rz = Some((if insect { 3.1 } else { 2.8 }) * s);
+        for (id, kind, x, y, ry) in [
+            (format!("eye_{h}"), "EYE", hx + 1.0, -3.2, 0.6),
+            (format!("mouth_{h}"), "MOUTH", hx + 2.8, -0.8, 0.7),
+        ] {
+            let f = add(
+                &mut n,
+                id,
+                kind,
+                Some(head),
+                x * s,
+                y * s,
+                0.8 * s,
+                ry * s,
+                0.0,
+                "HORN",
+                true,
+            );
+            n[f].z = Some(hz);
+            n[f].rz = Some(0.8 * s);
+        }
+        if insect || centipede {
+            for side in 0..2 {
+                let sign = if side == 0 { 1.0 } else { -1.0 };
+                let base = add(
+                    &mut n,
+                    format!("antenna_{h}_{side}"),
+                    "ANTENNA",
+                    Some(head),
+                    (hx + 3.0) * s,
+                    -5.4 * s,
+                    0.35 * s,
+                    0.35 * s,
+                    0.0,
+                    material,
+                    true,
+                );
+                n[base].z = Some(hz + sign * 3.2 * s);
+                n[base].rz = Some(0.35 * s);
+                let tip = add(
+                    &mut n,
+                    format!("antenna_tip_{h}_{side}"),
+                    "ANTENNA",
+                    Some(base),
+                    (hx + 5.1) * s,
+                    (if hornet { -7.1 } else { -6.0 }) * s,
+                    0.25 * s,
+                    0.25 * s,
+                    0.0,
+                    material,
+                    true,
+                );
+                n[tip].z = Some(hz + sign * 5.4 * s);
+                n[tip].rz = Some(0.25 * s);
+            }
+        }
+    }
+    let count = spec.limb_count.clamp(1, 12);
+    let pairs = count.div_ceil(2);
+    for i in 0..count {
+        let rank = (i / 2) as usize;
+        let side = if i % 2 == 0 { 1.0 } else { -1.0 };
+        let t = if pairs > 1 {
+            rank as f32 / (pairs - 1) as f32
+        } else {
+            0.5
+        };
+        let parent = if centipede {
+            segments[rank.min(segments.len() - 1)]
+        } else {
+            torso
+        };
+        let anchor_x = if centipede {
+            n[parent].x
+        } else {
+            (6.8 - t * 5.8) * s
+        };
+        let spread = (1.0 - 2.0 * t) * (if insect { 5.3 } else { 9.5 }) * length * s;
+        let height = if centipede {
+            3.8
+        } else if scorpion {
+            4.5
+        } else if insect {
+            6.1
+        } else {
+            7.4
+        };
+        let lateral = (if centipede {
+            6.0
+        } else if scorpion {
+            10.0
+        } else if insect {
+            8.3
+        } else {
+            12.2
+        }) * leg_span
+            * width
+            * s;
+        let hip = add(
+            &mut n,
+            format!("hip_{i}"),
+            "HIP",
+            Some(parent),
+            anchor_x,
+            -1.8 * s,
+            0.85 * s,
+            0.85 * s,
+            0.0,
+            material,
+            false,
+        );
+        n[hip].z = Some(side * n[parent].rz.unwrap_or(3.0 * s) * 0.88);
+        n[hip].rz = Some(0.85 * s);
+        let knee = add(
+            &mut n,
+            format!("limb_{i}"),
+            "LIMB",
+            Some(hip),
+            anchor_x + spread * 0.62,
+            -height * 0.58 * s,
+            0.72 * s,
+            0.72 * s,
+            0.0,
+            material,
+            false,
+        );
+        n[knee].z = Some(side * lateral * 0.78);
+        n[knee].rz = Some(0.72 * s);
+        let ankle = add(
+            &mut n,
+            format!("shin_{i}"),
+            "SHIN",
+            Some(knee),
+            anchor_x + spread,
+            height * 0.73 * s,
+            0.49 * s,
+            0.49 * s,
+            0.0,
+            material,
+            false,
+        );
+        n[ankle].z = Some(side * lateral);
+        n[ankle].rz = Some(0.49 * s);
+        let foot = add(
+            &mut n,
+            format!("foot_{i}"),
+            "FOOT",
+            Some(ankle),
+            anchor_x + spread + 0.7 * s,
+            height * s,
+            0.36 * s,
+            0.42 * s,
+            0.0,
+            "HORN",
+            true,
+        );
+        n[foot].z = Some(side * (lateral + 0.8 * s));
+        n[foot].rz = Some(0.36 * s);
+    }
+    if beetle {
+        for side in 0..2 {
+            let sign = if side == 0 { 1.0 } else { -1.0 };
+            let a = n[abdomen].clone();
+            let el = add(
+                &mut n,
+                format!("elytron_{side}"),
+                "ELYTRON",
+                Some(abdomen),
+                a.x,
+                -3.5 * s,
+                a.rx * 1.01,
+                a.ry * 0.94,
+                0.0,
+                material,
+                true,
+            );
+            n[el].z = Some(sign * 3.1 * width * s);
+            n[el].rz = Some(3.0 * width * s);
+        }
+    }
+    if hornet {
+        for i in 0..4 {
+            let side = if i % 2 == 0 { 1.0 } else { -1.0 };
+            let rear = i >= 2;
+            let wing = add(
+                &mut n,
+                format!("wing_{i}"),
+                "WING",
+                Some(torso),
+                (if rear { 2.0 } else { 5.0 }) * s,
+                -5.0 * s,
+                (if rear { 4.0 } else { 6.2 }) * s,
+                1.5 * s,
+                0.0,
+                "MEMBRANE",
+                true,
+            );
+            n[wing].z = Some(side * 2.7 * s);
+            n[wing].rz = Some((if rear { 6.0 } else { 8.0 }) * s);
+        }
+        let a = n[abdomen].clone();
+        let sting = add(
+            &mut n,
+            "stinger".into(),
+            "STINGER",
+            Some(abdomen),
+            a.x - a.rx,
+            -1.9 * s,
+            0.7 * s,
+            2.1 * s,
+            -1.25,
+            "HORN",
+            true,
+        );
+        n[sting].z = Some(0.0);
+        n[sting].rz = Some(0.7 * s);
+    }
+    if scorpion {
+        let mut parent = abdomen;
+        for (i, (x, y, r)) in [
+            (-13.0, -2.0, 1.8),
+            (-16.0, -5.0, 1.6),
+            (-17.0, -9.3, 1.4),
+            (-14.5, -13.5, 1.2),
+            (-10.5, -14.0, 1.0),
+        ]
+        .iter()
+        .enumerate()
+        {
+            parent = add(
+                &mut n,
+                if i == 0 {
+                    "tail".into()
+                } else {
+                    format!("tail_{i}")
+                },
+                "TAIL",
+                Some(parent),
+                x * s,
+                y * s,
+                r * s,
+                r * s,
+                0.0,
+                material,
+                false,
+            );
+            n[parent].z = Some(0.0);
+            n[parent].rz = Some(r * s);
+        }
+        let sting = add(
+            &mut n,
+            "stinger".into(),
+            "STINGER",
+            Some(parent),
+            -8.7 * s,
+            -12.0 * s,
+            0.7 * s,
+            2.2 * s,
+            0.5,
+            "HORN",
+            true,
+        );
+        n[sting].z = Some(0.0);
+        n[sting].rz = Some(0.7 * s);
+        for i in 0..2 {
+            let side = if i == 0 { 1.0 } else { -1.0 };
+            let arm = add(
+                &mut n,
+                format!("pedipalp_{i}"),
+                "ARM",
+                Some(torso),
+                11.0 * s,
+                0.0,
+                1.0 * s,
+                1.0 * s,
+                0.0,
+                material,
+                false,
+            );
+            n[arm].z = Some(side * 7.0 * s);
+            n[arm].rz = Some(1.0 * s);
+            let hand = add(
+                &mut n,
+                format!("pincer_hand_{i}"),
+                "HAND",
+                Some(arm),
+                15.0 * s,
+                0.0,
+                2.5 * s,
+                1.6 * s,
+                0.0,
+                material,
+                false,
+            );
+            n[hand].z = Some(side * 9.0 * s);
+            n[hand].rz = Some(1.8 * s);
+            for tine in 0..2 {
+                let claw = add(
+                    &mut n,
+                    format!("pincer_claw_{i}_{tine}"),
+                    "CLAW",
+                    Some(hand),
+                    17.0 * s,
+                    (-1.3 + tine as f32 * 2.6) * s,
+                    0.65 * s,
+                    2.5 * s,
+                    1.15 + tine as f32 * 0.8,
+                    "HORN",
+                    true,
+                );
+                n[claw].z = Some(side * 9.0 * s);
+                n[claw].rz = Some(0.65 * s);
+            }
+        }
+    }
+    // Keep explicit horns, equipment, hybrid heads and other modifiers. Relocate
+    // them with their retained parent rather than leaving them at old coordinates.
+    for old_node in &old {
+        let replaced = n.iter().any(|p| p.id == old_node.id);
+        let generic_core = matches!(
+            old_node.kind.as_str(),
+            "HIP" | "LIMB" | "SHIN" | "FOOT" | "NECK" | "HEAD" | "EYE" | "MOUTH"
+        ) && !old_node.id.starts_with("hybrid_");
+        let native_feature = (beetle && old_node.kind == "SHELL")
+            || (hornet && matches!(old_node.kind.as_str(), "WING" | "TAIL" | "STINGER"))
+            || (scorpion && matches!(old_node.kind.as_str(), "TAIL" | "STINGER"))
+            || (!insect && old_node.id.starts_with("fang_"));
+        if replaced || generic_core || native_feature {
+            continue;
+        }
+        let mut node = old_node.clone();
+        let old_parent = old_node.parent.and_then(|p| old.get(p));
+        let parent = old_parent
+            .and_then(|p| n.iter().position(|candidate| candidate.id == p.id))
+            .unwrap_or(torso);
+        if let Some(p) = old_parent {
+            node.x += n[parent].x - p.x;
+            node.y += n[parent].y - p.y;
+        }
+        node.parent = Some(parent);
+        // Retained independently paired appendages keep their lateral side;
+        // child details then inherit that remapped attachment. Setting both
+        // wings to the torso depth would mirror neither and stack them together.
+        let parent_z = n[parent].z.unwrap_or(0.0);
+        let ordinal = node
+            .id
+            .rsplit('_')
+            .next()
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(0);
+        let side = if ordinal.is_multiple_of(2) { 1.0 } else { -1.0 };
+        node.z = Some(match node.kind.as_str() {
+            "WING" => parent_z + side * 3.0 * s,
+            "SHOULDER" => parent_z + side * (3.3 + (ordinal / 2) as f32 * 0.35) * s,
+            _ => parent_z,
+        });
+        n.push(node);
+    }
+    *nodes = n;
+}
+
+/// A specimen gets a small number of coherent body proportions shared by both
+/// sides; local attachment offsets follow the same transform, preserving topology.
+fn vary_proportions(spec: &MonsterSpec, nodes: &mut [Node], rng: &mut ChaCha8Rng) {
+    // Shape randomness has its own stream so palette/equipment draws stay stable.
+    let rng = &mut rng.clone();
+    let horizontal = matches!(
+        spec.body_plan.as_str(),
+        "QUADRUPED" | "SERPENT" | "THEROPOD" | "GASTROPOD"
+    );
+    let (species_length, species_girth, species_height) = match spec.affinity.as_str() {
+        "WOLF" | "JACKAL" | "DOG" => (1.10, 0.87, 1.0),
+        "BEAR" => (0.96, 1.28, 1.04),
+        "RHINO" | "BUFFALO" => (1.12, 1.25, 0.94),
+        "ELEPHANT" | "MAMMOTH" => (1.08, 1.16, 1.08),
+        "GIRAFFE" | "MOOSE" | "ANTELOPE" | "GAZELLE" => (0.98, 0.86, 1.16),
+        "TIGER" | "LION" | "PANTHER" | "LEOPARD" => (1.08, 1.0, 0.94),
+        "TROLL" | "GOLEM" => (1.0, 1.16, 1.06),
+        _ => (1.0, 1.0, 1.0),
+    };
+    let length = species_length * rng.random_range(0.91..1.10);
+    let girth = species_girth * (0.84 + spec.bulk * 0.32) * rng.random_range(0.94..1.07);
+    let height = species_height * rng.random_range(0.91..1.10);
+    for node in nodes {
+        node.x *= length;
+        node.rx *= if horizontal { length } else { girth };
+        node.y *= height;
+        node.ry *= height;
+        if let Some(z) = node.z.as_mut() {
+            *z *= girth;
+        }
+        if let Some(rz) = node.rz.as_mut() {
+            *rz *= girth;
+        }
+        if node.kind == "TORSO" && horizontal {
+            node.ry *= girth;
+        }
+    }
+}
+
 #[cfg(test)]
 mod style_tests {
     use super::*;
@@ -2093,5 +2678,152 @@ mod style_tests {
             .nodes
             .iter()
             .any(|node| node.kind == "HEAD" && node.material == "SKIN_PALE"));
+    }
+}
+
+#[cfg(test)]
+mod anatomy_contract_tests {
+    use super::*;
+    use rand::SeedableRng;
+    fn specimen(prompt: &str, seed: u64) -> Body {
+        build(
+            &crate::parser::parse_vocabulary(prompt),
+            &mut ChaCha8Rng::seed_from_u64(seed),
+        )
+    }
+    fn find<'a>(b: &'a Body, id: &str) -> &'a Node {
+        b.nodes.iter().find(|n| n.id == id).unwrap()
+    }
+    #[test]
+    fn arthropod_counts_segments_and_attachment_are_species_specific() {
+        for (prompt, legs) in [
+            ("spider", 8),
+            ("scorpion", 8),
+            ("beetle", 6),
+            ("scarab", 6),
+            ("hornet", 6),
+            ("centipede", 12),
+        ] {
+            for seed in 0..16 {
+                let b = specimen(prompt, seed);
+                assert_eq!(
+                    b.nodes.iter().filter(|n| n.kind == "FOOT").count(),
+                    legs,
+                    "{prompt}"
+                );
+                for i in 0..legs {
+                    let foot = find(&b, &format!("foot_{i}"));
+                    let hip = find(&b, &format!("hip_{i}"));
+                    assert!(
+                        foot.z.unwrap().abs() > hip.z.unwrap().abs() * 1.6,
+                        "{prompt}"
+                    );
+                    assert_eq!(foot.z.unwrap().signum(), hip.z.unwrap().signum());
+                    let opposite = find(&b, &format!("foot_{}", i ^ 1));
+                    assert!((foot.z.unwrap() + opposite.z.unwrap()).abs() < 1e-5);
+                    assert!((foot.x - opposite.x).abs() < 1e-5);
+                    assert!((foot.y - opposite.y).abs() < 1e-5);
+                    let parent = &b.nodes[hip.parent.unwrap()];
+                    assert!(matches!(parent.kind.as_str(), "TORSO" | "BODY_SEGMENT"));
+                }
+                for (i, n) in b.nodes.iter().enumerate().skip(1) {
+                    assert!(n.parent.unwrap() < i);
+                    assert!(n.z.unwrap_or(0.0).is_finite());
+                }
+            }
+        }
+        let spider = specimen("spider", 42);
+        let beetle = specimen("beetle", 42);
+        let hornet = specimen("hornet", 42);
+        assert!(!spider.nodes.iter().any(|n| n.kind == "ANTENNA"));
+        assert_eq!(
+            beetle.nodes.iter().filter(|n| n.kind == "ELYTRON").count(),
+            2
+        );
+        assert_eq!(hornet.nodes.iter().filter(|n| n.kind == "WING").count(), 4);
+        assert!(find(&hornet, "petiole").ry < find(&hornet, "abdomen").ry * 0.4);
+        assert!(find(&spider, "abdomen").rx > find(&spider, "torso").rx);
+        assert_eq!(
+            specimen("centipede", 42)
+                .nodes
+                .iter()
+                .filter(|n| n.kind == "BODY_SEGMENT")
+                .count(),
+            5
+        );
+    }
+    #[test]
+    fn seed_variation_changes_coherent_proportions_without_losing_identity() {
+        for prompt in [
+            "spider", "beetle", "wolf", "bear", "troll", "snake", "dragon",
+        ] {
+            let signatures: std::collections::HashSet<_> = (0..16)
+                .map(|seed| {
+                    let b = specimen(prompt, seed);
+                    let t = find(&b, "torso");
+                    (
+                        (t.rx * 100.0) as i32,
+                        (t.ry * 100.0) as i32,
+                        (find(&b, "head_0").x * 100.0) as i32,
+                    )
+                })
+                .collect();
+            assert!(signatures.len() >= 12, "{prompt}: {signatures:?}");
+            assert_eq!(
+                format!("{:?}", specimen(prompt, 42)),
+                format!("{:?}", specimen(prompt, 42))
+            );
+        }
+        let wolf = specimen("wolf", 42);
+        let bear = specimen("bear", 42);
+        assert!(
+            find(&bear, "torso").ry / find(&bear, "torso").rx
+                > find(&wolf, "torso").ry / find(&wolf, "torso").rx * 1.2
+        );
+    }
+    #[test]
+    fn requested_part_scale_includes_explicit_lateral_radius() {
+        for (base, large, id) in [
+            ("beetle", "beetle with huge head", "head_0"),
+            ("hornet", "hornet with huge wings", "wing_0"),
+        ] {
+            let b = specimen(base, 42);
+            let l = specimen(large, 42);
+            let a = find(&b, id);
+            let z = find(&l, id);
+            assert!((z.rx / a.rx - 1.8).abs() < 0.001);
+            assert!((z.ry / a.ry - 1.8).abs() < 0.001);
+            assert!((z.rz.unwrap() / a.rz.unwrap() - 1.8).abs() < 0.001);
+        }
+    }
+
+    #[test]
+    fn retained_paired_features_preserve_lateral_attachments() {
+        for prompt in [
+            "beetle with wings",
+            "spider with wings",
+            "beetle with six arms",
+        ] {
+            let b = specimen(prompt, 42);
+            for prefix in ["wing", "shoulder", "arm", "hand"] {
+                let a = b.nodes.iter().find(|n| n.id == format!("{prefix}_0"));
+                let z = b.nodes.iter().find(|n| n.id == format!("{prefix}_1"));
+                if let (Some(a), Some(z)) = (a, z) {
+                    assert!(
+                        a.z.unwrap() > 0.0 && z.z.unwrap() < 0.0,
+                        "{prompt}: {prefix}"
+                    );
+                    assert!((a.z.unwrap() + z.z.unwrap()).abs() < 1e-5);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn explicit_counts_and_features_survive_specialization() {
+        let b = specimen("four legs beetle with horns and wings", 42);
+        assert_eq!(b.nodes.iter().filter(|n| n.kind == "FOOT").count(), 4);
+        assert!(b.nodes.iter().any(|n| n.kind == "HORN"));
+        assert!(b.nodes.iter().any(|n| n.kind == "WING"));
     }
 }

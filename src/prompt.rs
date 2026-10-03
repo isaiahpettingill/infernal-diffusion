@@ -385,7 +385,7 @@ pub fn arena_prompt(run_seed: u64, round: u32) -> Result<ArenaPrompt, PromptErro
     let prompt_seed = mix(run_seed ^ (round as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15));
     let archetype = (mix(run_seed) as usize).wrapping_add(round as usize - 1);
     let prompt = compose(prompt_seed, difficulty, Some(archetype))?;
-    let monster_seed = mix(prompt_seed ^ 0x4d4f_4e53_5445_52) & i64::MAX as u64;
+    let monster_seed = mix(prompt_seed ^ 0x004d_4f4e_5354_4552) & i64::MAX as u64;
     Ok(ArenaPrompt {
         prompt,
         difficulty,

@@ -8,6 +8,12 @@ integers are unsigned, and numeric geometry fields are 32-bit floats. The
 current `format_version` is 7; it describes the monster schema, not the choice
 of protobuf or CBOR. Unknown map keys can be ignored by consumers.
 
+`movement_modes` now includes additive `category` and `modifiers` fields. Old
+records default them to an empty string/list. They describe physical locomotion
+capabilities; existing `id`, `speed` and `animation_id` fields are unchanged.
+See the [engine-owned locomotion contract](../../godot/LOCOMOTION.md) for units,
+capability vocabulary, and migration from demo-AI hints.
+
 The PNG atlases stay beside the metadata as `sprites.png`, `emission.png`, and
 `projectiles.png` when present. Paths inside a monster record are relative to
 that monster's package directory. Mounted riders and spawned minions use the

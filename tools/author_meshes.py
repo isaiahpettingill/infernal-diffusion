@@ -464,7 +464,52 @@ def paw():
     return m
 
 
+def insect_head():
+    m = Mesh()
+    m.ellipsoid((0, 0, 0), (0.82, 0.8, 0.86), "base", 6, 12)
+    for side in (-1, 1):
+        # One compound eye per side; spider eyes are a different recipe below.
+        m.ellipsoid((0.17, 0.20, side * 0.73), (0.47, 0.52, 0.29), "socket", 6, 12)
+        m.ellipsoid((0.33, 0.31, side * 0.90), (0.13, 0.16, 0.06), "eye", 4, 7)
+        m.loft([(0.56,-0.30,side*0.36,0.18,0.19),
+                (1.00,-0.50,side*0.28,0.11,0.12),
+                (0.93,-0.62,side*0.05,0.025,0.025)], "mandible", 7)
+    return m
+
+
+def spider_head():
+    m = Mesh()
+    m.ellipsoid((-0.08, 0, 0), (0.9, 0.8, 0.92), "base", 6, 12)
+    for side in (-1, 1):
+        for x,y,z,r in [(0.73,0.37,0.18,0.17),(0.60,0.53,0.44,0.12),
+                         (0.32,0.46,0.72,0.11),(0.11,0.22,0.86,0.09)]:
+            m.ellipsoid((x,y,side*z),(r,r,r),"socket",4,8)
+            m.ellipsoid((x+0.055,y+0.04,side*z),(r*0.42,r*0.42,r*0.6),"eye",4,8)
+        m.ellipsoid((0.60,-0.35,side*0.4),(0.33,0.39,0.26),"base")
+        m.loft([(0.78,-0.46,side*0.40,0.15,0.15),
+                (1.02,-0.85,side*0.35,0.09,0.09),
+                (0.75,-1.03,side*0.24,0.015,0.015)],"mandible",7)
+    return m
+
+
+def insect_wing():
+    m=Mesh()
+    boundary=[(0,0,0),(-0.25,0.13,0.85),(-0.9,0.10,1.65),
+              (-1.55,0.04,1.4),(-1.35,0,0.7),(-0.65,0,0.15)]
+    center=m.vertex((-0.76,0.04,0.79))
+    ids=[m.vertex(p) for p in boundary]
+    for i in range(len(ids)):
+        m.face(center,ids[i],ids[(i+1)%len(ids)],"membrane")
+    # The membrane and slender structural veins share the same authored frame.
+    for end in boundary[1:5]:
+        m.loft([(0,0,0,0.015,0.015),(end[0],end[1],end[2],0.009,0.009)],"rib",5)
+    return m
+
+
 for name, builder in {
+    "skull_insect": insect_head,
+    "skull_spider": spider_head,
+    "part_wing_insect": insect_wing,
     "skull_canid": canid,
     "skull_reptile": reptile,
     "skull_worm": worm_maw,

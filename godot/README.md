@@ -8,6 +8,13 @@ For immediate gameplay use, generate in memory. This returns the Rust-generated
 monster as nested Godot dictionaries/arrays and each atlas as raw RGBA bytes;
 the generator does not encode or decode protobuf on this path.
 
+`poll_result()` supplies a descriptor-first `package.locomotion` profile by
+default: categories/modifiers, clip references and advisory speeds, without
+AI routing or attack targets. Use it for new game integrations. `package.monster`
+keeps the full metadata (including legacy demo hints) for compatibility and
+non-movement assets. Start with the [locomotion contract and migration guide](LOCOMOTION.md)
+when integrating a game such as Destructos; the engine owns movement policy.
+
 For an NPC that speaks its own monster prompts, call
 `suggest_prompt_async(seed, difficulty)` with difficulty 1, 2, or 3. The
 result from `poll_result()` has `prompt`, `difficulty`, and `monster_seed`.
@@ -28,6 +35,7 @@ func _process(_delta: float) -> void:
 		push_error(result.error)
 		return
 	var root: Dictionary = result.packages.back() # Child packages precede the root.
+	var locomotion: Dictionary = root.locomotion # Engine contract version 1.
 	var hp: int = root.monster.gameplay.health
 	var image := InfernalDiffusion.image_from_rgba(root.sprites)
 	var texture := ImageTexture.create_from_image(image)
@@ -108,3 +116,34 @@ manifest's dependency list to place the generator libraries beside the executabl
 The `Godot desktop binaries` GitHub Actions workflow builds downloadable addon
 artifacts for Windows, Linux, and macOS across x86_32, x86_64, and arm64 where
 supported. On x86_64 it builds one library with baseline, v2, and v3 kernels.
+
+## Headless integration smoke test
+
+After building the host addon, run:
+
+```sh
+python tools/smoke_gdextension.py --godot /path/to/Godot-4.6-or-newer
+```
+
+The runner creates a disposable project, imports the real extension, generates
+in memory, checks the descriptor-only profile and atlas bytes, saves/decodes
+protobuf, replaces it with CBOR, and verifies release/stale-object error
+handling, error recovery, same-seed replay and queue backpressure. A successful run prints `INFERNAL_GDEXTENSION_SMOKE_OK`. It modifies no
+existing Godot game project. Generation must finish within the test's timeout.
+
+Cancellation/pause/resume of an accepted native job is not currently supported.
+A request rejected with `-1` was not queued and can be retried later. To abandon
+a queued request, keep polling, ignore its result in your game state, and release
+its retained object after completion. `release_in_memory` is object cleanup,
+not cancellation. Keep the generator alive while accepted jobs finish.
+
+The smoke performs a real cold editor scan with no pre-populated `.godot` cache.
+It allows 120 editor frames before quitting (`--startup-frames` can increase
+this on slower machines). Immediate headless `--import` shutdown can race Godot's
+extension documentation worker, including with a minimal empty native class;
+see [Godot #111645](https://github.com/godotengine/godot/issues/111645) and
+[the engine fix](https://github.com/godotengine/godot/pull/123658).
+Use `--immediate-import` only to diagnose that separate upstream path. A native
+crash is always a test failure. The delayed cold-start path was checked with
+Godot 4.6 and 4.7.2 on Linux; normal interactive editor use is not the immediate
+headless shutdown path.

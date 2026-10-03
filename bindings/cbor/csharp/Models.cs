@@ -366,4 +366,8 @@ public sealed class MovementMode
     public float Speed { get; set; }
     [CborProperty(TextName = "animation_id")]
     public string AnimationID { get; set; } = "";
+    [CborProperty(TextName = "category")]
+    public string Category { get; set; } = "";
+    [CborProperty(TextName = "modifiers")]
+    public List<string> Modifiers { get; set; } = new();
 }

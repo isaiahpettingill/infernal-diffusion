@@ -221,13 +221,10 @@ fn blend(dst: &mut Rgba<u8>, src: [u8; 4]) {
     dst[3] = (out_a * 255.0).round() as u8;
 }
 pub(crate) fn transform(node: &Node, index: usize, pose: &Pose, gravity: f32) -> (f32, f32, f32) {
-    if let Some(&(x, y, a)) = pose.physical_positions.get(index) {
-        let (dx, dy, da) = if pose.state.contains("ATTACK") {
-            node_offset(&node.kind, &node.id, index, pose, gravity)
-        } else {
-            (0.0, 0.0, 0.0)
-        };
-        return (x + dx, y + dy, a + da);
+    // Baked positions already contain the complete articulated pose. Adding an
+    // independent per-part offset here separates hands, weapons and facial parts.
+    if let Some(&position) = pose.physical_positions.get(index) {
+        return position;
     }
     let (dx, dy, da) = node_offset(&node.kind, &node.id, index, pose, gravity);
     let x = node.x + dx;
@@ -397,11 +394,21 @@ fn frame(body: &Body, pose: &Pose, size: u32) -> RgbaImage {
     }
     if pose.state == "DEATH" {
         for p in low.pixels_mut() {
-            p[3] = quantized_alpha(((p[3] as f32) * (1.0 - pose.phase * 0.22)) as u8);
+            p[3] = quantized_alpha(((p[3] as f32) * death_opacity(pose)) as u8);
         }
     }
     low
 }
+/// Physical bodies leave an opaque settled corpse; spectral bodies dissipate.
+pub(crate) fn death_opacity(pose: &Pose) -> f32 {
+    if pose.state == "DEATH" && matches!(pose.motion_archetype.as_str(), "FLOATING" | "WHIRLWIND") {
+        let t = ((pose.phase - 0.35) / 0.6).clamp(0.0, 1.0);
+        1.0 - t * t * (3.0 - 2.0 * t)
+    } else {
+        1.0
+    }
+}
+
 pub fn sheet(body: &Body, poses: &[Pose], size: u32) -> (RgbaImage, u32, u32) {
     let columns = 8;
     let rows = (poses.len() as u32).div_ceil(columns);

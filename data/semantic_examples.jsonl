@@ -30,7 +30,7 @@
 {"prompt":"evil robot with laser eyes","body_plan":"HUMANOID","affinity":"ROBOT"}
 {"prompt":"tank with a cannon","body_plan":"TANK","affinity":"TANK"}
 {"prompt":"centipede with poison fangs","body_plan":"ARACHNID","affinity":"CENTIPEDE"}
-{"prompt":"hornet drone with a laser","body_plan":"WINGED","affinity":"HORNET","secondary":"DRONE"}
+{"prompt":"hornet drone with a laser","body_plan":"INSECT","affinity":"HORNET","secondary":"DRONE"}
 {"prompt":"adolph hitler","body_plan":"HUMANOID","affinity":"HITLER"}
 {"prompt":"sharknado","body_plan":"FLOATING","affinity":"SHARKNADO","spawn":"SHARK"}
 {"prompt":"shark tornado shoots smaller sharks","body_plan":"FLOATING","affinity":"SHARKNADO","spawn":"SHARK"}

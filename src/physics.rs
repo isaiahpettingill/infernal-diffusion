@@ -84,16 +84,27 @@ fn simulate(body: &Body, scenario: Scenario, count: usize) -> Vec<Vec<(f32, f32,
         };
         let p = &body.nodes[parent_index];
         let delta = Vector::new(node.x - p.x, node.y - p.y);
+        // Anchors are expressed in each body's local frame, not world space.
+        // Failing to undo the rest rotations starts bent limbs with separated
+        // anchors and injects a spurious impulse before the first frame.
+        let local = |v: Vector, angle: f32| {
+            Vector::new(
+                v.x * angle.cos() + v.y * angle.sin(),
+                -v.x * angle.sin() + v.y * angle.cos(),
+            )
+        };
+        let rest_angle = node.angle - p.angle;
+        let limit = if matches!(scenario, Scenario::Death) {
+            1.5
+        } else {
+            0.7
+        };
         let joint = RevoluteJointBuilder::new()
-            .local_anchor1(delta * 0.5)
-            .local_anchor2(-delta * 0.5)
-            .limits(if matches!(scenario, Scenario::Death) {
-                [-1.5, 1.5]
-            } else {
-                [-0.7, 0.7]
-            })
+            .local_anchor1(local(delta * 0.5, p.angle))
+            .local_anchor2(local(-delta * 0.5, node.angle))
+            .limits([rest_angle - limit, rest_angle + limit])
             .motor_position(
-                0.0,
+                rest_angle,
                 if matches!(scenario, Scenario::Death) {
                     0.0
                 } else {
@@ -156,7 +167,7 @@ fn simulate(body: &Body, scenario: Scenario, count: usize) -> Vec<Vec<(f32, f32,
             &(),
         );
         if step % 6 == 5 {
-            let mut positions = Vec::with_capacity(body.nodes.len());
+            let mut positions: Vec<(f32, f32, f32)> = Vec::with_capacity(body.nodes.len());
             for (i, node) in body.nodes.iter().enumerate() {
                 let (x, y, angle) = if let Some(handle) = handles[i] {
                     let rb = &bodies[handle];
@@ -167,16 +178,17 @@ fn simulate(body: &Body, scenario: Scenario, count: usize) -> Vec<Vec<(f32, f32,
                     )
                 } else if let Some(parent) = node.parent {
                     let p = &body.nodes[parent];
-                    let handle = handles[parent].expect("cosmetic parent must be physical");
-                    let rb = &bodies[handle];
-                    let angle = rb.rotation().angle() - p.angle;
+                    // Cosmetic descendants can have cosmetic parents (for
+                    // example an iris attached to an eye). Resolve topologically.
+                    let (px, py, pa) = positions[parent];
+                    let angle = pa - p.angle;
                     let ca = angle.cos();
                     let sa = angle.sin();
                     let dx = node.x - p.x;
                     let dy = node.y - p.y;
                     (
-                        rb.translation().x + dx * ca - dy * sa,
-                        rb.translation().y + dx * sa + dy * ca,
+                        px + dx * ca - dy * sa,
+                        py + dx * sa + dy * ca,
                         node.angle + angle,
                     )
                 } else {
@@ -221,6 +233,9 @@ pub fn assess_and_repair(body: &mut Body) {
     }
 }
 
+/// Legacy short reaction sampler. Generated clips use the connected, contact-
+/// constrained pose baker; independent ragdoll samples cannot preserve gait or
+/// exact attack timing. Retained for callers that explicitly request raw reactions.
 pub fn apply_simulated_reactions(body: &Body, poses: &mut [Pose]) {
     for (state, scenario, count) in [
         ("IMPACT_LIGHT", Scenario::Impact(-0.65), 3),
@@ -250,6 +265,33 @@ pub fn apply_simulated_reactions(body: &Body, poses: &mut [Pose]) {
                 }
             }
             poses[index].physical_positions = sample;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha8Rng;
+
+    #[test]
+    fn cosmetic_descendants_follow_cosmetic_parents_without_panicking() {
+        let spec = crate::parser::parse_vocabulary("cyclops");
+        let mut body = crate::anatomy::build(&spec, &mut ChaCha8Rng::seed_from_u64(5));
+        let eye = body.nodes.iter().position(|n| n.kind == "EYE").unwrap();
+        let mut iris = body.nodes[eye].clone();
+        iris.id = "iris".into();
+        iris.parent = Some(eye);
+        iris.x += 0.2;
+        body.nodes.push(iris);
+        let frames = simulate(&body, Scenario::Stand, 2);
+        assert_eq!(frames.len(), 2);
+        for frame in frames {
+            assert_eq!(frame.len(), body.nodes.len());
+            assert!(frame
+                .iter()
+                .all(|p| p.0.is_finite() && p.1.is_finite() && p.2.is_finite()));
         }
     }
 }

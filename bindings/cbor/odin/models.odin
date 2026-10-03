@@ -202,4 +202,6 @@ MovementMode :: struct {
     id: string,
     speed: f32,
     animation_id: string,
+    category: string,
+    modifiers: []string,
 }

@@ -3730,6 +3730,17 @@ class InfernalMovementMode:
 		service.field = __animation_id
 		data[__animation_id.tag] = service
 
+		__category = PBField.new("category", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 4, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __category
+		data[__category.tag] = service
+
+		var __modifiers_default: Array[String] = []
+		__modifiers = PBField.new("modifiers", PB_DATA_TYPE.STRING, PB_RULE.REPEATED, 5, true, __modifiers_default)
+		service = PBServiceField.new()
+		service.field = __modifiers
+		data[__modifiers.tag] = service
+
 	var data = {}
 
 	var __id: PBField
@@ -3770,6 +3781,28 @@ class InfernalMovementMode:
 		__animation_id.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
 	func set_animation_id(value : String) -> void:
 		__animation_id.value = value
+
+	var __category: PBField
+	func has_category() -> bool:
+		if __category.value != null:
+			return true
+		return false
+	func get_category() -> String:
+		return __category.value
+	func clear_category() -> void:
+		data[4].state = PB_SERVICE_STATE.UNFILLED
+		__category.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_category(value : String) -> void:
+		__category.value = value
+
+	var __modifiers: PBField
+	func get_modifiers() -> Array[String]:
+		return __modifiers.value
+	func clear_modifiers() -> void:
+		data[5].state = PB_SERVICE_STATE.UNFILLED
+		__modifiers.value.clear()
+	func add_modifiers(value : String) -> void:
+		__modifiers.value.append(value)
 
 	func _to_string() -> String:
 		return PBPacker.message_to_string(data)

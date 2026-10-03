@@ -87,6 +87,8 @@ pub fn default_registry() -> RecipeRegistry {
             vec![],
         ),
         (Category::Anatomy, "anatomy.continuous", vec![]),
+        (Category::Anatomy, "anatomy.segmented_arthropod", vec![]),
+        (Category::Anatomy, "anatomy.coherent_proportions", vec![]),
         (Category::Anatomy, "anatomy.seeded_hybrid", vec![]),
         (Category::Anatomy, "anatomy.mounted_composite", vec![]),
         (Category::Geometry, "geometry.ellipse_capsule_sdf", vec![]),
@@ -160,6 +162,9 @@ pub fn mesh_registry() -> RecipeRegistry {
         "mesh.skull_humanoid",
         "mesh.skull_cyclops",
         "mesh.skull_arthropod",
+        "mesh.skull_insect",
+        "mesh.skull_spider",
+        "mesh.part_wing_insect",
         "mesh.skull_avian",
         "mesh.skull_generic",
         "mesh.skull_bear",
@@ -217,7 +222,7 @@ pub trait GenerationStages {
         "core.pipeline"
     }
     fn version(&self) -> u32 {
-        2
+        3
     }
     fn registry(&self) -> RecipeRegistry {
         default_registry()

@@ -72,6 +72,18 @@ struct MeshAsset {
 
 const MESHES: &[(&str, &str)] = &[
     (
+        "skull_insect",
+        include_str!("../assets/meshes/skull_insect.json"),
+    ),
+    (
+        "skull_spider",
+        include_str!("../assets/meshes/skull_spider.json"),
+    ),
+    (
+        "part_wing_insect",
+        include_str!("../assets/meshes/part_wing_insect.json"),
+    ),
+    (
         "skull_canid",
         include_str!("../assets/meshes/skull_canid.json"),
     ),
@@ -284,6 +296,8 @@ fn skull_recipe(spec: &MonsterSpec, node: &Node) -> &'static str {
         identity
     };
     match affinity {
+        "HORNET" | "BEETLE" | "SCARAB" | "CENTIPEDE" => "skull_insect",
+        "SPIDER" | "SCORPION" => "skull_spider",
         "WOLF" | "JACKAL" | "DOG" | "CERBERUS" | "FENRIR" => "skull_canid",
         "CHUPACABRA" | "XOLOTL" | "HYENA" => "skull_canid",
         "CROCODILE" | "COBRA" | "DRAGON" | "WYVERN" | "HYDRA" | "SERPENT" | "SNAKE" | "SHARK"
@@ -316,7 +330,8 @@ fn skull_recipe(spec: &MonsterSpec, node: &Node) -> &'static str {
         | "BIRD" | "PIGEON" | "SPARROW" => "skull_avian",
         "SIREN" | "HARPY" => "skull_humanoid",
         _ => match plan {
-            "ARACHNID" | "INSECT" => "skull_arthropod",
+            "ARACHNID" => "skull_spider",
+            "INSECT" => "skull_insect",
             "HUMANOID" | "FLOATING" => "skull_humanoid",
             "WINGED" => "skull_avian",
             "SERPENT" => "skull_reptile",
@@ -466,6 +481,9 @@ fn role_color(role: &str, material: &str) -> [u8; 4] {
 }
 
 fn depth_for(node: &Node) -> f32 {
+    if let Some(z) = node.z {
+        return z;
+    }
     if node.id.starts_with("saber_fang_") || node.id.starts_with("tusk_") {
         return 5.0;
     }
@@ -524,29 +542,26 @@ fn depth_for(node: &Node) -> f32 {
     }
 }
 
+fn resolved_depth(body: &Body, index: usize) -> f32 {
+    let node = &body.nodes[index];
+    if node.kind == "WEAPON" {
+        node.parent
+            .map(|p| depth_for(&body.nodes[p]) + 0.4)
+            .unwrap_or_else(|| depth_for(node))
+    } else if node.kind == "CLAW" && node.z.is_none() {
+        // A claw is attached to its foot/hand, not to the creature centerline.
+        node.parent
+            .map(|p| depth_for(&body.nodes[p]))
+            .unwrap_or_else(|| depth_for(node))
+    } else {
+        depth_for(node)
+    }
+}
+
 fn node_pose(body: &Body, index: usize, pose: &Pose) -> (V3, f32) {
     let node = &body.nodes[index];
-    if node.kind == "WEAPON"
-        && !matches!(
-            pose.state.as_str(),
-            "IMPACT_LIGHT" | "IMPACT_HEAVY" | "KNOCKBACK" | "STUN" | "DEATH"
-        )
-    {
-        if let Some(parent) = node.parent {
-            let anchor = &body.nodes[parent];
-            let (px, py, pa) = render::transform(anchor, parent, pose, body.gravity);
-            return (
-                V3::new(
-                    px + node.x - anchor.x,
-                    -py - node.y + anchor.y,
-                    depth_for(anchor) + 0.4,
-                ),
-                pa + node.angle - anchor.angle,
-            );
-        }
-    }
     let (x, y, angle) = render::transform(node, index, pose, body.gravity);
-    let mut z = depth_for(node);
+    let mut z = resolved_depth(body, index);
     if ["SERPENT", "SAND_WORM"].contains(&pose.motion_archetype.as_str())
         && matches!(pose.state.as_str(), "MOVE" | "FAST_MOVE")
         && matches!(node.kind.as_str(), "TAIL" | "TORSO" | "NECK" | "HEAD")
@@ -806,25 +821,27 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
         }
         let (position, angle) = positions[i];
         let (node_plan, node_affinity) = node_identity(spec, &node.id);
-        let radius_z = if node.kind == "TORSO" {
-            if node_plan == "HUMANOID"
-                || (node_plan == "WINGED"
-                    && !matches!(node_affinity, "DRAGON" | "WYVERN")
-                    && (!node.material.starts_with("FEATHER")
-                        || matches!(node_affinity, "SIREN" | "HARPY"))
-                    && node_affinity != "BAT")
-            {
-                node.rx * 0.57
+        let radius_z = node.rz.unwrap_or_else(|| {
+            if node.kind == "TORSO" {
+                if node_plan == "HUMANOID"
+                    || (node_plan == "WINGED"
+                        && !matches!(node_affinity, "DRAGON" | "WYVERN")
+                        && (!node.material.starts_with("FEATHER")
+                            || matches!(node_affinity, "SIREN" | "HARPY"))
+                        && node_affinity != "BAT")
+                {
+                    node.rx * 0.57
+                } else {
+                    node.ry * 0.85
+                }
             } else {
-                node.ry * 0.85
+                node.rx.min(node.ry) * 0.85
             }
-        } else {
-            node.rx.min(node.ry) * 0.85
-        };
+        });
         let (mesh, scale, material) = match node.kind.as_str() {
             "HEAD" => (
                 asset(skull_recipe(spec, node)),
-                V3::new(node.rx, node.ry, node.ry * 0.88),
+                V3::new(node.rx, node.ry, node.rz.unwrap_or(node.ry * 0.88)),
                 node.material.as_str(),
             ),
             "HORN" | "ANTLER" => (
@@ -855,6 +872,16 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
             "SKIRT" => (
                 flared_skirt(),
                 V3::new(node.rx, node.ry, node.rx * 0.65),
+                node.material.as_str(),
+            ),
+            "WING" if node_plan == "INSECT" || node_affinity == "HORNET" => (
+                asset("part_wing_insect"),
+                V3::new(node.rx, node.ry, node.rz.unwrap_or(node.rx)),
+                "MEMBRANE",
+            ),
+            "ELYTRON" => (
+                sphere(),
+                V3::new(node.rx, node.ry, radius_z),
                 node.material.as_str(),
             ),
             "WING" => (
@@ -936,12 +963,16 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
             ),
         };
         let mut scale = scale;
-        if spec.is_blob() && matches!(node.kind.as_str(), "TORSO" | "LOBE") {
+        if pose.state != "DEATH" && spec.is_blob() && matches!(node.kind.as_str(), "TORSO" | "LOBE")
+        {
             let pulse = (pose.phase * std::f32::consts::TAU + i as f32 * 0.7).sin();
             scale.x *= 1.0 + pulse * 0.08;
             scale.y *= 1.0 - pulse * 0.1;
         }
-        if spec.is_gastropod() && matches!(node.kind.as_str(), "TORSO" | "SOLE") {
+        if pose.state != "DEATH"
+            && spec.is_gastropod()
+            && matches!(node.kind.as_str(), "TORSO" | "SOLE")
+        {
             let stretch = (pose.phase * std::f32::consts::TAU).sin();
             let amount = if spec.affinity == "SLUG" { 0.18 } else { 0.10 };
             scale.x *= 1.0 + stretch * amount;
@@ -957,8 +988,11 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
             AssetOptions {
                 flip_z: node.kind == "WING" && depth_for(node) < 0.0,
                 seed: node_seed,
-                irregularity: if matches!(node.kind.as_str(), "TORSO" | "LOBE" | "TAIL" | "SHELL") {
-                    0.16
+                irregularity: if matches!(
+                    node.kind.as_str(),
+                    "TORSO" | "LOBE" | "TAIL" | "SHELL" | "ABDOMEN" | "BODY_SEGMENT"
+                ) {
+                    0.08
                 } else if matches!(node.kind.as_str(), "LIMB" | "ARM" | "LEG") {
                     0.06
                 } else {
@@ -1017,8 +1051,53 @@ fn project(point: V3, angle: f32, resolution: u32, supersample: f32) -> ScreenPo
     project_with_camera(point, Camera::new(angle, resolution, supersample))
 }
 
+/// Expand framing to contain every posed triangle from every view, without
+/// changing the shared pixel scale. Long tails, raised weapons and flying wings
+/// must never be silently cropped by a species-name canvas heuristic.
+pub fn required_frame_size(
+    spec: &MonsterSpec,
+    body: &Body,
+    poses: &[Pose],
+    minimum: u32,
+    seed: u64,
+) -> u32 {
+    let cameras: Vec<_> = ANGLES_DEG
+        .iter()
+        .map(|a| Camera::new(a.to_radians(), 0, 1.0))
+        .collect();
+    let margin = 3.0;
+    let mut required = minimum as f32;
+    for pose in poses {
+        for triangle in scene(spec, body, pose, seed) {
+            for point in [triangle.a, triangle.b, triangle.c] {
+                for camera in &cameras {
+                    let p = project_with_camera(point, *camera);
+                    required = required.max((p.x.abs() + margin) * 2.0);
+                    required = required.max(if p.y < 0.0 {
+                        (-p.y + margin) / 0.57
+                    } else {
+                        (p.y + margin) / 0.43
+                    });
+                }
+            }
+        }
+    }
+    // Whole tiles keep GPU/atlas allocation predictable while preserving scale.
+    ((required.ceil() as u32).saturating_add(7) / 8) * 8
+}
+
+/// Node-only projection retained for callers supplying explicit lateral depth.
 pub fn collider_views(node: &Node, size: u32) -> Vec<proto::ColliderView> {
-    let position = V3::new(node.x, -node.y, depth_for(node));
+    collider_views_at_depth(node, size, depth_for(node))
+}
+
+/// Neutral collider views use exactly the same attachment depth as mesh baking.
+pub fn collider_views_for_body(body: &Body, index: usize, size: u32) -> Vec<proto::ColliderView> {
+    collider_views_at_depth(&body.nodes[index], size, resolved_depth(body, index))
+}
+
+fn collider_views_at_depth(node: &Node, size: u32, depth: f32) -> Vec<proto::ColliderView> {
+    let position = V3::new(node.x, -node.y, depth);
     let radius = (node.rx.min(node.ry) * PIXELS_PER_UNIT).max(0.5);
     ANGLES_DEG
         .iter()
@@ -1238,7 +1317,8 @@ fn frame_with_stats(
     render::quantize_cached(&mut low, palette, nearest);
     if pose.state == "DEATH" {
         for pixel in low.pixels_mut() {
-            pixel[3] = render::quantized_alpha((pixel[3] as f32 * (1.0 - pose.phase * 0.2)) as u8);
+            pixel[3] =
+                render::quantized_alpha((pixel[3] as f32 * render::death_opacity(pose)) as u8);
         }
     }
     (low, [raster_time, downsample_time, phase_started.elapsed()])
@@ -1319,8 +1399,10 @@ pub fn sheet(
     let mut scene_time = std::time::Duration::ZERO;
     let mut frame_time = std::time::Duration::ZERO;
     let mut stage_times = [std::time::Duration::ZERO; 3];
-    let columns = 8;
     let total = poses.len() as u32 * ANGLES_DEG.len() as u32;
+    // A near-square atlas avoids >8K/16K-tall textures after expanding animation
+    // framing. Consumers already receive columns; frame IDs remain unchanged.
+    let columns = ((total as f32).sqrt().ceil() as u32).max(1);
     let rows = total.div_ceil(columns);
     let palette = palette(body);
     let mut output = RgbaImage::new(columns * size, rows * size);
@@ -1418,6 +1500,32 @@ pub fn preview(sheet: &RgbaImage, size: u32, columns: u32, stride: u32) -> RgbaI
     output
 }
 
+/// Export the exact triangulated intermediate scene used by the sprite baker.
+/// Coordinates are X forward, Y up, Z lateral; colors are per-face RGBA.
+/// Intended for deterministic offline inspection in Blender, not runtime loading.
+pub fn debug_scene_json(
+    spec: &MonsterSpec,
+    body: &Body,
+    pose: &Pose,
+    seed: u64,
+) -> serde_json::Value {
+    let triangles = scene(spec, body, pose, seed);
+    serde_json::json!({
+        "coordinates": "X forward, Y up, Z lateral",
+        "affinity": spec.affinity, "body_plan": spec.body_plan,
+        "seed": seed, "clip": pose.clip_id, "phase": pose.phase,
+        "nodes": body.nodes.iter().enumerate().map(|(i,n)| {
+            let (p,a) = node_pose(body,i,pose);
+            serde_json::json!({"id":n.id,"kind":n.kind,"parent":n.parent,
+                "position":[p.x,p.y,p.z],"radii":[n.rx,n.ry],"angle":a})
+        }).collect::<Vec<_>>(),
+        "triangles": triangles.iter().map(|t| serde_json::json!({
+            "vertices":[[t.a.x,t.a.y,t.a.z],[t.b.x,t.b.y,t.b.z],[t.c.x,t.c.y,t.c.z]],
+            "color": t.color
+        })).collect::<Vec<_>>()
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1450,13 +1558,102 @@ mod tests {
             .unwrap();
         let hand_index = body.nodes[weapon_index].parent.unwrap();
         let movement: Vec<_> = poses.iter().filter(|pose| pose.clip_id == "move").collect();
-        let (first_weapon, _) = node_pose(&body, weapon_index, movement[1]);
-        let (last_weapon, _) = node_pose(&body, weapon_index, movement[4]);
-        let (first_hand, _) = node_pose(&body, hand_index, movement[1]);
-        let (last_hand, _) = node_pose(&body, hand_index, movement[4]);
-        assert!((first_weapon.x - last_weapon.x).abs() > 0.1);
-        assert!(((first_weapon.x - last_weapon.x) - (first_hand.x - last_hand.x)).abs() < 0.001);
-        assert!(((first_weapon.y - last_weapon.y) - (first_hand.y - last_hand.y)).abs() < 0.001);
+        let weapon = &body.nodes[weapon_index];
+        let hand = &body.nodes[hand_index];
+        for pose in movement {
+            let (w, _) = node_pose(&body, weapon_index, pose);
+            let (h, a) = node_pose(&body, hand_index, pose);
+            let delta = a - hand.angle;
+            let dx = weapon.x - hand.x;
+            let dy = weapon.y - hand.y;
+            assert!((w.x - h.x - (dx * delta.cos() - dy * delta.sin())).abs() < 0.001);
+            assert!((w.y - h.y + (dx * delta.sin() + dy * delta.cos())).abs() < 0.001);
+            assert!((w.z - h.z - 0.4).abs() < 0.001);
+        }
+    }
+
+    #[test]
+    fn claws_share_their_parent_lateral_attachment() {
+        let spec = crate::parser::parse_vocabulary("bear");
+        let body = crate::anatomy::build(&spec, &mut ChaCha8Rng::seed_from_u64(42));
+        let (_, _, _, poses) = crate::animation::make(&spec, &body);
+        for (i, n) in body
+            .nodes
+            .iter()
+            .enumerate()
+            .filter(|(_, n)| n.kind == "CLAW")
+        {
+            let parent = n.parent.unwrap();
+            for pose in &poses {
+                assert!(
+                    (node_pose(&body, i, pose).0.z - node_pose(&body, parent, pose).0.z).abs()
+                        < 0.001
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn neutral_collider_views_match_mesh_attachment_centers() {
+        for prompt in ["bear", "cyclops with sword", "beetle with wings"] {
+            let spec = crate::parser::parse_vocabulary(prompt);
+            let body = crate::anatomy::build(&spec, &mut ChaCha8Rng::seed_from_u64(42));
+            let (_, _, _, poses) = crate::animation::make(&spec, &body);
+            let mut neutral = poses[0].clone();
+            neutral.physical_positions = body.nodes.iter().map(|n| (n.x, n.y, n.angle)).collect();
+            for i in 0..body.nodes.len() {
+                for view in collider_views_for_body(&body, i, 128) {
+                    let p = project(
+                        node_pose(&body, i, &neutral).0,
+                        ANGLES_DEG[view.direction_index as usize].to_radians(),
+                        128,
+                        1.0,
+                    );
+                    assert!(
+                        (p.x - view.x).abs() < 0.001 && (p.y - view.y).abs() < 0.001,
+                        "{prompt} {}",
+                        body.nodes[i].id
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn fitted_canvas_contains_every_pose_and_direction() {
+        for prompt in [
+            "dragon",
+            "cobra",
+            "orc with a huge sword",
+            "giant spider",
+            "ghost",
+            "hornet",
+        ] {
+            let spec = crate::parser::parse_vocabulary(prompt);
+            let body = crate::anatomy::build(&spec, &mut ChaCha8Rng::seed_from_u64(42));
+            let (_, _, _, poses) = crate::animation::make(&spec, &body);
+            let size = required_frame_size(&spec, &body, &poses, 72, 42);
+            assert!((72..=512).contains(&size) && size.is_multiple_of(8));
+            for pose in &poses {
+                for triangle in scene(&spec, &body, pose, 42) {
+                    for point in [triangle.a, triangle.b, triangle.c] {
+                        for angle in ANGLES_DEG {
+                            let p = project(point, angle.to_radians(), size, 1.0);
+                            assert!(
+                                p.x >= 2.0
+                                    && p.x <= size as f32 - 2.0
+                                    && p.y >= 2.0
+                                    && p.y <= size as f32 - 2.0,
+                                "{prompt} {}: {size}, {},{}",
+                                pose.clip_id,
+                                p.x,
+                                p.y
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 
     #[test]

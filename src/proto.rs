@@ -82,6 +82,7 @@ pub struct SizeInfo {
 }
 #[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
+/// Optional legacy demo-AI hints. Engines own targeting and movement policy.
 pub struct BehaviorInfo {
     #[prost(string, tag = "1")]
     pub style: String,
@@ -356,6 +357,7 @@ pub struct ColliderView {
 }
 #[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
+/// Engine-interpreted locomotion descriptor; never a navigation/AI instruction.
 pub struct MovementMode {
     #[prost(string, tag = "1")]
     pub id: String,
@@ -363,4 +365,10 @@ pub struct MovementMode {
     pub speed: f32,
     #[prost(string, tag = "3")]
     pub animation_id: String,
+    /// Broad capability category. Empty only in packages from older generators.
+    #[prost(string, tag = "4")]
+    pub category: String,
+    /// Unordered physical/style qualifiers, not a sequence of movement commands.
+    #[prost(string, repeated, tag = "5")]
+    pub modifiers: Vec<String>,
 }

@@ -244,4 +244,6 @@ pub struct MovementMode {
     pub id: String,
     pub speed: f32,
     pub animation_id: String,
+    pub category: String,
+    pub modifiers: Vec<String>,
 }

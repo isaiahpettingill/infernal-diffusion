@@ -1,6 +1,7 @@
 pub mod anatomy;
 pub mod animation;
 pub mod description;
+pub mod locomotion;
 pub mod mystery;
 pub mod parser;
 pub mod physics;
@@ -227,6 +228,9 @@ pub fn save_generated_with_format(
     output_dir: &Path,
     format: PackageFormat,
 ) -> Result<(), Error> {
+    // The root in-memory package uses ".". Creating "new/path/." directly can
+    // fail before its final component exists; establish the output root first.
+    std::fs::create_dir_all(output_dir)?;
     for package in &generated.packages {
         let destination = output_dir.join(&package.path);
         std::fs::create_dir_all(&destination)?;
@@ -531,6 +535,7 @@ struct GenerationOptions {
     randomize_unknown: bool,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn generate_spec_internal(
     mut spec: parser::MonsterSpec,
     prompt: &str,
@@ -730,6 +735,16 @@ fn generate_spec_internal(
     } else {
         base_size
     };
+    let size = if render_style == RenderStyle::Mesh3d {
+        render3d::required_frame_size(&spec, &body, &poses, size, seed)
+    } else {
+        size
+    };
+    if size > 512 {
+        return Err(Error::InvalidMonster(format!(
+            "posed geometry requires {size}px frames, exceeding the 512px generation limit"
+        )));
+    }
     let (sheet, columns, palette_size) = if render_style == RenderStyle::Mesh3d {
         render3d::sheet(&spec, &body, &poses, size, seed)
     } else {
@@ -766,7 +781,8 @@ fn generate_spec_internal(
     let colliders = body
         .nodes
         .iter()
-        .map(|n| proto::Collider {
+        .enumerate()
+        .map(|(index, n)| proto::Collider {
             id: format!("hurt_{}", n.id),
             node_id: n.id.clone(),
             x: n.x,
@@ -775,7 +791,7 @@ fn generate_spec_internal(
             hurtbox: !["EYE", "MOUTH", "WING", "FIN", "VORTEX", "WEAPON"]
                 .contains(&n.kind.as_str()),
             views: if render_style == RenderStyle::Mesh3d {
-                render3d::collider_views(n, size)
+                render3d::collider_views_for_body(&body, index, size)
             } else {
                 Vec::new()
             },
@@ -1231,6 +1247,8 @@ fn validate_body(body: &anatomy::Body) -> Result<(), Error> {
             || ![node.x, node.y, node.rx, node.ry, node.angle, node.density]
                 .iter()
                 .all(|v| v.is_finite())
+            || node.z.is_some_and(|z| !z.is_finite())
+            || node.rz.is_some_and(|rz| !rz.is_finite() || rz <= 0.0)
             || node.rx <= 0.0
             || node.ry <= 0.0
             || node.density <= 0.0
@@ -1488,13 +1506,21 @@ pub fn validate(monster: &proto::Monster, sheet: &image::RgbaImage) -> Result<()
         return Err(Error::InvalidMonster("invalid collider".into()));
     }
     for m in &monster.movement_modes {
+        if !locomotion::valid_descriptor(m) {
+            return Err(Error::InvalidMonster(format!(
+                "invalid locomotion descriptor {}",
+                m.id
+            )));
+        }
         if !monster
             .animations
             .iter()
             .any(|a| a.id == m.animation_id && a.movement_mode == m.id)
             || !m.speed.is_finite()
             || m.speed < 0.0
-            || (m.speed == 0.0 && !monster.tags.iter().any(|tag| tag == "ANCHORED"))
+            || (m.speed == 0.0
+                && m.category != "STATIONARY"
+                && !monster.tags.iter().any(|tag| tag == "ANCHORED"))
         {
             return Err(Error::InvalidMonster(format!("invalid movement {}", m.id)));
         }
@@ -1682,42 +1708,40 @@ pub fn validate(monster: &proto::Monster, sheet: &image::RgbaImage) -> Result<()
     }) {
         return Err(Error::InvalidMonster("invalid projectile metadata".into()));
     }
-    let behavior = monster
-        .behavior
-        .as_ref()
-        .ok_or_else(|| Error::InvalidMonster("missing behavior".into()))?;
-    let total_weight: f32 = behavior.attack_preferences.iter().map(|p| p.weight).sum();
-    if ![
-        behavior.aggro_range,
-        behavior.preferred_range,
-        behavior.aggression,
-        behavior.retreat_health_fraction,
-        total_weight,
-    ]
-    .iter()
-    .all(|v| v.is_finite())
-        || behavior.aggro_range <= 0.0
-        || behavior.aggro_range > 2000.0
-        || behavior.preferred_range < 0.0
-        || behavior.preferred_range > behavior.aggro_range
-        || !(0.0..=1.0).contains(&behavior.aggression)
-        || !(0.0..=1.0).contains(&behavior.retreat_health_fraction)
-        || (total_weight - 1.0).abs() > 0.01
-        || !monster
-            .movement_modes
-            .iter()
-            .any(|m| m.id == behavior.approach_mode)
-        || !monster
-            .movement_modes
-            .iter()
-            .any(|m| m.id == behavior.escape_mode)
-        || behavior.attack_preferences.iter().any(|p| {
-            !p.weight.is_finite()
-                || p.weight <= 0.0
-                || !monster.attacks.iter().any(|a| a.id == p.attack_id)
-        })
-    {
-        return Err(Error::InvalidMonster("invalid behavior".into()));
+    if let Some(behavior) = &monster.behavior {
+        let total_weight: f32 = behavior.attack_preferences.iter().map(|p| p.weight).sum();
+        if ![
+            behavior.aggro_range,
+            behavior.preferred_range,
+            behavior.aggression,
+            behavior.retreat_health_fraction,
+            total_weight,
+        ]
+        .iter()
+        .all(|v| v.is_finite())
+            || behavior.aggro_range <= 0.0
+            || behavior.aggro_range > 2000.0
+            || behavior.preferred_range < 0.0
+            || behavior.preferred_range > behavior.aggro_range
+            || !(0.0..=1.0).contains(&behavior.aggression)
+            || !(0.0..=1.0).contains(&behavior.retreat_health_fraction)
+            || (total_weight - 1.0).abs() > 0.01
+            || !monster
+                .movement_modes
+                .iter()
+                .any(|m| m.id == behavior.approach_mode)
+            || !monster
+                .movement_modes
+                .iter()
+                .any(|m| m.id == behavior.escape_mode)
+            || behavior.attack_preferences.iter().any(|p| {
+                !p.weight.is_finite()
+                    || p.weight <= 0.0
+                    || !monster.attacks.iter().any(|a| a.id == p.attack_id)
+            })
+        {
+            return Err(Error::InvalidMonster("invalid behavior".into()));
+        }
     }
     let p = monster
         .physics
@@ -1736,7 +1760,12 @@ pub fn validate(monster: &proto::Monster, sheet: &image::RgbaImage) -> Result<()
         || p.mass <= 0.0
         || p.gravity_scale < 0.0
         || p.speed < 0.0
-        || (p.speed == 0.0 && !monster.tags.iter().any(|tag| tag == "ANCHORED"))
+        || (p.speed == 0.0
+            && !monster.tags.iter().any(|tag| tag == "ANCHORED")
+            && !monster
+                .movement_modes
+                .iter()
+                .any(|mode| mode.category == "STATIONARY"))
         || p.knockback_scale < 0.0
     {
         return Err(Error::InvalidMonster("invalid physics".into()));
@@ -2417,6 +2446,11 @@ mod tests {
         assert_eq!(len, width as usize * height as usize * 4);
         assert!(!pixels.is_null());
         let saved = tempfile::tempdir().unwrap();
+        let nested = saved.path().join("new/nested/wolf");
+        assert!(!nested.exists());
+        save_generated(unsafe { &*object }, &nested).unwrap();
+        assert!(nested.join("monster.pb").is_file());
+        assert!(load_package(&nested).is_ok());
         let destination = CString::new(saved.path().to_str().unwrap()).unwrap();
         assert_eq!(
             unsafe { infernal_object_save(object, destination.as_ptr(), &mut error) },
@@ -2504,7 +2538,7 @@ mod tests {
             .unwrap()
             .into_rgba8();
         assert_eq!(one.format_version, 7);
-        assert_eq!(sprites.frame_width, 128);
+        assert!(sprites.frame_width >= 128);
         assert!(sheet.pixels().any(|p| p[3] > 0));
         assert_eq!(one.projectiles[0].kind, "FIREBALL");
         assert_eq!(one.attacks[0].projectile_id, one.projectiles[0].id);
@@ -2615,7 +2649,7 @@ mod tests {
         let b = tempfile::tempdir().unwrap();
         let monster = generate_from_spec(spec, 13, a.path()).unwrap();
         assert_eq!(monster.format_version, 7);
-        assert_eq!(monster.sprites.as_ref().unwrap().frame_width, 96);
+        assert!(monster.sprites.as_ref().unwrap().frame_width >= 96);
         let sheet = image::open(a.path().join("sprites.png"))
             .unwrap()
             .into_rgba8();
@@ -2705,7 +2739,7 @@ mod tests {
         assert!(validate(&m, &sheet).is_err());
     }
     #[test]
-    fn invalid_behavior_reference_is_rejected() {
+    fn behavior_is_optional_but_provided_references_are_checked() {
         let dir = tempfile::tempdir().unwrap();
         let mut monster = generate("spider", 6, dir.path(), None).unwrap();
         monster.behavior.as_mut().unwrap().attack_preferences[0].attack_id = "missing".into();
@@ -2713,6 +2747,14 @@ mod tests {
             .unwrap()
             .into_rgba8();
         assert!(validate(&monster, &sheet).is_err());
+        monster.behavior = None;
+        assert!(validate(&monster, &sheet).is_ok());
+        // Legacy packages predate category/modifier descriptors.
+        for mode in &mut monster.movement_modes {
+            mode.category.clear();
+            mode.modifiers.clear();
+        }
+        assert!(validate(&monster, &sheet).is_ok());
     }
     #[test]
     fn corrupt_runtime_metadata_is_rejected() {
@@ -2751,8 +2793,8 @@ mod tests {
         );
         assert_eq!(monster.format_version, 7);
         let sprites = monster.sprites.as_ref().unwrap();
-        assert_eq!(sprites.frame_width, 128);
-        assert_eq!(sprites.frame_height, 128);
+        assert!(sprites.frame_width >= 128);
+        assert!(sprites.frame_height >= 128);
         assert_eq!(sprites.direction_angles_deg.len(), 4);
         assert_eq!(sprites.frame_count, sprites.direction_stride * 4);
         assert!(monster.colliders.iter().all(|c| c.views.len() == 4));
