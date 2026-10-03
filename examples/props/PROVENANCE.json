@@ -1,0 +1,157 @@
+[
+  {
+    "model": "rock_largeC",
+    "pack": "nature-kit",
+    "author": "Kenney",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://kenney.nl/assets/nature-kit",
+    "download": "https://kenney.nl/media/pages/assets/nature-kit/37ac38a37b-1677698939/kenney_nature-kit.zip",
+    "retrieved": "2026-10-03",
+    "file": "assets/nature-kit/rock_largeC.obj",
+    "vertices": 38,
+    "faces": 72,
+    "materials": [
+      "dirt",
+      "grass"
+    ],
+    "bounds": [
+      [
+        -0.5322049,
+        0.0,
+        -0.507831
+      ],
+      [
+        0.5322049,
+        0.321112,
+        0.507831
+      ]
+    ],
+    "zip_sha256": "fa7974a0d342bfe63c38664ba9f8ec1a4aab8ea25f099bdc56870e33588c4d9d",
+    "vendored_processing": "Line endings and trailing whitespace normalized only; source geometry/materials unchanged"
+  },
+  {
+    "model": "tree_palmBend",
+    "pack": "nature-kit",
+    "author": "Kenney",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://kenney.nl/assets/nature-kit",
+    "download": "https://kenney.nl/media/pages/assets/nature-kit/37ac38a37b-1677698939/kenney_nature-kit.zip",
+    "retrieved": "2026-10-03",
+    "file": "assets/nature-kit/tree_palmBend.obj",
+    "vertices": 92,
+    "faces": 200,
+    "materials": [
+      "leafsGreen",
+      "woodBark"
+    ],
+    "bounds": [
+      [
+        -0.4677449,
+        0.0,
+        -0.5063818
+      ],
+      [
+        0.4677449,
+        1.379911,
+        0.5063818
+      ]
+    ],
+    "zip_sha256": "fa7974a0d342bfe63c38664ba9f8ec1a4aab8ea25f099bdc56870e33588c4d9d",
+    "vendored_processing": "Line endings and trailing whitespace normalized only; source geometry/materials unchanged"
+  },
+  {
+    "model": "chairCushion",
+    "pack": "furniture-kit",
+    "author": "Kenney",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://kenney.nl/assets/furniture-kit",
+    "download": "https://kenney.nl/media/pages/assets/furniture-kit/440e0608a4-1677580847/kenney_furniture-kit.zip",
+    "retrieved": "2026-10-03",
+    "file": "assets/furniture-kit/chairCushion.obj",
+    "vertices": 91,
+    "faces": 396,
+    "materials": [
+      "carpet",
+      "wood"
+    ],
+    "bounds": [
+      [
+        -0.2,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.46,
+        0.2
+      ]
+    ],
+    "zip_sha256": "e67652d0932cee41683f74711c03d3e192a2af9979ef8e6b237711f5482d46b0",
+    "vendored_processing": "Line endings and trailing whitespace normalized only; source geometry/materials unchanged"
+  },
+  {
+    "model": "deskCorner",
+    "pack": "furniture-kit",
+    "author": "Kenney",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://kenney.nl/assets/furniture-kit",
+    "download": "https://kenney.nl/media/pages/assets/furniture-kit/440e0608a4-1677580847/kenney_furniture-kit.zip",
+    "retrieved": "2026-10-03",
+    "file": "assets/furniture-kit/deskCorner.obj",
+    "vertices": 129,
+    "faces": 456,
+    "materials": [
+      "metal",
+      "wood"
+    ],
+    "bounds": [
+      [
+        -0.9744755,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.3844076,
+        0.9744755
+      ]
+    ],
+    "zip_sha256": "e67652d0932cee41683f74711c03d3e192a2af9979ef8e6b237711f5482d46b0",
+    "vendored_processing": "Line endings and trailing whitespace normalized only; source geometry/materials unchanged"
+  },
+  {
+    "model": "cardboardBoxOpen",
+    "pack": "furniture-kit",
+    "author": "Kenney",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://kenney.nl/assets/furniture-kit",
+    "download": "https://kenney.nl/media/pages/assets/furniture-kit/440e0608a4-1677580847/kenney_furniture-kit.zip",
+    "retrieved": "2026-10-03",
+    "file": "assets/furniture-kit/cardboardBoxOpen.obj",
+    "vertices": 20,
+    "faces": 120,
+    "materials": [
+      "wood",
+      "woodDark"
+    ],
+    "bounds": [
+      [
+        -0.2921875,
+        0.0,
+        -9.023893e-17
+      ],
+      [
+        0.0796875,
+        0.281,
+        0.2125
+      ]
+    ],
+    "zip_sha256": "e67652d0932cee41683f74711c03d3e192a2af9979ef8e6b237711f5482d46b0",
+    "vendored_processing": "Line endings and trailing whitespace normalized only; source geometry/materials unchanged"
+  }
+]

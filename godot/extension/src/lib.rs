@@ -1,6 +1,6 @@
 use godot::prelude::*;
 use std::ffi::{c_char, c_void, CStr, CString};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender, TryRecvError, TrySendError};
 
 struct InfernalExtension;
@@ -18,9 +18,10 @@ struct Job {
     command: Command,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum Command {
     Generate,
+    BakeProp { path: PathBuf, options_json: String },
     Suggest(u32),
     SuggestArena(u32),
     Save(i64),
@@ -36,12 +37,18 @@ struct JobResult {
     backend: String,
     error: String,
     packages: Vec<MemoryPackage>,
+    prop: Option<MemoryProp>,
+    is_prop: bool,
 }
 
 struct RawImage {
     width: u32,
     height: u32,
     rgba: Vec<u8>,
+}
+struct MemoryProp {
+    metadata: serde_json::Value,
+    sprites: RawImage,
 }
 struct MemoryPackage {
     path: String,
@@ -102,7 +109,8 @@ impl InfernalGenerator {
     ) -> i64 {
         let path = PathBuf::from(output_dir.to_string());
         let libraries = PathBuf::from(library_dir.to_string());
-        if !path.is_absolute() || !libraries.is_absolute() || seed < 0 || !(0..=1).contains(&format) {
+        if !path.is_absolute() || !libraries.is_absolute() || seed < 0 || !(0..=1).contains(&format)
+        {
             return -1;
         }
         let id = self.next_id;
@@ -155,6 +163,42 @@ impl InfernalGenerator {
         }
     }
 
+    /// Bake an OBJ or prop JSON mesh on the worker. Paths must be absolute.
+    /// The result owns its metadata and RGBA copy; no retained handle is needed.
+    #[func]
+    fn bake_prop_async(
+        &mut self,
+        path: GString,
+        options_json: GString,
+        library_dir: GString,
+    ) -> i64 {
+        let path = PathBuf::from(path.to_string());
+        let libraries = PathBuf::from(library_dir.to_string());
+        if !path.is_absolute() || !libraries.is_absolute() {
+            return -1;
+        }
+        let id = self.next_id;
+        let job = Job {
+            id,
+            prompt: String::new(),
+            seed: 0,
+            output_dir: None,
+            library_dir: libraries,
+            format: 0,
+            command: Command::BakeProp {
+                path,
+                options_json: options_json.to_string(),
+            },
+        };
+        match self.jobs.try_send(job) {
+            Ok(()) => {
+                self.next_id += 1;
+                id
+            }
+            Err(TrySendError::Full(_)) | Err(TrySendError::Disconnected(_)) => -1,
+        }
+    }
+
     /// Persist a previously generated in-memory object without regenerating it.
     #[func]
     fn save_in_memory_async(&mut self, object_job_id: i64, output_dir: GString) -> i64 {
@@ -162,7 +206,12 @@ impl InfernalGenerator {
     }
 
     #[func]
-    fn save_in_memory_async_format(&mut self, object_job_id: i64, output_dir: GString, format: i32) -> i64 {
+    fn save_in_memory_async_format(
+        &mut self,
+        object_job_id: i64,
+        output_dir: GString,
+        format: i32,
+    ) -> i64 {
         let path = PathBuf::from(output_dir.to_string());
         if !path.is_absolute() || !(0..=1).contains(&format) {
             return -1;
@@ -209,11 +258,22 @@ impl InfernalGenerator {
 
     /// Queue a one-based arena round. Difficulty rises every three rounds.
     #[func]
-    fn suggest_arena_prompt_async(&mut self, run_seed: i64, round: i32, library_dir: GString) -> i64 {
+    fn suggest_arena_prompt_async(
+        &mut self,
+        run_seed: i64,
+        round: i32,
+        library_dir: GString,
+    ) -> i64 {
         self.queue_suggestion(run_seed, round, library_dir, true)
     }
 
-    fn queue_suggestion(&mut self, seed: i64, value: i32, library_dir: GString, arena: bool) -> i64 {
+    fn queue_suggestion(
+        &mut self,
+        seed: i64,
+        value: i32,
+        library_dir: GString,
+        arena: bool,
+    ) -> i64 {
         let libraries = PathBuf::from(library_dir.to_string());
         if seed < 0 || value < 1 || !libraries.is_absolute() || (!arena && value > 3) {
             return -1;
@@ -226,10 +286,17 @@ impl InfernalGenerator {
             output_dir: None,
             library_dir: libraries,
             format: 0,
-            command: if arena { Command::SuggestArena(value as u32) } else { Command::Suggest(value as u32) },
+            command: if arena {
+                Command::SuggestArena(value as u32)
+            } else {
+                Command::Suggest(value as u32)
+            },
         };
         match self.jobs.try_send(job) {
-            Ok(()) => { self.next_id += 1; id }
+            Ok(()) => {
+                self.next_id += 1;
+                id
+            }
             Err(TrySendError::Full(_)) | Err(TrySendError::Disconnected(_)) => -1,
         }
     }
@@ -241,13 +308,21 @@ impl InfernalGenerator {
             Ok(result) => {
                 let mut value = VarDictionary::new();
                 value.set("job_id", result.id);
-                value.set("prompt", result.prompt);
-                value.set("difficulty", result.difficulty);
-                value.set("monster_seed", result.monster_seed as i64);
+                if !result.is_prop {
+                    value.set("prompt", result.prompt);
+                    value.set("difficulty", result.difficulty);
+                    value.set("monster_seed", result.monster_seed as i64);
+                    value.set("package_dir", result.path);
+                }
                 value.set("ok", result.error.is_empty());
-                value.set("package_dir", result.path);
                 value.set("backend", result.backend);
                 value.set("error", result.error);
+                if let Some(prop) = result.prop {
+                    let mut entry = VarDictionary::new();
+                    entry.set("metadata", &to_godot_value(&prop.metadata));
+                    entry.set("sprites", &image_to_dictionary(prop.sprites));
+                    value.set("prop", &entry);
+                }
                 if !result.packages.is_empty() {
                     let mut packages = VarArray::new();
                     for package in result.packages {
@@ -311,14 +386,14 @@ fn worker(incoming: Receiver<Job>, outgoing: SyncSender<JobResult>) {
     let mut backend: Option<Backend> = None;
     let mut objects = std::collections::HashMap::<i64, *mut c_void>::new();
     while let Ok(job) = incoming.recv() {
-        if let Command::Release(source) = job.command {
-            if let (Some(active), Some(object)) = (backend.as_ref(), objects.remove(&source)) {
+        if let Command::Release(source) = &job.command {
+            if let (Some(active), Some(object)) = (backend.as_ref(), objects.remove(source)) {
                 unsafe { (active.free_object)(object) };
             }
             continue;
         }
-        let result = match job.command {
-            Command::Save(source) => save_object(&job, source, backend.as_ref(), &objects),
+        let result = match &job.command {
+            Command::Save(source) => save_object(&job, *source, backend.as_ref(), &objects),
             Command::Generate if job.output_dir.is_none() && objects.len() >= 4 => JobResult {
                 id: job.id,
                 prompt: job.prompt.clone(),
@@ -328,10 +403,13 @@ fn worker(incoming: Receiver<Job>, outgoing: SyncSender<JobResult>) {
                 backend: String::new(),
                 error: "release an in-memory monster before generating another".into(),
                 packages: Vec::new(),
+                prop: None,
+                is_prop: false,
             },
-            Command::Generate | Command::Suggest(_) | Command::SuggestArena(_) => {
-                run_job(&job, &mut backend, &mut objects)
-            }
+            Command::Generate
+            | Command::BakeProp { .. }
+            | Command::Suggest(_)
+            | Command::SuggestArena(_) => run_job(&job, &mut backend, &mut objects),
             Command::Release(_) => unreachable!(),
         };
         if outgoing.send(result).is_err() {
@@ -364,6 +442,8 @@ fn save_object(
         backend: String::new(),
         error: String::new(),
         packages: Vec::new(),
+        prop: None,
+        is_prop: matches!(&job.command, Command::BakeProp { .. }),
     };
     let (Some(active), Some(&object)) = (backend, objects.get(&source)) else {
         result.error = "in-memory monster id not found".into();
@@ -387,12 +467,14 @@ fn save_object(
     result
 }
 
-type Generate = unsafe extern "C" fn(*const c_char, u64, *const c_char, u32, *mut *mut c_char) -> i32;
+type Generate =
+    unsafe extern "C" fn(*const c_char, u64, *const c_char, u32, *mut *mut c_char) -> i32;
 type FreeString = unsafe extern "C" fn(*mut c_char);
 type AbiVersion = unsafe extern "C" fn() -> u32;
 type CpuKernelName = unsafe extern "C" fn() -> *const c_char;
 type RandomPrompt = unsafe extern "C" fn(u64, u32, *mut *mut c_char) -> *mut c_char;
-type ArenaPrompt = unsafe extern "C" fn(u64, u32, *mut u32, *mut u64, *mut *mut c_char) -> *mut c_char;
+type ArenaPrompt =
+    unsafe extern "C" fn(u64, u32, *mut u32, *mut u64, *mut *mut c_char) -> *mut c_char;
 type GenerateObject = unsafe extern "C" fn(*const c_char, u64, *mut *mut c_char) -> *mut c_void;
 type FreeObject = unsafe extern "C" fn(*mut c_void);
 type ObjectCount = unsafe extern "C" fn(*const c_void) -> u32;
@@ -409,6 +491,31 @@ type ObjectPixels = unsafe extern "C" fn(
 type VisitCallback = unsafe extern "C" fn(*mut c_void, u32, *const c_char, *const c_char, i64, f64);
 type ObjectVisit =
     unsafe extern "C" fn(*const c_void, u32, *mut c_void, Option<VisitCallback>) -> i32;
+type BakeProp = unsafe extern "C" fn(*const c_char, *const c_char, *mut *mut c_char) -> *mut c_void;
+type PropPixels =
+    unsafe extern "C" fn(*const c_void, *mut *const u8, *mut usize, *mut u32, *mut u32) -> i32;
+type PropMetadata = unsafe extern "C" fn(*const c_void) -> *mut c_char;
+
+#[derive(Clone, Copy)]
+struct PropApi {
+    bake: BakeProp,
+    free: FreeObject,
+    pixels: PropPixels,
+    metadata: PropMetadata,
+}
+
+/// All four prop symbols are optional as a group, preserving older ABI-1 cores.
+unsafe fn load_prop_api(library: &libloading::Library) -> Option<PropApi> {
+    Some(PropApi {
+        bake: *library.get::<BakeProp>(b"infernal_bake_prop").ok()?,
+        free: *library.get::<FreeObject>(b"infernal_prop_free").ok()?,
+        pixels: *library.get::<PropPixels>(b"infernal_prop_pixels").ok()?,
+        metadata: *library
+            .get::<PropMetadata>(b"infernal_prop_metadata_json")
+            .ok()?,
+    })
+}
+
 type ObjectSave = unsafe extern "C" fn(*const c_void, *const c_char, u32, *mut *mut c_char) -> i32;
 
 struct Backend {
@@ -426,6 +533,7 @@ struct Backend {
     object_pixels: ObjectPixels,
     object_visit: ObjectVisit,
     object_save: ObjectSave,
+    props: Option<PropApi>,
 }
 
 impl Backend {
@@ -440,7 +548,7 @@ impl Backend {
     }
 }
 
-fn load_backend(library_dir: &PathBuf) -> Result<Backend, String> {
+fn load_backend(library_dir: &Path) -> Result<Backend, String> {
     let mut last_error = String::new();
     for tier in tiers() {
         let path = library_dir.join(core_name(tier));
@@ -511,6 +619,7 @@ fn load_backend(library_dir: &PathBuf) -> Result<Backend, String> {
             cpu_kernel_name: functions.2,
             random_prompt: functions.3,
             arena_prompt: functions.4,
+            props: unsafe { load_prop_api(&library) },
             _library: library,
             generate: functions.0,
             free: functions.1,
@@ -551,6 +660,8 @@ fn run_job(
         backend: String::new(),
         error: String::new(),
         packages: Vec::new(),
+        prop: None,
+        is_prop: matches!(&job.command, Command::BakeProp { .. }),
     };
     let prompt = match CString::new(job.prompt.as_str()) {
         Ok(value) => value,
@@ -577,10 +688,10 @@ fn run_job(
     }
     let active = backend.as_ref().expect("loaded above");
     result.backend = active.kernel_name();
-    match job.command {
+    match &job.command {
         Command::Suggest(difficulty) => {
             let mut error_ptr = std::ptr::null_mut();
-            let pointer = unsafe { (active.random_prompt)(job.seed, difficulty, &mut error_ptr) };
+            let pointer = unsafe { (active.random_prompt)(job.seed, *difficulty, &mut error_ptr) };
             if pointer.is_null() {
                 result.error = copy_error(error_ptr, active.free);
                 if result.error.is_empty() {
@@ -588,7 +699,7 @@ fn run_job(
                 }
             } else {
                 result.prompt = copy_error(pointer, active.free);
-                result.difficulty = difficulty;
+                result.difficulty = *difficulty;
             }
             return result;
         }
@@ -597,7 +708,13 @@ fn run_job(
             let mut monster_seed = 0;
             let mut error_ptr = std::ptr::null_mut();
             let pointer = unsafe {
-                (active.arena_prompt)(job.seed, round, &mut difficulty, &mut monster_seed, &mut error_ptr)
+                (active.arena_prompt)(
+                    job.seed,
+                    *round,
+                    &mut difficulty,
+                    &mut monster_seed,
+                    &mut error_ptr,
+                )
             };
             if pointer.is_null() {
                 result.error = copy_error(error_ptr, active.free);
@@ -608,6 +725,13 @@ fn run_job(
                 result.prompt = copy_error(pointer, active.free);
                 result.difficulty = difficulty;
                 result.monster_seed = monster_seed;
+            }
+            return result;
+        }
+        Command::BakeProp { path, options_json } => {
+            match bake_prop(active, path, options_json) {
+                Ok(prop) => result.prop = Some(prop),
+                Err(error) => result.error = error,
             }
             return result;
         }
@@ -644,7 +768,13 @@ fn run_job(
     };
     let mut error_ptr: *mut c_char = std::ptr::null_mut();
     let code = unsafe {
-        (active.generate)(prompt.as_ptr(), job.seed, output.as_ptr(), job.format, &mut error_ptr)
+        (active.generate)(
+            prompt.as_ptr(),
+            job.seed,
+            output.as_ptr(),
+            job.format,
+            &mut error_ptr,
+        )
     };
     let message = copy_error(error_ptr, active.free);
     if code != 0 {
@@ -655,6 +785,74 @@ fn run_job(
         };
     }
     result
+}
+
+/// Scope native cleanup independently from the retained monster object map.
+struct PropGuard {
+    handle: *mut c_void,
+    free: FreeObject,
+}
+impl Drop for PropGuard {
+    fn drop(&mut self) {
+        unsafe { (self.free)(self.handle) };
+    }
+}
+
+fn bake_prop(active: &Backend, path: &Path, options_json: &str) -> Result<MemoryProp, String> {
+    let api = active.props.ok_or(
+        "loaded generator library does not support prop baking; rebuild and copy the core library with prop support alongside this GDExtension",
+    )?;
+    let path = path.to_str().ok_or("prop path is not valid UTF-8")?;
+    let path = CString::new(path).map_err(|_| "prop path contains a NUL byte")?;
+    let options = CString::new(options_json).map_err(|_| "prop options contain a NUL byte")?;
+    let mut error = std::ptr::null_mut();
+    let handle = unsafe { (api.bake)(path.as_ptr(), options.as_ptr(), &mut error) };
+    let message = copy_error(error, active.free);
+    if handle.is_null() {
+        return Err(if message.is_empty() {
+            "prop bake failed".into()
+        } else {
+            message
+        });
+    }
+    let _guard = PropGuard {
+        handle,
+        free: api.free,
+    };
+    let metadata_ptr = unsafe { (api.metadata)(handle) };
+    if metadata_ptr.is_null() {
+        return Err("missing prop metadata".into());
+    }
+    let metadata_json = copy_error(metadata_ptr, active.free);
+    let metadata = serde_json::from_str::<serde_json::Value>(&metadata_json)
+        .map_err(|error| format!("invalid prop metadata JSON: {error}"))?;
+    if !metadata.is_object() {
+        return Err("prop metadata must be a JSON object".into());
+    }
+    let mut pixels = std::ptr::null();
+    let (mut len, mut width, mut height) = (0usize, 0u32, 0u32);
+    let code = unsafe { (api.pixels)(handle, &mut pixels, &mut len, &mut width, &mut height) };
+    let expected = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|n| n.checked_mul(4));
+    if code != 0
+        || pixels.is_null()
+        || width == 0
+        || height == 0
+        || expected != Some(len)
+        || len > isize::MAX as usize
+    {
+        return Err("invalid prop sprite data".into());
+    }
+    let rgba = unsafe { std::slice::from_raw_parts(pixels, len) }.to_vec();
+    Ok(MemoryProp {
+        metadata,
+        sprites: RawImage {
+            width,
+            height,
+            rgba,
+        },
+    })
 }
 
 fn copy_error(pointer: *mut c_char, free: FreeString) -> String {

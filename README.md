@@ -19,6 +19,20 @@ contains its sprite/emission atlases, animation timing, anatomy-linked attacks,
 and locomotion categories/modifiers. Use returned atlas dimensions and column
 counts; animated framing is fitted dynamically at a shared pixel scale.
 
+## Bake imported props
+
+Use the same CPU sprite style for static OBJ/MTL or JSON meshes:
+
+```sh
+cargo run --release --no-default-features -- bake-prop \
+  examples/props/assets/nature-kit/rock_largeC.obj output/rock \
+  examples/props/options.json
+uv run tools/prop_evidence.py
+```
+
+See [prop controls, import limits and CC0 examples](docs/PROPS.md) for world
+scale, tile dimensions, ground pivot, camera angles and transparent atlases.
+
 ## Integrate with Godot
 
 Start with the [GDExtension setup](godot/README.md) and

@@ -77,6 +77,23 @@ int32_t infernal_object_save(const InfernalGeneratedMonster *handle,
 int32_t infernal_object_save_with_format(const InfernalGeneratedMonster *handle,
                                         const char *output_dir, uint32_t format,
                                         char **error_out);
+/* Static props use an independent handle and metadata contract. These additive
+   symbols are optional when dynamically loading older ABI-1 libraries.
+   Input is an OBJ or prop mesh JSON file. options_json may be NULL for defaults,
+   otherwise pass a UTF-8 JSON object matching PropOptions. Returns NULL on error. */
+typedef struct InfernalPropAtlas InfernalPropAtlas;
+InfernalPropAtlas *infernal_bake_prop(const char *mesh_path,
+                                    const char *options_json, char **error_out);
+/* NULL is accepted; non-NULL handles must be freed exactly once. */
+void infernal_prop_free(InfernalPropAtlas *handle);
+/* Borrowed tightly packed RGBA8 pixels, valid until infernal_prop_free.
+   Returns 0 on success; -1 on NULL arguments, clearing valid output pointers. */
+int32_t infernal_prop_pixels(const InfernalPropAtlas *handle,
+                            const uint8_t **pixels_out, size_t *len_out,
+                            uint32_t *width_out, uint32_t *height_out);
+/* Allocated UTF-8 JSON, independent of handle lifetime. Free with
+   infernal_free_string. Returns NULL for a NULL handle. */
+char *infernal_prop_metadata_json(const InfernalPropAtlas *handle);
 void infernal_free_string(char *value);
 #ifdef __cplusplus
 }

@@ -53,6 +53,78 @@ for CBOR. Both write PNG assets on the worker thread. Call
 copy is no longer needed. Keep the returned Godot dictionaries and byte arrays
 for gameplay after release.
 
+## Imported static props
+
+`bake_prop_async(mesh_path, options)` imports a Y-up OBJ (with opaque MTL `Kd`
+colors) or a `PropMesh` JSON file and rasterizes it on the same bounded worker.
+This path produces a static directional atlas and prop metadata. It does not
+invent monster anatomy, behavior, locomotion, physics, attacks, or animations.
+Raw source files must be accessible to native OS file IO. Editor `res://` paths
+are globalized automatically. For exported games, copy the OBJ and its MTL files
+to `user://` or ship them as real files beside the game; resources stored only
+inside a PCK cannot be opened by this importer.
+
+```gdscript
+var props := InfernalDiffusion.new()
+var job := props.bake_prop_async("res://props/crate.obj", {
+    "pixels_per_unit": 32.0,
+    "world_scale": 1.0,
+    "tile_width": 128,
+    "tile_height": 128,
+    "angles_deg": [0, 90, 180, 270],
+    "columns": 4,
+    "framing": "expand",
+})
+
+func _process(_delta: float) -> void:
+    var result := props.poll_result()
+    if result.is_empty() or result.job_id != job:
+        return
+    if !result.ok:
+        push_error(result.error)
+        return
+    var prop: Dictionary = result.prop
+    var image := InfernalDiffusion.image_from_rgba(prop.sprites)
+    var atlas := ImageTexture.create_from_image(image)
+    var frame: Dictionary = prop.metadata.frames[0]
+    var sprite := Sprite2D.new()
+    sprite.texture = atlas
+    sprite.region_enabled = true
+    var rect: Array = frame.atlas_rect # x, y, width, height in the atlas
+    sprite.region_rect = Rect2(rect[0], rect[1], rect[2], rect[3])
+    sprite.centered = false
+    sprite.offset = -Vector2(frame.pivot_pixels[0], frame.pivot_pixels[1])
+    sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+    add_child(sprite) # This example's script extends Node2D.
+```
+
+The Godot result owns `prop.metadata` and `prop.sprites` (`width`, `height`,
+`rgba`). The native prop handle is freed on the worker after those bytes are
+copied, even if metadata/pixel conversion fails. Props do not occupy any of the
+four retained monster slots and need no `release_in_memory` call.
+
+Options default to four quarter-turn views, 128×128 minimum frames,
+32 pixels per world unit, scale 1, a bottom-center source pivot, fractional
+frame anchor `[0.5, 0.75]`, and about 16° camera elevation. `pivot` accepts an
+explicit source-space `[x, y, z]`; `anchor` accepts `[x, y]` fractions measured
+from the frame's top-left. `seed` is an unsigned procedural surface seed.
+`framing: "expand"` preserves scale and enlarges all frames consistently;
+`"fixed"` rejects overflow; `"fit"` explicitly reduces shared pixels-per-unit
+to fit the requested frames. Metadata reports the resulting scale, atlas
+rectangles, per-frame pivot pixels and nontransparent content bounds.
+
+Options are validated strictly; unknown fields, unsupported texture maps or
+translucent materials, malformed geometry and excessive dimensions fail with
+an actionable `result.error`. OBJ color support is limited to opaque MTL diffuse
+colors, not image textures. See [the prop guide](../docs/PROPS.md) for the mesh
+format and rendering limits. The low-level native method is
+`InfernalGenerator.bake_prop_async(absolute_path, options_json, library_dir)`.
+C callers can use `infernal_bake_prop`, `infernal_prop_pixels`,
+`infernal_prop_metadata_json`, and `infernal_prop_free` from the public header.
+All four symbols are optional when loading older ABI-1 cores, so existing monster
+calls still work. Attempting a prop bake with an older core returns an instruction
+to rebuild/copy the matching core library.
+
 Direct package generation is also available:
 
 ```gdscript
@@ -128,8 +200,23 @@ python tools/smoke_gdextension.py --godot /path/to/Godot-4.6-or-newer
 The runner creates a disposable project, imports the real extension, generates
 in memory, checks the descriptor-only profile and atlas bytes, saves/decodes
 protobuf, replaces it with CBOR, and verifies release/stale-object error
-handling, error recovery, same-seed replay and queue backpressure. A successful run prints `INFERNAL_GDEXTENSION_SMOKE_OK`. It modifies no
+handling, error recovery, same-seed replay and queue backpressure. It also bakes
+repeated static props while retaining a monster, verifies independent prop
+metadata/raw pixels, and checks invalid prop options and recovery. A successful run prints `INFERNAL_GDEXTENSION_SMOKE_OK`. It modifies no
 existing Godot game project. Generation must finish within the test's timeout.
+
+To additionally test a downloaded OBJ with its original adjacent MTL files:
+
+```sh
+INFERNAL_PROP_SMOKE_ASSET=/absolute/path/to/crate.obj \
+INFERNAL_PROP_SMOKE_OUTPUT=/absolute/path/to/prop-smoke-output \
+python tools/smoke_gdextension.py --godot /path/to/Godot-4.6-or-newer
+```
+
+The optional output directory receives `sprites.png` and `prop.json` copied
+through the real Godot result. Respect the source asset's license; the smoke
+does not download or redistribute it. A successful imported-asset bake prints
+`INFERNAL_GDEXTENSION_EXTERNAL_PROP_OK` in addition to the normal marker.
 
 Cancellation/pause/resume of an accepted native job is not currently supported.
 A request rejected with `-1` was not queued and can be retried later. To abandon

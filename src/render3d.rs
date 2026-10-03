@@ -19,13 +19,13 @@ pub const ANGLES_DEG: [f32; 4] = [0.0, 90.0, 180.0, 270.0];
 pub const PIXELS_PER_UNIT: f32 = 96.0 / 62.0;
 
 #[derive(Clone, Copy, Debug, Default)]
-struct V3 {
-    x: f32,
-    y: f32,
-    z: f32,
+pub(crate) struct V3 {
+    pub(crate) x: f32,
+    pub(crate) y: f32,
+    pub(crate) z: f32,
 }
 impl V3 {
-    fn new(x: f32, y: f32, z: f32) -> Self {
+    pub(crate) fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
     }
     fn dot(self, rhs: Self) -> f32 {
@@ -341,18 +341,18 @@ fn skull_recipe(spec: &MonsterSpec, node: &Node) -> &'static str {
 }
 
 #[derive(Clone, Copy)]
-struct Triangle {
-    a: V3,
-    b: V3,
-    c: V3,
-    color: [u8; 4],
-    local: [V3; 3],
-    texture: TextureKind,
-    seed: u32,
+pub(crate) struct Triangle {
+    pub(crate) a: V3,
+    pub(crate) b: V3,
+    pub(crate) c: V3,
+    pub(crate) color: [u8; 4],
+    pub(crate) local: [V3; 3],
+    pub(crate) texture: TextureKind,
+    pub(crate) seed: u32,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum TextureKind {
+pub(crate) enum TextureKind {
     None,
     Flesh,
     Fur,
@@ -365,7 +365,7 @@ enum TextureKind {
     Other,
 }
 
-fn texture_kind(material: &str, role: &str) -> TextureKind {
+pub(crate) fn texture_kind(material: &str, role: &str) -> TextureKind {
     if !matches!(
         role,
         "base" | "shell" | "muzzle" | "ear" | "membrane" | "cap" | "gill" | "tread"
@@ -1005,20 +1005,21 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
 }
 
 #[derive(Clone, Copy)]
-struct ScreenPoint {
-    x: f32,
-    y: f32,
-    depth: f32,
+pub(crate) struct ScreenPoint {
+    pub(crate) x: f32,
+    pub(crate) y: f32,
+    pub(crate) depth: f32,
 }
 
 #[derive(Clone, Copy)]
-struct Camera {
-    sine: f32,
-    cosine: f32,
-    elevation_sine: f32,
-    elevation_cosine: f32,
-    scale: f32,
-    resolution: u32,
+pub(crate) struct Camera {
+    pub(crate) sine: f32,
+    pub(crate) cosine: f32,
+    pub(crate) elevation_sine: f32,
+    pub(crate) elevation_cosine: f32,
+    pub(crate) scale: f32,
+    pub(crate) origin_x: f32,
+    pub(crate) origin_y: f32,
 }
 
 impl Camera {
@@ -1031,17 +1032,18 @@ impl Camera {
             elevation_sine,
             elevation_cosine,
             scale: PIXELS_PER_UNIT * supersample,
-            resolution,
+            origin_x: resolution as f32 * 0.5,
+            origin_y: resolution as f32 * 0.57,
         }
     }
 }
 
-fn project_with_camera(point: V3, camera: Camera) -> ScreenPoint {
+pub(crate) fn project_with_camera(point: V3, camera: Camera) -> ScreenPoint {
     let front = point.x * camera.sine + point.z * camera.cosine;
     let right = point.x * camera.cosine - point.z * camera.sine;
     ScreenPoint {
-        x: camera.resolution as f32 * 0.5 + right * camera.scale,
-        y: camera.resolution as f32 * 0.57
+        x: camera.origin_x + right * camera.scale,
+        y: camera.origin_y
             + (-point.y * camera.elevation_cosine + front * camera.elevation_sine) * camera.scale,
         depth: front * camera.elevation_cosine + point.y * camera.elevation_sine,
     }
@@ -1115,7 +1117,12 @@ fn collider_views_at_depth(node: &Node, size: u32, depth: f32) -> Vec<proto::Col
 }
 
 #[inline(always)]
-fn draw_triangle(image: &mut RgbaImage, depths: &mut [f32], triangle: &Triangle, camera: Camera) {
+fn draw_triangle<const LEGACY_SAMPLE_STEP: bool>(
+    image: &mut RgbaImage,
+    depths: &mut [f32],
+    triangle: &Triangle,
+    camera: Camera,
+) {
     let size = image.width();
     let a = project_with_camera(triangle.a, camera);
     let b = project_with_camera(triangle.b, camera);
@@ -1127,16 +1134,41 @@ fn draw_triangle(image: &mut RgbaImage, depths: &mut [f32], triangle: &Triangle,
     let min_x = a.x.min(b.x).min(c.x).floor().max(0.0) as u32;
     let max_x = a.x.max(b.x).max(c.x).ceil().min((size - 1) as f32) as u32;
     let min_y = a.y.min(b.y).min(c.y).floor().max(0.0) as u32;
-    let max_y = a.y.max(b.y).max(c.y).ceil().min((size - 1) as f32) as u32;
+    let max_y =
+        a.y.max(b.y)
+            .max(c.y)
+            .ceil()
+            .min((image.height() - 1) as f32) as u32;
     if min_x > max_x || min_y > max_y {
         return;
     }
     let inverse_area = 1.0 / area;
     let w0_step = (b.y - c.y) * inverse_area;
     let w1_step = (c.y - a.y) * inverse_area;
-    let normal = (triangle.b - triangle.a)
-        .cross(triangle.c - triangle.a)
-        .normalized();
+    let normal = if LEGACY_SAMPLE_STEP {
+        (triangle.b - triangle.a)
+            .cross(triangle.c - triangle.a)
+            .normalized()
+    } else {
+        // Imported meshes span meters, centimeters and arbitrary source units.
+        // Normalize in f64 without the legacy small-vector clamp or overflow.
+        let u = triangle.b - triangle.a;
+        let v = triangle.c - triangle.a;
+        let n = [
+            f64::from(u.y) * f64::from(v.z) - f64::from(u.z) * f64::from(v.y),
+            f64::from(u.z) * f64::from(v.x) - f64::from(u.x) * f64::from(v.z),
+            f64::from(u.x) * f64::from(v.y) - f64::from(u.y) * f64::from(v.x),
+        ];
+        let length = n.iter().map(|x| x * x).sum::<f64>().sqrt();
+        if length == 0.0 {
+            return;
+        }
+        V3::new(
+            (n[0] / length) as f32,
+            (n[1] / length) as f32,
+            (n[2] / length) as f32,
+        )
+    };
     const LIGHT: V3 = V3 {
         x: -0.420021,
         y: 0.790039,
@@ -1150,8 +1182,15 @@ fn draw_triangle(image: &mut RgbaImage, depths: &mut [f32], triangle: &Triangle,
         let mut w1 = ((c.x - px) * (a.y - py) - (c.y - py) * (a.x - px)) * inverse_area;
         for x in min_x..=max_x {
             let w2 = 1.0 - w0 - w1;
+            let sample_w0 = w0;
+            let sample_w1 = w1;
             w0 += w0_step;
             w1 += w1_step;
+            // Existing monster pixels retain their historical sample stepping.
+            // Generic meshes use all three weights at the same pixel center;
+            // mixing adjacent samples causes false depth seams on coplanar faces.
+            let w0 = if LEGACY_SAMPLE_STEP { w0 } else { sample_w0 };
+            let w1 = if LEGACY_SAMPLE_STEP { w1 } else { sample_w1 };
             if w0 < -0.0001 || w1 < -0.0001 || w2 < -0.0001 {
                 continue;
             }
@@ -1173,9 +1212,26 @@ fn draw_triangle(image: &mut RgbaImage, depths: &mut [f32], triangle: &Triangle,
 }
 
 #[inline(always)]
-fn rasterize(triangles: &[Triangle], image: &mut RgbaImage, depths: &mut [f32], camera: Camera) {
+pub(crate) fn rasterize(
+    triangles: &[Triangle],
+    image: &mut RgbaImage,
+    depths: &mut [f32],
+    camera: Camera,
+) {
     for triangle in triangles {
-        draw_triangle(image, depths, triangle, camera);
+        draw_triangle::<true>(image, depths, triangle, camera);
+    }
+}
+
+/// Generic mesh path with coherent pixel-center coverage/depth interpolation.
+pub(crate) fn rasterize_mesh(
+    triangles: &[Triangle],
+    image: &mut RgbaImage,
+    depths: &mut [f32],
+    camera: Camera,
+) {
+    for triangle in triangles {
+        draw_triangle::<false>(image, depths, triangle, camera);
     }
 }
 
@@ -1268,28 +1324,13 @@ pub fn cpu_kernel_name() -> &'static str {
     rasterizer().1
 }
 
-fn frame_with_stats(
-    triangles: &[Triangle],
-    pose: &Pose,
-    size: u32,
-    angle: f32,
-    palette: &[[u8; 4]],
-    nearest: &mut std::collections::HashMap<[u8; 3], [u8; 3]>,
-) -> (RgbaImage, [std::time::Duration; 3]) {
-    let phase_started = std::time::Instant::now();
-    let high_size = size * 2;
-    let mut high = RgbaImage::new(high_size, high_size);
-    let mut depths = vec![f32::NEG_INFINITY; (high_size * high_size) as usize];
-    let camera = Camera::new(angle, high_size, 2.0);
-    let kernel = rasterizer().0;
-    unsafe {
-        kernel(triangles, &mut high, &mut depths, camera);
-    }
-    let raster_time = phase_started.elapsed();
-    let phase_started = std::time::Instant::now();
-    let mut low = RgbaImage::new(size, size);
-    for y in 0..size {
-        for x in 0..size {
+/// Shared 2x coverage reduction; keeps the established monster alpha contract.
+pub(crate) fn downsample(high: &RgbaImage) -> RgbaImage {
+    let width = high.width() / 2;
+    let height = high.height() / 2;
+    let mut low = RgbaImage::new(width, height);
+    for y in 0..height {
+        for x in 0..width {
             let samples = [
                 high.get_pixel(2 * x, 2 * y),
                 high.get_pixel(2 * x + 1, 2 * y),
@@ -1312,6 +1353,29 @@ fn frame_with_stats(
             low.put_pixel(x, y, Rgba(rgba));
         }
     }
+    low
+}
+
+fn frame_with_stats(
+    triangles: &[Triangle],
+    pose: &Pose,
+    size: u32,
+    angle: f32,
+    palette: &[[u8; 4]],
+    nearest: &mut std::collections::HashMap<[u8; 3], [u8; 3]>,
+) -> (RgbaImage, [std::time::Duration; 3]) {
+    let phase_started = std::time::Instant::now();
+    let high_size = size * 2;
+    let mut high = RgbaImage::new(high_size, high_size);
+    let mut depths = vec![f32::NEG_INFINITY; (high_size * high_size) as usize];
+    let camera = Camera::new(angle, high_size, 2.0);
+    let kernel = rasterizer().0;
+    unsafe {
+        kernel(triangles, &mut high, &mut depths, camera);
+    }
+    let raster_time = phase_started.elapsed();
+    let phase_started = std::time::Instant::now();
+    let mut low = downsample(&high);
     let downsample_time = phase_started.elapsed();
     let phase_started = std::time::Instant::now();
     render::quantize_cached(&mut low, palette, nearest);

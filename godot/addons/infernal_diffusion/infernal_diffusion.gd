@@ -25,6 +25,12 @@ func generate_async_format(prompt: String, seed: int, output_dir: String, format
 func generate_in_memory_async(prompt: String, seed: int) -> int:
 	return _generator.generate_in_memory_async(prompt, seed, _library_dir())
 
+## Bake a static OBJ or prop JSON mesh. Result: {prop: {metadata, sprites}}.
+## Returned bytes are owned by Godot; no release_in_memory call is needed.
+## In exported games, use user:// or an exported raw file path (not a PCK-only asset).
+func bake_prop_async(mesh_path: String, options: Dictionary = {}) -> int:
+	return _generator.bake_prop_async(ProjectSettings.globalize_path(mesh_path), JSON.stringify(options), _library_dir())
+
 func suggest_prompt_async(seed: int, difficulty: int) -> int:
 	return _generator.suggest_prompt_async(seed, difficulty, _library_dir())
 

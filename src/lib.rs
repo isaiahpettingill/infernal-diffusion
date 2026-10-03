@@ -7,6 +7,7 @@ pub mod parser;
 pub mod physics;
 pub mod projectile;
 pub mod prompt;
+pub mod props;
 pub mod proto;
 pub mod recipes;
 pub mod render;

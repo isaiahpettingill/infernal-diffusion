@@ -1,6 +1,38 @@
 use std::path::Path;
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    if args.get(1).is_some_and(|a| a == "bake-prop") {
+        let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+            if !(4..=5).contains(&args.len()) {
+                return Err(
+                    "usage: infernal bake-prop INPUT.obj|mesh.json OUTPUT_DIR [OPTIONS.json]"
+                        .into(),
+                );
+            }
+            let options = if let Some(path) = args.get(4) {
+                serde_json::from_reader(std::fs::File::open(path)?)?
+            } else {
+                infernal_diffusion::props::PropOptions::default()
+            };
+            let mesh = infernal_diffusion::props::load_mesh(Path::new(&args[2]))?;
+            let atlas = infernal_diffusion::props::bake(&mesh, &options)?;
+            infernal_diffusion::props::save(&atlas, Path::new(&args[3]))?;
+            println!(
+                "{} views, {}x{} frames, {:.3} pixels/world unit -> {}",
+                atlas.metadata.frames.len(),
+                atlas.metadata.frame_width,
+                atlas.metadata.frame_height,
+                atlas.metadata.pixels_per_unit,
+                args[3]
+            );
+            Ok(())
+        })();
+        if let Err(error) = result {
+            eprintln!("{error}");
+            std::process::exit(2);
+        }
+        return;
+    }
     if args.len() == 4 && args[1] == "suggest" {
         let seed: u64 = args[2].parse().unwrap_or_else(|_| {
             eprintln!("seed must be an unsigned integer");
