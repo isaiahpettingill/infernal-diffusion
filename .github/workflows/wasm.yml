@@ -30,7 +30,7 @@ jobs:
           curl -fL --retry 3 https://github.com/WebAssembly/binaryen/releases/download/version_130/binaryen-version_130-x86_64-linux.tar.gz | tar xz
           echo "$PWD/binaryen-version_130/bin" >> "$GITHUB_PATH"
       - name: Test deterministic parser and preserved recipes
-        run: cargo test --locked --no-default-features --lib parser::
+        run: cargo test --locked --no-default-features --lib parser
       - name: Build full optimized threaded WASM
         run: tools/build_wasm.sh
       - name: Install browser tests
