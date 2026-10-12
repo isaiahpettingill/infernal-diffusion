@@ -12,7 +12,18 @@ pub mod proto;
 pub mod recipes;
 pub mod render;
 pub mod render3d;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod web;
+#[cfg(all(target_arch = "wasm32", feature = "wasm"))]
+mod wasm;
+
+#[cfg(all(target_arch = "wasm32", feature = "bert"))]
+compile_error!("Browser builds must use --no-default-features --features wasm; native BERT is unchanged");
+
+#[cfg(target_arch = "wasm32")]
+use web_time::Instant;
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
 
 use prost::Message;
 use rand::Rng;
@@ -314,7 +325,7 @@ fn generate_prompt(
     sink: &mut dyn PackageSink,
 ) -> Result<proto::Monster, Error> {
     let profile = std::env::var_os("INFERNAL_PROFILE").is_some();
-    let started = std::time::Instant::now();
+    let started = Instant::now();
     if prompt.trim().is_empty() || prompt.len() > 4096 {
         return Err(Error::InvalidPrompt);
     }
@@ -631,6 +642,10 @@ fn generate_spec_internal(
         ));
     }
     let mut recipe_ids = stages.registry().versions(&spec.body_plan);
+    if spec.affinity == "STORMTROOPER" {
+        recipe_ids.push("destructos.stormtrooper@1".into());
+        recipe_ids.push("mesh.skull_stormtrooper@1".into());
+    }
     if options.randomize_unknown && spec.affinity == "UNKNOWN" {
         recipe_ids.push("morphology.seeded_mystery@1".into());
     }
@@ -699,6 +714,19 @@ fn generate_spec_internal(
         return Err(Error::InvalidMonster(
             "animation stage omitted required movement, attacks, or poses".into(),
         ));
+    }
+    if spec.affinity == "STORMTROOPER" {
+        for attack in &mut attacks {
+            if attack.delivery == "PROJECTILE" {
+                for step in &mut attack.steps {
+                    if step.primitive == "SPAWN_PROJECTILE" {
+                        step.target = "RANDOM_DIRECTION".into();
+                        // A fresh random direction, not a 360-degree projectile fan.
+                        step.spread_deg = 0.0;
+                    }
+                }
+            }
+        }
     }
     let (projectiles, projectile_sheet) = projectile::bake(&spec, &mut attacks, seed);
     let base_size = if spec.size > 0.8 {
@@ -948,7 +976,7 @@ fn generate_spec_internal(
     }
     let size_health = (spec.size * 90.0).round() as u32;
     let armor_material = spec.materials.iter().any(|material| {
-        ["CHITIN", "SCALES", "STONE", "METAL", "BONE"].contains(&material.as_str())
+        ["CHITIN", "SCALES", "STONE", "METAL", "BONE", "ARMOR_WHITE"].contains(&material.as_str())
     });
     let armor_health = (spec.bulk * 22.0).round() as u32 + if armor_material { 14 } else { 0 };
     let magic_health = (if spec.attack.element != "PHYSICAL" {

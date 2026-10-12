@@ -1,0 +1,59 @@
+import { MonsterGenerator } from './client.js';
+const generator = new MonsterGenerator();
+const $ = (id) => document.getElementById(id);
+let ticks = 0;
+setInterval(() => { $('heartbeat').textContent = String(++ticks); }, 100);
+let busy = false;
+function setBusy(value) { busy = value; $('generate').disabled = value; $('cancel').disabled = !value; }
+function atlasView(label, atlas) {
+  if (!atlas) return document.createTextNode('');
+  const section = document.createElement('section');
+  const heading = document.createElement('h3');
+  heading.textContent = `${label} (${atlas.width} × ${atlas.height})`;
+  const canvas = document.createElement('canvas');
+  canvas.width = atlas.width;
+  canvas.height = atlas.height;
+  const pixels = new Uint8ClampedArray(atlas.rgba.buffer, atlas.rgba.byteOffset, atlas.rgba.byteLength);
+  canvas.getContext('2d').putImageData(new ImageData(pixels, atlas.width, atlas.height), 0, 0);
+  section.append(heading, canvas);
+  return section;
+}
+function show(result) {
+  $('results').replaceChildren();
+  for (const pkg of result.packages) {
+    const article = document.createElement('article');
+    const heading = document.createElement('h2');
+    heading.textContent = `${pkg.monster.display_name} · ${pkg.path || 'root package'}`;
+    const metadata = document.createElement('details');
+    const summary = document.createElement('summary');
+    summary.textContent = 'Complete monster metadata';
+    const pre = document.createElement('pre');
+    pre.textContent = JSON.stringify(pkg.monster, (_, value) => typeof value === 'bigint' ? value.toString() : value, 2);
+    metadata.append(summary, pre);
+    article.append(heading, atlasView('Sprites', pkg.sprites), atlasView('Emission', pkg.emission), atlasView('Projectiles', pkg.projectiles), metadata);
+    $('results').append(article);
+  }
+}
+$('form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (busy) return;
+  setBusy(true);
+  $('status').textContent = 'Generating in worker… The heartbeat stays responsive.';
+  const started = performance.now();
+  try {
+    const result = await generator.generate($('prompt').value, $('seed').value);
+    show(result);
+    $('status').textContent = `Generated ${result.packages.length} package(s) in ${((performance.now() - started) / 1000).toFixed(2)}s`;
+  } catch (error) {
+    $('status').textContent = error.name === 'AbortError' ? 'Cancelled. Generate again to start a fresh worker.' : error.message;
+  } finally { setBusy(false); }
+});
+$('cancel').addEventListener('click', () => generator.cancel());
+window.addEventListener('pagehide', () => generator.dispose());
+try {
+  const { threadCount } = await generator.ready();
+  $('status').textContent = 'Ready';
+  $('status').title = `Rayon pool initialized with ${threadCount} workers`;
+  $('generate').disabled = false;
+}
+catch (error) { $('status').textContent = error.message; }

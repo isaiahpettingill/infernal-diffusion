@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Infernal Diffusion · WASM worker</title>
+  <style>
+    :root { color-scheme: dark; font: 16px system-ui, sans-serif; background: #14131b; color: #eae6f2 }
+    body { max-width: 1100px; margin: 3rem auto; padding: 0 1.5rem }
+    h1 { color: #edb5ff } label { display: block; margin: 1rem 0 }
+    input, button { font: inherit; padding: .65rem; border: 1px solid #62516e; border-radius: .4rem }
+    #prompt { width: min(90%, 650px) } button { cursor: pointer } button:disabled { cursor: default; opacity: .5 }
+    canvas { max-width: 100%; height: auto; image-rendering: pixelated; background: #252331 }
+    pre { overflow: auto; max-height: 28rem; font-size: .8rem; background: #201e2b; padding: 1rem }
+    #status { min-height: 1.5rem } .heartbeat { color: #abf2c2 } article { border-top: 1px solid #62516e; margin-top: 2rem }
+  </style>
+</head>
+<body>
+  <h1>Infernal Diffusion</h1>
+  <p>Real procedural generation in a threaded WebAssembly worker pool. Vocabulary parsing; no native BERT or generation server.</p>
+  <p class="heartbeat">Main-thread heartbeat: <output id="heartbeat">0</output></p>
+  <form id="form">
+    <label>Prompt <input id="prompt" value="stormtrooper with a laser blaster" required></label>
+    <label>Seed <input id="seed" value="42" inputmode="numeric" pattern="[0-9]+" required></label>
+    <button id="generate" type="submit" disabled>Generate</button>
+    <button id="cancel" type="button" disabled>Cancel</button>
+  </form>
+  <p id="status" role="status">Loading WebAssembly…</p>
+  <main id="results"></main>
+  <script type="module" src="./demo.js"></script>
+</body>
+</html>

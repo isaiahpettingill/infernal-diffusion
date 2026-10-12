@@ -1,0 +1,10 @@
+{
+  "name": "infernal-diffusion-wasm-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "serve": "python3 server.py",
+    "test": "playwright test"
+  },
+  "devDependencies": { "@playwright/test": "1.58.2" }
+}
