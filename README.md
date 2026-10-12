@@ -5,6 +5,13 @@ metadata and collision information. An optional embedded BERT parser interprets
 prompts; anatomy, intermediate 3D meshes, animation and sprite baking are procedural
 and run on the CPU. No external image-generation service or model training is needed.
 
+## Browser / Web Worker build
+
+The full procedural pipeline can run in a modern browser with a shared-memory
+WASM thread pool and deterministic vocabulary parsing instead of BERT. See
+[the runnable browser demo and build instructions](web/wasm/README.md).
+The WASM CI builds an optimized wasm32 artifact and tests actual worker generation.
+
 ## Generate a monster
 
 ```sh

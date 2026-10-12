@@ -14,13 +14,14 @@ path = "src/main.rs"
 
 [features]
 default = ["bert"]
+wasm = ["dep:wasm-bindgen", "dep:serde-wasm-bindgen", "dep:serde_bytes", "dep:wasm-bindgen-rayon"]
 bert = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers"]
 
 [dependencies]
 image = { version = "0.25", default-features = false, features = ["png"] }
 prost = "0.14"
 ciborium = "0.2"
-rand = "0.9"
+rand = { version = "0.9", default-features = false, features = ["std"] }
 rand_chacha = "0.9"
 rayon = "1.12"
 serde = { version = "1", features = ["derive"] }
@@ -35,3 +36,18 @@ tokenizers = { version = "0.21", optional = true, default-features = false, feat
 
 [dev-dependencies]
 tempfile = "3"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = { version = "0.2.104", optional = true }
+serde-wasm-bindgen = { version = "0.6", optional = true }
+serde_bytes = { version = "0.11", optional = true }
+web-time = "1"
+wasm-bindgen-rayon = { version = "1.3", optional = true, features = ["no-bundler"] }
+
+[profile.wasm-release]
+inherits = "release"
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "debuginfo"

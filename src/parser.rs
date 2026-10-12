@@ -209,6 +209,8 @@ const CONCEPTS: &[(&str, &str, &str)] = &[
     ("goblin", "HUMANOID", "GOBLIN"),
     ("troll", "HUMANOID", "TROLL"),
     ("anime girl", "HUMANOID", "ANIME_GIRL"),
+    ("stormtrooper", "HUMANOID", "STORMTROOPER"),
+    ("storm trooper", "HUMANOID", "STORMTROOPER"),
     ("evil robot", "HUMANOID", "ROBOT"),
     ("robot", "HUMANOID", "ROBOT"),
     ("alien", "HUMANOID", "ALIEN"),
@@ -521,9 +523,11 @@ fn parse_vocabulary_clause(prompt: &str) -> MonsterSpec {
         .iter()
         .filter(|(start, _, _)| *start < boundary)
         .collect::<Vec<_>>();
+    let has_stormtrooper = subject.iter().any(|(_, _, (_, _, affinity))| *affinity == "STORMTROOPER");
     let found = subject
         .iter()
-        .find(|(_, _, (_, _, affinity))| !modifier_affinity(affinity))
+        .find(|(_, _, (_, _, affinity))| !modifier_affinity(affinity)
+            && !(has_stormtrooper && *affinity == "HUMANOID"))
         .copied()
         .or_else(|| subject.first().copied())
         .or_else(|| {
@@ -584,6 +588,7 @@ fn parse_vocabulary_clause(prompt: &str) -> MonsterSpec {
                 && spawn_target.is_none_or(|(spawn_start, _, _)| start != spawn_start)
                 && !modifier_affinity(candidate)
                 && *candidate != affinity
+                && !(affinity == "STORMTROOPER" && *candidate == "HUMANOID")
         })
         .map(|(_, _, (_, _, candidate))| (*candidate).to_string())
         .take(2)
@@ -813,6 +818,10 @@ fn parse_vocabulary_clause(prompt: &str) -> MonsterSpec {
             .into(),
         );
     }
+    // Destructos recipe: bright segmented armor and a fixed helmet silhouette.
+    if affinity == "STORMTROOPER" {
+        materials = vec!["ARMOR_WHITE".into()];
+    }
     let mut features = Vec::new();
     for (word, feature) in [
         ("horned", "HORN"),
@@ -1011,6 +1020,8 @@ fn parse_vocabulary_clause(prompt: &str) -> MonsterSpec {
             "PROJECTILE".into()
         } else if affinity == "TANK" {
             "CANNON".into()
+        } else if affinity == "STORMTROOPER" {
+            "LASER".into()
         } else if affinity == "DRONE" {
             "LASER".into()
         } else if affinity == "MUSHROOM" {
@@ -1743,5 +1754,27 @@ mod vocabulary_tests {
             6
         );
         assert!(insect_body.nodes.iter().any(|node| node.kind == "ELYTRON"));
+    }
+}
+
+#[cfg(test)]
+mod destructos_recipe_tests {
+    #[test]
+    fn stormtrooper_recipe_is_white_armored_biped_with_blaster() {
+        let spec = super::parse_vocabulary("stormtrooper white armored helmeted humanoid wielding a laser blaster");
+        assert_eq!(super::parse_vocabulary("a white armored helmeted humanoid stormtrooper carrying a black blaster").affinity, "STORMTROOPER");
+        assert_eq!(spec.affinity, "STORMTROOPER");
+        assert!(spec.secondary_affinities.is_empty());
+        assert_eq!(spec.body_plan, "HUMANOID");
+        assert_eq!(spec.materials[0], "ARMOR_WHITE");
+        assert_eq!(spec.limb_count, 2);
+        assert_eq!(spec.arm_count, 2);
+        assert_eq!(spec.attack.delivery, "PROJECTILE");
+        assert_eq!(spec.attack.concept, "LASER");
+        use rand::SeedableRng;
+        let body = crate::anatomy::build(&spec, &mut rand_chacha::ChaCha8Rng::seed_from_u64(42));
+        assert!(body.nodes.iter().any(|n| n.kind == "HEAD" && n.material == "ARMOR_WHITE"));
+        assert!(body.nodes.iter().any(|n| n.kind == "WEAPON" && n.material == "UNDERSUIT_BLACK"));
+        assert!(!body.nodes.iter().any(|n| n.id.starts_with("hybrid_")));
     }
 }

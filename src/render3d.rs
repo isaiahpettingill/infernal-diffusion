@@ -11,6 +11,7 @@ use image::{Rgba, RgbaImage};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use rayon::prelude::*;
+use crate::Instant;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::sync::OnceLock;
@@ -171,6 +172,7 @@ const MESHES: &[(&str, &str)] = &[
         "skull_tank",
         include_str!("../assets/meshes/skull_tank.json"),
     ),
+    ("skull_stormtrooper", include_str!("../assets/meshes/skull_stormtrooper.json")),
     ("part_horn", include_str!("../assets/meshes/part_horn.json")),
     ("part_claw", include_str!("../assets/meshes/part_claw.json")),
     ("part_fang", include_str!("../assets/meshes/part_fang.json")),
@@ -315,6 +317,7 @@ fn skull_recipe(spec: &MonsterSpec, node: &Node) -> &'static str {
         "ELEPHANT" | "GROOTSLANG" | "MAMMOTH" => "skull_elephant",
         "ALIEN" => "skull_alien",
         "ORC" | "GOBLIN" | "TROLL" | "TOKOLOSHE" => "skull_goblin",
+        "STORMTROOPER" => "skull_stormtrooper",
         "ROBOT" | "DRONE" => "skull_robot",
         "MUSHROOM" => "skull_mushroom",
         "KRAKEN" => "skull_alien",
@@ -467,6 +470,7 @@ fn role_color(role: &str, material: &str) -> [u8; 4] {
         "rib" => render::colors("HORN").0,
         "membrane" if material == "MEMBRANE" => render::colors("MEMBRANE").1,
         "membrane" => mid,
+        "metal" if material == "UNDERSUIT_BLACK" => mid,
         "metal" => render::colors("METAL").1,
         "wood" => render::colors("WOOD").1,
         "cap" => render::colors("FUNGUS").1,
@@ -1364,7 +1368,7 @@ fn frame_with_stats(
     palette: &[[u8; 4]],
     nearest: &mut std::collections::HashMap<[u8; 3], [u8; 3]>,
 ) -> (RgbaImage, [std::time::Duration; 3]) {
-    let phase_started = std::time::Instant::now();
+    let phase_started = Instant::now();
     let high_size = size * 2;
     let mut high = RgbaImage::new(high_size, high_size);
     let mut depths = vec![f32::NEG_INFINITY; (high_size * high_size) as usize];
@@ -1374,10 +1378,10 @@ fn frame_with_stats(
         kernel(triangles, &mut high, &mut depths, camera);
     }
     let raster_time = phase_started.elapsed();
-    let phase_started = std::time::Instant::now();
+    let phase_started = Instant::now();
     let mut low = downsample(&high);
     let downsample_time = phase_started.elapsed();
-    let phase_started = std::time::Instant::now();
+    let phase_started = Instant::now();
     render::quantize_cached(&mut low, palette, nearest);
     if pose.state == "DEATH" {
         for pixel in low.pixels_mut() {
@@ -1431,6 +1435,7 @@ fn palette(body: &Body) -> Vec<[u8; 4]> {
     colors
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn render_pool() -> Option<&'static rayon::ThreadPool> {
     static POOL: std::sync::OnceLock<Option<rayon::ThreadPool>> = std::sync::OnceLock::new();
     POOL.get_or_init(|| {
@@ -1459,7 +1464,7 @@ pub fn sheet(
     seed: u64,
 ) -> (RgbaImage, u32, u32) {
     let profile = std::env::var_os("INFERNAL_PROFILE").is_some();
-    let started = std::time::Instant::now();
+    let started = Instant::now();
     let mut scene_time = std::time::Duration::ZERO;
     let mut frame_time = std::time::Duration::ZERO;
     let mut stage_times = [std::time::Duration::ZERO; 3];
@@ -1471,11 +1476,11 @@ pub fn sheet(
     let palette = palette(body);
     let mut output = RgbaImage::new(columns * size, rows * size);
     for (index, pose) in poses.iter().enumerate() {
-        let phase_started = std::time::Instant::now();
+        let phase_started = Instant::now();
         let triangles = scene(spec, body, pose, seed);
         scene_time += phase_started.elapsed();
         let make_frame = |(direction, degrees): (usize, &f32)| {
-            let phase_started = std::time::Instant::now();
+            let phase_started = Instant::now();
             let mut nearest = std::collections::HashMap::new();
             let (frame, stages) = frame_with_stats(
                 &triangles,
@@ -1487,6 +1492,9 @@ pub fn sheet(
             );
             (direction, frame, stages, phase_started.elapsed())
         };
+        #[cfg(target_arch = "wasm32")]
+        let frames: Vec<_> = ANGLES_DEG.par_iter().enumerate().map(make_frame).collect();
+        #[cfg(not(target_arch = "wasm32"))]
         let frames: Vec<_> = if let Some(pool) = render_pool() {
             pool.install(|| ANGLES_DEG.par_iter().enumerate().map(make_frame).collect())
         } else {

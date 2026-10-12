@@ -37,6 +37,8 @@ fn material_adjective(material: &str) -> &str {
         "SLIME" => "slimy",
         "SAND_HIDE" => "sandy",
         "STONE" => "stony",
+        "ARMOR_WHITE" => "white-armored",
+        "UNDERSUIT_BLACK" => "black-suited",
         "METAL" => "metal",
         "WOOD" => "wooden",
         "WRAPPING" => "wrapped",

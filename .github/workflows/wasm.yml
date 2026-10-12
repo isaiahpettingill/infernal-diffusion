@@ -1,0 +1,60 @@
+name: WASM threaded browser generator
+on:
+  push:
+    paths: ["src/**", "assets/**", "Cargo.toml", "Cargo.lock", "tools/build_wasm.sh", "web/wasm/**", ".github/workflows/wasm.yml"]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  wasm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly-2026-10-12
+          components: rust-src
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/wasm/package-lock.json
+      - name: Install pinned official WASM tools
+        shell: bash
+        run: |
+          curl -fL --retry 3 https://github.com/wasm-bindgen/wasm-bindgen/releases/download/0.2.129/wasm-bindgen-0.2.129-x86_64-unknown-linux-musl.tar.gz | tar xz
+          echo "$PWD/wasm-bindgen-0.2.129-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
+          curl -fL --retry 3 https://github.com/WebAssembly/binaryen/releases/download/version_130/binaryen-version_130-x86_64-linux.tar.gz | tar xz
+          echo "$PWD/binaryen-version_130/bin" >> "$GITHUB_PATH"
+      - name: Test deterministic parser and preserved recipes
+        run: cargo test --locked --no-default-features --lib parser::
+      - name: Build full optimized threaded WASM
+        run: tools/build_wasm.sh
+      - name: Install browser tests
+        working-directory: web/wasm
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Test real browser worker, threads, responsiveness and cancellation
+        working-directory: web/wasm
+        run: npm test
+      - uses: actions/upload-artifact@v4
+        with:
+          name: infernal-wasm32-threaded
+          path: |
+            web/wasm/pkg/
+            web/wasm/client.js
+            web/wasm/worker.js
+            web/wasm/index.html
+            web/wasm/demo.js
+            web/wasm/server.py
+            web/wasm/README.md
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: wasm-browser-failure
+          path: web/wasm/test-results/
