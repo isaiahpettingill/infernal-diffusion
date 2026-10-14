@@ -39,9 +39,9 @@ function transfers(result) {
   return [...buffers];
 }
 self.onmessage = async ({ data }) => {
-  const { id, type, prompt, seed } = data || {};
+  const { id, type, prompt, seed, profile = 'v1' } = data || {};
   if (!Number.isSafeInteger(id)) return;
-  if (type !== 'generate' && type !== 'ready') {
+  if (type !== 'generate' && type !== 'generate_hybrid' && type !== 'ready') {
     self.postMessage({ id, type: 'error', error: serializeError(new Error('Unknown worker request'), 'INVALID_REQUEST') });
     return;
   }
@@ -58,7 +58,21 @@ self.onmessage = async ({ data }) => {
     }
     if (typeof prompt !== 'string' || !prompt.trim()) throw new TypeError('Prompt must be a nonempty string');
     if (typeof seed !== 'bigint' || seed < 0n || seed > 18446744073709551615n) throw new RangeError('Seed must be an unsigned 64-bit bigint');
-    const result = api.generate_monster(prompt, seed);
+    if (profile !== 'v1' && profile !== 'v2') throw new RangeError('Profile must be v1 or v2');
+    // Keep V1 compatible with previously built WASM packages. Never silently
+    // downgrade an explicit V2 request when paired with an older binary.
+    if (type !== 'generate_hybrid' && profile === 'v2' && typeof api.generate_monster_with_profile !== 'function') {
+      throw new Error('This WASM package does not support V2; rebuild the generator');
+    }
+    let result;
+    if (type === 'generate_hybrid') {
+      if (profile !== 'v2') throw new RangeError('Structured hybrid generation requires V2');
+      if (typeof api.generate_hybrid_json !== 'function') throw new Error('This WASM package does not support structured hybrids; rebuild the generator');
+      result = api.generate_hybrid_json(prompt, seed);
+    } else {
+      result = profile === 'v1' ? api.generate_monster(prompt, seed)
+        : api.generate_monster_with_profile(prompt, seed, profile);
+    }
     self.postMessage({ id, type: 'result', result }, transfers(result));
   } catch (error) {
     self.postMessage({ id, type: 'error', error: serializeError(error, 'GENERATION_FAILED') });

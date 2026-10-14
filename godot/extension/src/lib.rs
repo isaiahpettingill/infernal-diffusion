@@ -15,12 +15,14 @@ struct Job {
     output_dir: Option<PathBuf>,
     library_dir: PathBuf,
     format: u32,
+    profile: u32,
     command: Command,
 }
 
 #[derive(Clone)]
 enum Command {
     Generate,
+    GenerateHybrid,
     BakeProp { path: PathBuf, options_json: String },
     Suggest(u32),
     SuggestArena(u32),
@@ -107,9 +109,27 @@ impl InfernalGenerator {
         format: i32,
         library_dir: GString,
     ) -> i64 {
+        self.generate_async_profile(prompt, seed, output_dir, format, 1, library_dir)
+    }
+
+    /// Profile is 1 (legacy) or 2 (opt-in). Unknown profiles fail before queuing.
+    #[func]
+    fn generate_async_profile(
+        &mut self,
+        prompt: GString,
+        seed: i64,
+        output_dir: GString,
+        format: i32,
+        profile: i32,
+        library_dir: GString,
+    ) -> i64 {
         let path = PathBuf::from(output_dir.to_string());
         let libraries = PathBuf::from(library_dir.to_string());
-        if !path.is_absolute() || !libraries.is_absolute() || seed < 0 || !(0..=1).contains(&format)
+        if !path.is_absolute()
+            || !libraries.is_absolute()
+            || seed < 0
+            || !(0..=1).contains(&format)
+            || !valid_profile(profile)
         {
             return -1;
         }
@@ -121,6 +141,7 @@ impl InfernalGenerator {
             output_dir: Some(path),
             library_dir: libraries,
             format: format as u32,
+            profile: profile as u32,
             command: Command::Generate,
         };
         match self.jobs.try_send(job) {
@@ -140,6 +161,49 @@ impl InfernalGenerator {
         seed: i64,
         library_dir: GString,
     ) -> i64 {
+        self.generate_in_memory_async_profile(prompt, seed, 1, library_dir)
+    }
+
+    #[func]
+    fn generate_in_memory_async_profile(
+        &mut self,
+        prompt: GString,
+        seed: i64,
+        profile: i32,
+        library_dir: GString,
+    ) -> i64 {
+        let libraries = PathBuf::from(library_dir.to_string());
+        if !libraries.is_absolute() || seed < 0 || !valid_profile(profile) {
+            return -1;
+        }
+        let id = self.next_id;
+        let job = Job {
+            id,
+            prompt: prompt.to_string(),
+            seed: seed as u64,
+            output_dir: None,
+            library_dir: libraries,
+            format: 0,
+            profile: profile as u32,
+            command: Command::Generate,
+        };
+        match self.jobs.try_send(job) {
+            Ok(()) => {
+                self.next_id += 1;
+                id
+            }
+            Err(TrySendError::Full(_)) | Err(TrySendError::Disconnected(_)) => -1,
+        }
+    }
+
+    /// Versioned HybridRecipe JSON, generated through the V2 native object API.
+    #[func]
+    fn generate_hybrid_json_async(
+        &mut self,
+        prompt: GString,
+        seed: i64,
+        library_dir: GString,
+    ) -> i64 {
         let libraries = PathBuf::from(library_dir.to_string());
         if !libraries.is_absolute() || seed < 0 {
             return -1;
@@ -152,7 +216,8 @@ impl InfernalGenerator {
             output_dir: None,
             library_dir: libraries,
             format: 0,
-            command: Command::Generate,
+            profile: 2,
+            command: Command::GenerateHybrid,
         };
         match self.jobs.try_send(job) {
             Ok(()) => {
@@ -185,6 +250,7 @@ impl InfernalGenerator {
             output_dir: None,
             library_dir: libraries,
             format: 0,
+            profile: 1,
             command: Command::BakeProp {
                 path,
                 options_json: options_json.to_string(),
@@ -224,6 +290,7 @@ impl InfernalGenerator {
             output_dir: Some(path),
             library_dir: PathBuf::new(),
             format: format as u32,
+            profile: 1,
             command: Command::Save(object_job_id),
         };
         match self.jobs.try_send(job) {
@@ -245,6 +312,7 @@ impl InfernalGenerator {
                 output_dir: None,
                 library_dir: PathBuf::new(),
                 format: 0,
+                profile: 1,
                 command: Command::Release(object_job_id),
             })
             .is_ok()
@@ -286,6 +354,7 @@ impl InfernalGenerator {
             output_dir: None,
             library_dir: libraries,
             format: 0,
+            profile: 1,
             command: if arena {
                 Command::SuggestArena(value as u32)
             } else {
@@ -394,19 +463,24 @@ fn worker(incoming: Receiver<Job>, outgoing: SyncSender<JobResult>) {
         }
         let result = match &job.command {
             Command::Save(source) => save_object(&job, *source, backend.as_ref(), &objects),
-            Command::Generate if job.output_dir.is_none() && objects.len() >= 4 => JobResult {
-                id: job.id,
-                prompt: job.prompt.clone(),
-                difficulty: 0,
-                monster_seed: job.seed,
-                path: String::new(),
-                backend: String::new(),
-                error: "release an in-memory monster before generating another".into(),
-                packages: Vec::new(),
-                prop: None,
-                is_prop: false,
-            },
+            Command::Generate | Command::GenerateHybrid
+                if job.output_dir.is_none() && objects.len() >= 4 =>
+            {
+                JobResult {
+                    id: job.id,
+                    prompt: job.prompt.clone(),
+                    difficulty: 0,
+                    monster_seed: job.seed,
+                    path: String::new(),
+                    backend: String::new(),
+                    error: "release an in-memory monster before generating another".into(),
+                    packages: Vec::new(),
+                    prop: None,
+                    is_prop: false,
+                }
+            }
             Command::Generate
+            | Command::GenerateHybrid
             | Command::BakeProp { .. }
             | Command::Suggest(_)
             | Command::SuggestArena(_) => run_job(&job, &mut backend, &mut objects),
@@ -476,6 +550,8 @@ type RandomPrompt = unsafe extern "C" fn(u64, u32, *mut *mut c_char) -> *mut c_c
 type ArenaPrompt =
     unsafe extern "C" fn(u64, u32, *mut u32, *mut u64, *mut *mut c_char) -> *mut c_char;
 type GenerateObject = unsafe extern "C" fn(*const c_char, u64, *mut *mut c_char) -> *mut c_void;
+type GenerateObjectProfile =
+    unsafe extern "C" fn(*const c_char, u64, u32, *mut *mut c_char) -> *mut c_void;
 type FreeObject = unsafe extern "C" fn(*mut c_void);
 type ObjectCount = unsafe extern "C" fn(*const c_void) -> u32;
 type ObjectPath = unsafe extern "C" fn(*const c_void, u32) -> *mut c_char;
@@ -527,6 +603,8 @@ struct Backend {
     generate: Generate,
     free: FreeString,
     generate_object: GenerateObject,
+    generate_object_profile: Option<GenerateObjectProfile>,
+    generate_hybrid_json: Option<GenerateObject>,
     free_object: FreeObject,
     object_count: ObjectCount,
     object_path: ObjectPath,
@@ -620,6 +698,18 @@ fn load_backend(library_dir: &Path) -> Result<Backend, String> {
             random_prompt: functions.3,
             arena_prompt: functions.4,
             props: unsafe { load_prop_api(&library) },
+            generate_hybrid_json: unsafe {
+                library
+                    .get::<GenerateObject>(b"infernal_generate_hybrid_json")
+                    .ok()
+                    .map(|symbol| *symbol)
+            },
+            generate_object_profile: unsafe {
+                library
+                    .get::<GenerateObjectProfile>(b"infernal_generate_in_memory_profile")
+                    .ok()
+                    .map(|symbol| *symbol)
+            },
             _library: library,
             generate: functions.0,
             free: functions.1,
@@ -735,16 +825,58 @@ fn run_job(
             }
             return result;
         }
-        Command::Generate => {}
+        Command::Generate | Command::GenerateHybrid => {}
         Command::Save(_) | Command::Release(_) => unreachable!(),
     }
-    if job.output_dir.is_none() {
+    if job.output_dir.is_none() || job.profile == 2 {
         let mut error_ptr: *mut c_char = std::ptr::null_mut();
-        let object = unsafe { (active.generate_object)(prompt.as_ptr(), job.seed, &mut error_ptr) };
+        let object = if matches!(job.command, Command::GenerateHybrid) {
+            let Some(generate) = active.generate_hybrid_json else {
+                result.error = "loaded generator library does not support structured hybrids; rebuild and copy the core library".into();
+                return result;
+            };
+            unsafe { generate(prompt.as_ptr(), job.seed, &mut error_ptr) }
+        } else if job.profile == 1 {
+            unsafe { (active.generate_object)(prompt.as_ptr(), job.seed, &mut error_ptr) }
+        } else if let Some(generate) = active.generate_object_profile {
+            unsafe { generate(prompt.as_ptr(), job.seed, job.profile, &mut error_ptr) }
+        } else {
+            result.error =
+                "loaded generator library does not support V2; rebuild and copy the core library"
+                    .into();
+            return result;
+        };
         if object.is_null() {
             result.error = copy_error(error_ptr, active.free);
             if result.error.is_empty() {
                 result.error = "generation failed".into();
+            }
+            return result;
+        }
+        if job.output_dir.is_some() {
+            // V2 disk generation reuses the profile-aware object path. Always
+            // release this temporary handle, including invalid paths/save errors.
+            let _guard = PropGuard {
+                handle: object,
+                free: active.free_object,
+            };
+            let output = match CString::new(result.path.as_str()) {
+                Ok(value) => value,
+                Err(_) => {
+                    result.error = "output path contains a NUL byte".into();
+                    return result;
+                }
+            };
+            let code = unsafe {
+                (active.object_save)(object, output.as_ptr(), job.format, &mut error_ptr)
+            };
+            let message = copy_error(error_ptr, active.free);
+            if code != 0 {
+                result.error = if message.is_empty() {
+                    "save failed".into()
+                } else {
+                    message
+                };
             }
             return result;
         }
@@ -1012,6 +1144,10 @@ unsafe fn read_packages(
     Ok(packages)
 }
 
+fn valid_profile(profile: i32) -> bool {
+    matches!(profile, 1 | 2)
+}
+
 fn core_name(tier: &str) -> String {
     let prefix = if cfg!(target_os = "windows") {
         ""
@@ -1046,6 +1182,14 @@ fn tiers() -> Vec<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn profiles_are_explicit_and_bounded() {
+        assert!(valid_profile(1));
+        assert!(valid_profile(2));
+        for profile in [-1, 0, 3, i32::MAX] {
+            assert!(!valid_profile(profile));
+        }
+    }
     #[test]
     fn native_library_names_match_platform() {
         assert!(core_name("x64").contains("infernal_diffusion_x64"));

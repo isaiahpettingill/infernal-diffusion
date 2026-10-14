@@ -13,6 +13,18 @@ const SIZE: u32 = 24;
 const FRAMES: u32 = 4;
 
 pub fn recipe_kind(spec: &MonsterSpec, attack: &Attack) -> &'static str {
+    // V2 patterns own their visual element. A friendly acid spray must not inherit
+    // an unrelated equipment concept (e.g. BOW) from the base recipe.
+    if spec.features.iter().any(|f| f == "PROFILE_V2") && attack.id.starts_with("v2_pattern_") {
+        match attack.element.as_str() {
+            "FIRE" => return "FIREBALL",
+            "ACID" | "POISON" | "VENOM" => return "SLUDGE",
+            "ICE" => return "ICE_SHARD",
+            "LIGHTNING" | "PLASMA" => return "SPARK",
+            "SHADOW" => return "SHADOW_ORB",
+            _ => {}
+        }
+    }
     match spec.attack.concept.as_str() {
         "BOW" => return "ARROW",
         "SHOTGUN" | "RAILGUN" | "CANNON" => return "BULLET",

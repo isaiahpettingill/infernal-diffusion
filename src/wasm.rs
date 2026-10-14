@@ -13,7 +13,11 @@ struct Atlas {
 }
 impl From<image::RgbaImage> for Atlas {
     fn from(image: image::RgbaImage) -> Self {
-        Self { width: image.width(), height: image.height(), rgba: image.into_raw() }
+        Self {
+            width: image.width(),
+            height: image.height(),
+            rgba: image.into_raw(),
+        }
     }
 }
 #[derive(Serialize)]
@@ -25,23 +29,63 @@ struct Package {
     projectiles: Option<Atlas>,
 }
 #[derive(Serialize)]
-struct Output { packages: Vec<Package> }
+struct Output {
+    packages: Vec<Package>,
+}
 
 /// Synchronous inside a dedicated Web Worker. The JS client owns cancellation.
 /// `seed` is a JS BigInt so the full unsigned 64-bit seed is preserved.
 #[wasm_bindgen]
 pub fn generate_monster(prompt: &str, seed: u64) -> Result<JsValue, JsValue> {
-    let generated = crate::generate_in_memory(prompt, seed)
+    generate_monster_with_profile(prompt, seed, "v1")
+}
+
+/// Explicit opt-in profile. Only "v1" and "v2" are accepted.
+#[wasm_bindgen]
+pub fn generate_monster_with_profile(
+    prompt: &str,
+    seed: u64,
+    profile: &str,
+) -> Result<JsValue, JsValue> {
+    let profile = profile
+        .parse::<crate::GenerationProfile>()
         .map_err(|error| js_error(&error.to_string()))?;
-    let output = Output { packages: generated.packages.into_iter().map(|package| Package {
-        path: package.path.to_string_lossy().replace('\\', "/"),
-        monster: package.monster,
-        sprites: package.sprites.into(),
-        emission: package.emission.into(),
-        projectiles: package.projectiles.map(Into::into),
-    }).collect() };
-    output.serialize(&serde_wasm_bindgen::Serializer::new().serialize_large_number_types_as_bigints(true))
+    let generated = crate::generate_in_memory_with_profile(prompt, seed, profile)
+        .map_err(|error| js_error(&error.to_string()))?;
+    serialize_generated(generated)
+}
+
+/// Structured hybrid JSON bypasses natural-language parsing and always uses V2.
+#[wasm_bindgen]
+pub fn generate_hybrid_json(recipe_json: &str, seed: u64) -> Result<JsValue, JsValue> {
+    let recipe: crate::v2::hybrid::HybridRecipe =
+        serde_json::from_str(recipe_json).map_err(|error| js_error(&error.to_string()))?;
+    let generated = crate::generate_hybrid_in_memory(&recipe, seed)
+        .map_err(|error| js_error(&error.to_string()))?;
+    serialize_generated(generated)
+}
+
+fn serialize_generated(generated: crate::GeneratedMonster) -> Result<JsValue, JsValue> {
+    let output = Output {
+        packages: generated
+            .packages
+            .into_iter()
+            .map(|package| Package {
+                path: package.path.to_string_lossy().replace('\\', "/"),
+                monster: package.monster,
+                sprites: package.sprites.into(),
+                emission: package.emission.into(),
+                projectiles: package.projectiles.map(Into::into),
+            })
+            .collect(),
+    };
+    output
+        .serialize(
+            &serde_wasm_bindgen::Serializer::new().serialize_large_number_types_as_bigints(true),
+        )
         .map_err(|error| js_error(&error.to_string()))
 }
 
-fn js_error(message: &str) -> JsValue { JsValue::from_str(message) }
+fn js_error(message: &str) -> JsValue {
+    JsValue::from_str(message)
+}

@@ -22,12 +22,70 @@ pub(crate) fn substrate(spec: &MonsterSpec) -> std::borrow::Cow<'_, MonsterSpec>
     source
 }
 
+/// Water-capable substrate; FIN remains a supported explicit aquatic modifier.
+/// Used to version only the aquatic correction, leaving terrestrial V1 intact.
+pub(crate) fn aquatic(spec: &MonsterSpec) -> bool {
+    let source = substrate(spec);
+    if source.features.iter().any(|f| f == "ANCHORED") {
+        return false;
+    }
+    matches!(
+        source.affinity.as_str(),
+        "FISH"
+            | "EEL"
+            | "SHARK"
+            | "ORCA"
+            | "WHALE"
+            | "SEA_SERPENT"
+            | "SEA_DRAGON"
+            | "MERMAID"
+            | "MERMAN"
+            | "FISHMAN"
+            | "FROG"
+            | "TOAD"
+            | "JELLYFISH"
+            | "KRAKEN"
+            | "CEPHALOPOD"
+    ) || source
+        .features
+        .iter()
+        .any(|f| matches!(f.as_str(), "FIN" | "SWIM" | "AQUATIC"))
+}
+
+/// Amphibians and limbed land creatures retain their ordinary ground clips.
+pub(crate) fn amphibious(spec: &MonsterSpec) -> bool {
+    let source = substrate(spec);
+    aquatic(&source)
+        && (matches!(source.affinity.as_str(), "FROG" | "TOAD" | "FISHMAN")
+            || (source.limb_count > 0
+                && matches!(
+                    source.body_plan.as_str(),
+                    "QUADRUPED" | "HUMANOID" | "THEROPOD" | "ARACHNID" | "INSECT" | "WINGED"
+                )
+                && !matches!(
+                    source.affinity.as_str(),
+                    "MERMAID" | "MERMAN" | "SEA_DRAGON"
+                )))
+}
+
+pub(crate) fn water_archetype(spec: &MonsterSpec) -> &'static str {
+    let source = substrate(spec);
+    match source.affinity.as_str() {
+        "MERMAID" | "MERMAN" => "AQUATIC_MERMAID",
+        "FROG" | "TOAD" => "AQUATIC_FROG",
+        "JELLYFISH" => "AQUATIC_JELLY",
+        "KRAKEN" | "CEPHALOPOD" => "AQUATIC_JET",
+        "WHALE" | "ORCA" => "AQUATIC_CETACEAN",
+        _ => "AQUATIC",
+    }
+}
+
 /// Annotate existing clip-linked modes without changing the legacy gait IDs.
 pub(crate) fn describe(spec: &MonsterSpec, animations: &[Animation], modes: &mut [MovementMode]) {
     let mounted = spec.mount.is_some();
     let source = substrate(spec);
     let anchored = source.features.iter().any(|feature| feature == "ANCHORED");
-    let aquatic = source.features.iter().any(|feature| feature == "FIN");
+    let aquatic = aquatic(&source);
     let can_jump = animations.iter().any(|clip| clip.id == "jump_air");
     let base_gait = modes
         .iter()
@@ -37,6 +95,9 @@ pub(crate) fn describe(spec: &MonsterSpec, animations: &[Animation], modes: &mut
     for mode in modes {
         mode.category = match mode.id.as_str() {
             _ if anchored => "STATIONARY",
+            "SWIM" | "FAST_SWIM" | "WATER_HOVER" | "WATER_RISE" | "WATER_DIVE" | "WATER_TURN" => {
+                "SWIMMING"
+            }
             "FLY" => "AERIAL",
             "FLOAT" | "FAST_FLOAT" | "SERPENTINE_SLITHER" | "RAPID_SLITHER" if aquatic => {
                 "SWIMMING"
@@ -55,6 +116,14 @@ pub(crate) fn describe(spec: &MonsterSpec, animations: &[Animation], modes: &mut
             &mode.id
         };
         let gait = match gait_id.as_str() {
+            "SWIM" | "FAST_SWIM" | "WATER_HOVER" | "WATER_RISE" | "WATER_DIVE" | "WATER_TURN" => {
+                match water_archetype(&source) {
+                    "AQUATIC_FROG" => "KICKING",
+                    "AQUATIC_JELLY" => "PULSING",
+                    "AQUATIC_JET" => "JET_PROPULSION",
+                    _ => "UNDULATING",
+                }
+            }
             "BIPED_WALK" | "BIPED_RUN" | "THEROPOD_STRIDE" | "THEROPOD_RUN" => "BIPEDAL",
             "QUADRUPED_WALK" | "QUADRUPED_RUN" => "QUADRUPEDAL",
             "MULTILEG_SCUTTLE" | "FAST_SCUTTLE" => "MULTILEGGED",
@@ -77,7 +146,7 @@ pub(crate) fn describe(spec: &MonsterSpec, animations: &[Animation], modes: &mut
         if !gait.is_empty() && !anchored {
             mode.modifiers.push(gait.into());
         }
-        if !anchored && mode.animation_id == "fast_move" {
+        if !anchored && matches!(mode.animation_id.as_str(), "fast_move" | "fast_swim") {
             mode.modifiers.push("FAST".into());
         }
         if !anchored && can_jump && mode.category == "GROUNDED" {
@@ -190,7 +259,7 @@ mod tests {
         for (prompt, id, category, modifier, archetype) in [
             (
                 "goblin riding a fish",
-                "SERPENTINE_SLITHER",
+                "SWIM",
                 "SWIMMING",
                 "UNDULATING",
                 "AQUATIC",
@@ -225,7 +294,7 @@ mod tests {
             ),
             (
                 "goblin riding a wolf riding a fish",
-                "SERPENTINE_SLITHER",
+                "SWIM",
                 "SWIMMING",
                 "UNDULATING",
                 "AQUATIC",
@@ -431,5 +500,94 @@ mod tests {
         assert!(!valid_descriptor(&mode));
         mode.speed = 0.0;
         assert!(valid_descriptor(&mode));
+    }
+    #[test]
+    fn water_capabilities_have_real_clips_and_axis_correct_travel() {
+        for prompt in [
+            "fish",
+            "eel",
+            "shark",
+            "orca",
+            "whale",
+            "mermaid",
+            "jellyfish",
+            "kraken",
+            "goblin riding a fish",
+        ] {
+            let spec = crate::parser::parse_vocabulary(prompt);
+            assert!(aquatic(&spec), "{prompt}");
+            let body = crate::anatomy::build(&spec, &mut rand_chacha::ChaCha8Rng::seed_from_u64(7));
+            let (clips, modes, attacks, poses) = crate::animation::make(&spec, &body);
+            assert_eq!(modes[0].id, "SWIM", "{prompt}");
+            assert!(modes
+                .iter()
+                .all(|m| m.category == "SWIMMING" && valid_descriptor(m)));
+            assert!(clips
+                .iter()
+                .flat_map(|c| &c.events)
+                .all(|e| e.kind != "FOOT_CONTACT"));
+            for id in [
+                "water_hover",
+                "water_rise",
+                "water_dive",
+                "water_turn",
+                "attack_water",
+            ] {
+                assert!(clips.iter().any(|c| c.id == id), "{prompt}: {id}");
+            }
+            for mode in &modes {
+                let clip = clips.iter().find(|c| c.id == mode.animation_id).unwrap();
+                for f in &clip.frames {
+                    assert!(
+                        (f.root_dx.hypot(f.root_dy) - mode.speed * f.duration_ms as f32 / 1000.0)
+                            .abs()
+                            < 0.0001
+                    );
+                    if mode.id == "WATER_RISE" {
+                        assert!(f.root_dy < 0.0 && f.root_dx == 0.0);
+                    }
+                    if mode.id == "WATER_DIVE" {
+                        assert!(f.root_dy > 0.0 && f.root_dx == 0.0);
+                    }
+                    if mode.id == "WATER_HOVER" || mode.id == "WATER_TURN" {
+                        assert_eq!((f.root_dx, f.root_dy), (0.0, 0.0));
+                    }
+                }
+            }
+            assert!(attacks.iter().any(|a| a.animation_id == "attack_water"));
+            assert!(poses
+                .iter()
+                .all(|p| p.motion_archetype.starts_with("AQUATIC")));
+        }
+    }
+    #[test]
+    fn amphibians_keep_land_hops_and_add_swimming() {
+        for affinity in ["FROG", "TOAD", "WOLF"] {
+            let mut spec = crate::parser::parse_vocabulary("wolf");
+            spec.affinity = affinity.into();
+            spec.features
+                .push(if affinity == "WOLF" { "FIN" } else { "HOP" }.into());
+            let body = crate::anatomy::build(&spec, &mut rand_chacha::ChaCha8Rng::seed_from_u64(7));
+            let (clips, modes, _, poses) = crate::animation::make(&spec, &body);
+            assert_eq!(modes[0].category, "GROUNDED");
+            assert!(modes
+                .iter()
+                .any(|m| m.id == "SWIM" && m.category == "SWIMMING"));
+            for clip in clips
+                .iter()
+                .filter(|c| matches!(c.id.as_str(), "swim" | "fast_swim" | "water_hover"))
+            {
+                assert!(clip.events.iter().all(|e| e.kind != "FOOT_CONTACT"));
+                assert!(clip.frames.iter().all(|f| poses[f.sprite_frame_id as usize]
+                    .motion_archetype
+                    .starts_with("AQUATIC")));
+            }
+            assert!(!poses
+                .iter()
+                .find(|p| p.clip_id == "move")
+                .unwrap()
+                .motion_archetype
+                .starts_with("AQUATIC"));
+        }
     }
 }

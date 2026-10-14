@@ -1754,7 +1754,8 @@ pub fn build(spec: &MonsterSpec, rng: &mut ChaCha8Rng) -> Body {
     if hybrids.is_empty()
         && spec.mount.is_none()
         && ["HUMANOID", "QUADRUPED", "SERPENT", "WINGED"].contains(&spec.body_plan.as_str())
-        && !["HITLER", "ANIME_GIRL", "ROBOT", "TANK", "STORMTROOPER"].contains(&spec.affinity.as_str())
+        && !["HITLER", "ANIME_GIRL", "ROBOT", "TANK", "STORMTROOPER"]
+            .contains(&spec.affinity.as_str())
         && rng.random_bool(0.10)
     {
         let options: &[&str] = match spec.body_plan.as_str() {
@@ -1984,13 +1985,30 @@ pub fn build(spec: &MonsterSpec, rng: &mut ChaCha8Rng) -> Body {
         for node in &mut nodes {
             match node.kind.as_str() {
                 "HAND" | "HIP" | "NECK" | "WEAPON" => node.material = "UNDERSUIT_BLACK".into(),
-                "HEAD" => { node.material = "ARMOR_WHITE".into(); node.rx *= 1.14; node.ry *= 1.10; }
-                "TORSO" | "ARM" | "SHOULDER" | "LIMB" | "SHIN" | "FOOT" => node.material = "ARMOR_WHITE".into(),
+                "HEAD" => {
+                    node.material = "ARMOR_WHITE".into();
+                    node.rx *= 1.14;
+                    node.ry *= 1.10;
+                }
+                "TORSO" | "ARM" | "SHOULDER" | "LIMB" | "SHIN" | "FOOT" => {
+                    node.material = "ARMOR_WHITE".into()
+                }
                 _ => {}
             }
         }
-        add(&mut nodes, "armor_belt".into(), "BELT", Some(torso),
-            0.0, 4.0 * scale, 6.0 * scale, 1.0 * scale, 0.0, "UNDERSUIT_BLACK", false);
+        add(
+            &mut nodes,
+            "armor_belt".into(),
+            "BELT",
+            Some(torso),
+            0.0,
+            4.0 * scale,
+            6.0 * scale,
+            1.0 * scale,
+            0.0,
+            "UNDERSUIT_BLACK",
+            false,
+        );
     }
     apply_part_scales(spec, &mut nodes);
     // Choose one coherent body palette per specimen, keeping explicit material intent.

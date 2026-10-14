@@ -523,11 +523,14 @@ fn parse_vocabulary_clause(prompt: &str) -> MonsterSpec {
         .iter()
         .filter(|(start, _, _)| *start < boundary)
         .collect::<Vec<_>>();
-    let has_stormtrooper = subject.iter().any(|(_, _, (_, _, affinity))| *affinity == "STORMTROOPER");
+    let has_stormtrooper = subject
+        .iter()
+        .any(|(_, _, (_, _, affinity))| *affinity == "STORMTROOPER");
     let found = subject
         .iter()
-        .find(|(_, _, (_, _, affinity))| !modifier_affinity(affinity)
-            && !(has_stormtrooper && *affinity == "HUMANOID"))
+        .find(|(_, _, (_, _, affinity))| {
+            !modifier_affinity(affinity) && !(has_stormtrooper && *affinity == "HUMANOID")
+        })
         .copied()
         .or_else(|| subject.first().copied())
         .or_else(|| {
@@ -1020,9 +1023,7 @@ fn parse_vocabulary_clause(prompt: &str) -> MonsterSpec {
             "PROJECTILE".into()
         } else if affinity == "TANK" {
             "CANNON".into()
-        } else if affinity == "STORMTROOPER" {
-            "LASER".into()
-        } else if affinity == "DRONE" {
+        } else if matches!(affinity, "STORMTROOPER" | "DRONE") {
             "LASER".into()
         } else if affinity == "MUSHROOM" {
             "SPORES".into()
@@ -1737,8 +1738,9 @@ mod vocabulary_tests {
         let whale = parse_vocabulary("killer whale");
         let body = crate::anatomy::build(&whale, &mut rand_chacha::ChaCha8Rng::seed_from_u64(3));
         let (_, modes, _, _) = crate::animation::make(&whale, &body);
-        assert_eq!(modes[0].id, "BEACHED_FLOP");
-        assert!(modes[0].speed < 10.0);
+        assert_eq!(modes[0].id, "SWIM");
+        assert!(modes[0].speed > 0.0);
+        assert_eq!(modes[0].category, "SWIMMING");
         assert_eq!(parse_vocabulary("bracchiosaurus").affinity, "LONGNECK_DINO");
         assert_eq!(parse_vocabulary("stegasaurus").affinity, "STEGO");
         assert_eq!(parse_vocabulary("rhinocerous").affinity, "RHINO");
@@ -1761,8 +1763,16 @@ mod vocabulary_tests {
 mod destructos_recipe_tests {
     #[test]
     fn stormtrooper_recipe_is_white_armored_biped_with_blaster() {
-        let spec = super::parse_vocabulary("stormtrooper white armored helmeted humanoid wielding a laser blaster");
-        assert_eq!(super::parse_vocabulary("a white armored helmeted humanoid stormtrooper carrying a black blaster").affinity, "STORMTROOPER");
+        let spec = super::parse_vocabulary(
+            "stormtrooper white armored helmeted humanoid wielding a laser blaster",
+        );
+        assert_eq!(
+            super::parse_vocabulary(
+                "a white armored helmeted humanoid stormtrooper carrying a black blaster"
+            )
+            .affinity,
+            "STORMTROOPER"
+        );
         assert_eq!(spec.affinity, "STORMTROOPER");
         assert!(spec.secondary_affinities.is_empty());
         assert_eq!(spec.body_plan, "HUMANOID");
@@ -1773,8 +1783,14 @@ mod destructos_recipe_tests {
         assert_eq!(spec.attack.concept, "LASER");
         use rand::SeedableRng;
         let body = crate::anatomy::build(&spec, &mut rand_chacha::ChaCha8Rng::seed_from_u64(42));
-        assert!(body.nodes.iter().any(|n| n.kind == "HEAD" && n.material == "ARMOR_WHITE"));
-        assert!(body.nodes.iter().any(|n| n.kind == "WEAPON" && n.material == "UNDERSUIT_BLACK"));
+        assert!(body
+            .nodes
+            .iter()
+            .any(|n| n.kind == "HEAD" && n.material == "ARMOR_WHITE"));
+        assert!(body
+            .nodes
+            .iter()
+            .any(|n| n.kind == "WEAPON" && n.material == "UNDERSUIT_BLACK"));
         assert!(!body.nodes.iter().any(|n| n.id.starts_with("hybrid_")));
     }
 }

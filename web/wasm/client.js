@@ -63,15 +63,32 @@ export class MonsterGenerator {
   ready({ signal } = {}) { return this._request('ready', {}, signal); }
 
   /** seed is bigint, decimal text, or a safe integer. Returns full metadata and RGBA atlases. */
-  generate(prompt, seed = 0n, { signal } = {}) {
+  generate(prompt, seed = 0n, { signal, profile = 'v1' } = {}) {
     try {
+      if (profile !== 'v1' && profile !== 'v2') throw new RangeError('Profile must be v1 or v2');
       if (typeof seed === 'number' && !Number.isSafeInteger(seed)) throw new RangeError('Numeric seed must be a safe integer; use bigint or decimal text for larger seeds');
       if (!['bigint', 'number', 'string'].includes(typeof seed) || (typeof seed === 'string' && !/^\d+$/.test(seed))) throw new TypeError('Seed must be an unsigned integer');
       seed = BigInt(seed);
       if (seed < 0n || seed > 18446744073709551615n) throw new RangeError('Seed must fit an unsigned 64-bit integer');
       if (typeof prompt !== 'string' || !prompt.trim()) throw new TypeError('Prompt must be a nonempty string');
     } catch (error) { return Promise.reject(error); }
-    return this._request('generate', { prompt, seed }, signal);
+    return this._request('generate', { prompt, seed, profile }, signal);
+  }
+
+  /** Validated HybridRecipe object or JSON text. Always V2; no prompt parser. */
+  generateHybrid(recipe, seed = 0n, { signal } = {}) {
+    let prompt;
+    try {
+      prompt = typeof recipe === 'string' ? recipe : JSON.stringify(recipe);
+      if (typeof prompt !== 'string' || !prompt.trim()) throw new TypeError('Hybrid recipe must be an object or JSON text');
+      const parsed = JSON.parse(prompt);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new TypeError('Hybrid recipe must be a JSON object');
+      if (typeof seed === 'number' && !Number.isSafeInteger(seed)) throw new RangeError('Numeric seed must be a safe integer; use bigint or decimal text for larger seeds');
+      if (!['bigint', 'number', 'string'].includes(typeof seed) || (typeof seed === 'string' && !/^\d+$/.test(seed))) throw new TypeError('Seed must be an unsigned integer');
+      seed = BigInt(seed);
+      if (seed < 0n || seed > 18446744073709551615n) throw new RangeError('Seed must fit an unsigned 64-bit integer');
+    } catch (error) { return Promise.reject(error); }
+    return this._request('generate_hybrid', { prompt, seed, profile: 'v2' }, signal);
   }
 
   _reset(error) {

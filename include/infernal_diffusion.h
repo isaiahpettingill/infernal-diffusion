@@ -14,6 +14,9 @@ const char *infernal_cpu_kernel_name(void);
 /* Package metadata format. PNG atlases remain separate files. */
 #define INFERNAL_FORMAT_PROTOBUF 0u
 #define INFERNAL_FORMAT_CBOR 1u
+/* Additive generation profiles. Existing entry points always select V1. */
+#define INFERNAL_PROFILE_V1 1u
+#define INFERNAL_PROFILE_V2 2u
 /* Deterministic, recipe-aware NPC speech. Difficulty is 1..3.
    The returned string is freed with infernal_free_string. */
 char *infernal_random_prompt(uint64_t seed, uint32_t difficulty, char **error_out);
@@ -56,6 +59,16 @@ int32_t infernal_validate_package(const char *package_dir, char **error_out);
 typedef struct InfernalGeneratedMonster InfernalGeneratedMonster;
 InfernalGeneratedMonster *infernal_generate_object(const char *prompt, uint64_t seed,
                                                     char **error_out);
+/* Explicit opt-in profile; rejects unknown values with NULL and error_out.
+   Same ownership, pixel access and saving APIs as infernal_generate_object.
+   Optional symbol when loading an older ABI-1 library dynamically. */
+InfernalGeneratedMonster *infernal_generate_in_memory_profile(const char *prompt, uint64_t seed,
+                                                              uint32_t profile, char **error_out);
+/* Validated, versioned HybridRecipe JSON. Always V2, no neural parser.
+   Unknown fields/versions and invalid combinations return NULL + error_out.
+   Optional additive ABI-1 symbol; same object ownership and saving APIs. */
+InfernalGeneratedMonster *infernal_generate_hybrid_json(const char *recipe_json, uint64_t seed,
+                                                       char **error_out);
 void infernal_object_free(InfernalGeneratedMonster *handle);
 uint32_t infernal_object_count(const InfernalGeneratedMonster *handle);
 /* Returns an allocated UTF-8 path; free with infernal_free_string. */

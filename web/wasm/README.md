@@ -67,3 +67,14 @@ Seeded rendering does not use fast-math or explicit nondeterministic relaxed flo
 The GitHub Actions WASM job runs parser tests, compiles/optimizes this target, runs real Chromium worker tests under isolation headers, and uploads the runnable site plus WASM as `infernal-wasm32-threaded`.
 
 For a manual run in an existing browser, open `/tests/browser-check.html` on the supplied server and click **Run browser checks**. The page reports real pool initialization, stormtrooper metadata, atlas SHA-256 determinism, heartbeat progress, busy/queued cancellation, and successful generation after restart. Pool initialization times out after 45 seconds with a diagnostic rather than leaving the UI loading indefinitely; failed initialization terminates the worker tree.
+
+### Opt-in V2
+
+The client defaults to V1. Select V2 per call with
+`generator.generate(prompt, seed, { profile: 'v2' })`. The direct WASM export is
+`generate_monster_with_profile(prompt, seed, 'v2')`. Rebuild the WASM package to
+use V2; older packages keep working for V1 and reject V2 explicitly.
+See [generation profiles](../../docs/generation-profiles.md).
+
+Run the dependency-free client and worker contract checks with
+`node --test web/wasm/tests/profiles.node.mjs` from the repository root.
