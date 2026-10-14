@@ -60,3 +60,24 @@ test('actual WASM validates and generates structured hybrid recipes', async ({ p
   expect(result.bytes).toBeGreaterThan(0);
   expect(result.rejected).toEqual([true, true]);
 });
+
+test('playground defaults to V1 and generates V2 from its selector', async ({ page }, testInfo) => {
+  await page.goto('/');
+  await expect(page.locator('#status')).toHaveText('Ready');
+  await expect(page.locator('#profile')).toHaveValue('v1');
+  await page.locator('#profile').selectOption('v2');
+  await page.getByRole('button', { name: 'Acid frog', exact: true }).click();
+  await expect(page.locator('#prompt')).toHaveValue('friendly frog that sprays acid');
+  await expect(page.locator('#profile')).toHaveValue('v2');
+  await page.locator('#generate').click();
+  await expect(page.locator('#status')).toContainText('Generated', { timeout: 240_000 });
+  const metadata = JSON.parse(await page.locator('#results pre').last().textContent());
+  expect(metadata.v2_profile.profile_version).toBe(1);
+  await page.screenshot({ path: testInfo.outputPath('playground-v2.png') });
+  expect(await page.locator('#results canvas').count()).toBeGreaterThanOrEqual(2);
+  await page.locator('#profile').selectOption('v1');
+  await page.locator('#generate').click();
+  await expect(page.locator('#status')).toContainText('Generated', { timeout: 240_000 });
+  const legacy = JSON.parse(await page.locator('#results pre').last().textContent());
+  expect(legacy.v2_profile ?? null).toBeNull();
+});

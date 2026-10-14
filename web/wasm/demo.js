@@ -41,12 +41,15 @@ $('form').addEventListener('submit', async (event) => {
   $('status').textContent = 'Generating in worker… The heartbeat stays responsive.';
   const started = performance.now();
   try {
-    const result = await generator.generate($('prompt').value, $('seed').value);
+    const result = await generator.generate($('prompt').value, $('seed').value, { profile: $('profile').value });
     show(result);
     $('status').textContent = `Generated ${result.packages.length} package(s) in ${((performance.now() - started) / 1000).toFixed(2)}s`;
   } catch (error) {
     $('status').textContent = error.name === 'AbortError' ? 'Cancelled. Generate again to start a fresh worker.' : error.message;
   } finally { setBusy(false); }
+});
+document.querySelectorAll('[data-prompt]').forEach(button => {
+  button.addEventListener('click', () => { $('prompt').value = button.dataset.prompt; });
 });
 $('cancel').addEventListener('click', () => generator.cancel());
 window.addEventListener('pagehide', () => generator.dispose());

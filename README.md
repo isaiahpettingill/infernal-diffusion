@@ -23,6 +23,23 @@ full-body mermaid attacks, growing-arm tree smashes, recognizable jumbled skelet
 and inky shades that attack through coherent deforming tendrils. See the
 [actual rendered review](docs/evidence/README.md).
 
+## Local playground
+
+From the repository root, with Rust stable and your platform's native build tools installed:
+
+```sh
+cargo run --locked --release --no-default-features -- serve
+```
+
+Open <http://localhost:8799/>. Enter a prompt and seed, select **V1** (the default)
+or **V2**, then generate. The Arena includes example prompts, a directional animation
+viewer, a fight sandbox, and protobuf/CBOR packages saved in `web/generated/`.
+No Node, Python, BERT model, or generation service is required for this local Arena.
+The development server listens on all interfaces; use it only on a trusted network.
+There is no hosted playground URL configured in this repository.
+After building, `python3 tools/smoke_playground.py` checks both profiles over HTTP
+using an isolated temporary output directory.
+
 ## Browser / Web Worker build
 
 The full procedural pipeline can run in a modern browser with a shared-memory

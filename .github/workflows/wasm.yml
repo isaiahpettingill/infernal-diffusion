@@ -58,3 +58,9 @@ jobs:
         with:
           name: wasm-browser-failure
           path: web/wasm/test-results/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playground-browser-evidence
+          path: web/wasm/test-results/**/playground-v2.png
+          if-no-files-found: ignore

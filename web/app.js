@@ -143,6 +143,7 @@ async function generate(event) {
   const prompt = $('prompt').value.trim();
   const seed = Number($('seed').value);
   const format = $('package-format').value;
+  const profile = $('profile').value;
   if (!prompt || !Number.isSafeInteger(seed) || seed < 0) {
     setStatus('Enter a prompt and a nonnegative integer seed.');
     return;
@@ -152,7 +153,7 @@ async function generate(event) {
   try {
     const response = await fetch('/api/generate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, seed, format }),
+      body: JSON.stringify({ prompt, seed, format, profile }),
     });
     const monster = await response.json();
     if (!response.ok) throw new Error(monster.error || `HTTP ${response.status}`);

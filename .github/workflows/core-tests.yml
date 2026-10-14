@@ -21,6 +21,12 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --locked --release ${{ matrix.features }}
+      - name: Exercise local playground profiles over HTTP
+        if: matrix.features == '--no-default-features'
+        run: |
+          cargo build --locked --release --no-default-features --bin infernal
+          python3 tools/smoke_playground.py
+          node --test web/combat.test.cjs web/wasm/tests/profiles.node.mjs
       - if: matrix.features == '--no-default-features'
         run: cargo clippy --locked --no-default-features --all-targets -- -D warnings
 
