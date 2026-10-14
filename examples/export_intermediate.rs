@@ -5,17 +5,38 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use std::{error::Error, path::PathBuf};
 fn main() -> Result<(), Box<dyn Error>> {
-    let args: Vec<_> = std::env::args().skip(1).collect();
+    let mut args: Vec<_> = std::env::args().skip(1).collect();
+    let profile = if let Some(index) = args.iter().position(|arg| arg == "--profile") {
+        if index + 1 >= args.len() {
+            return Err("--profile requires v1 or v2".into());
+        }
+        let profile: infernal_diffusion::GenerationProfile = args[index + 1].parse()?;
+        args.drain(index..=index + 1);
+        profile
+    } else {
+        infernal_diffusion::GenerationProfile::V1
+    };
     if args.len() < 3 {
-        return Err("usage: export_intermediate PROMPT SEED OUTPUT_DIR [CLIP]".into());
+        return Err(
+            "usage: export_intermediate PROMPT SEED OUTPUT_DIR [CLIP] [--profile v1|v2]".into(),
+        );
     }
     let seed: u64 = args[1].parse()?;
     let out = PathBuf::from(&args[2]);
     std::fs::create_dir_all(&out)?;
-    let spec = parser::parse_vocabulary(&args[0]);
+    let mut spec = parser::parse_vocabulary(&args[0]);
+    if profile == infernal_diffusion::GenerationProfile::V2 {
+        spec = infernal_diffusion::v2::interpret(spec, &args[0]);
+        infernal_diffusion::v2::prepare(&mut spec);
+    }
     let mut rng = ChaCha8Rng::seed_from_u64(seed);
-    let body = anatomy::build(&spec, &mut rng);
-    let (_, _, _, poses) = animation::make(&spec, &body);
+    let mut body = anatomy::build(&spec, &mut rng);
+    let (_, _, _, poses) = if profile == infernal_diffusion::GenerationProfile::V2 {
+        infernal_diffusion::v2::anatomy::refine(&spec, &mut body, seed);
+        infernal_diffusion::v2::combat::animate(&spec, &body, seed)
+    } else {
+        animation::make(&spec, &body)
+    };
     let clip = args.get(3).map(String::as_str).unwrap_or("idle");
     for (i, pose) in poses.iter().filter(|p| p.clip_id == clip).enumerate() {
         let data = render3d::debug_scene_json(&spec, &body, pose, seed);

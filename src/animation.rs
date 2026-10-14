@@ -200,7 +200,11 @@ pub fn make(
         .features
         .iter()
         .any(|feature| feature == "ANCHORED");
-    let can_fly = !anchored
+    let water_capable = !anchored && crate::locomotion::aquatic(&locomotor);
+    let amphibious = water_capable && crate::locomotion::amphibious(&locomotor);
+    let aquatic = water_capable && !amphibious;
+    let can_fly = !aquatic
+        && !anchored
         && (locomotor.body_plan == "WINGED"
             || locomotor.affinity == "DRONE"
             || locomotor.features.iter().any(|f| f == "WING"));
@@ -209,6 +213,8 @@ pub fn make(
     let mut animations = vec![clip("idle", "IDLE", 4, 160, true, "", &mut poses)];
     let movement = if anchored {
         "ANCHORED_SWAY"
+    } else if aquatic {
+        "SWIM"
     } else if locomotor.features.iter().any(|f| f == "LIMP") {
         "LIMP"
     } else if locomotor.features.iter().any(|f| f == "HOP") {
@@ -236,6 +242,7 @@ pub fn make(
         }
     };
     let fast_mode = match movement {
+        "SWIM" => "FAST_SWIM",
         "BIPED_WALK" => "BIPED_RUN",
         "QUADRUPED_WALK" => "QUADRUPED_RUN",
         "MULTILEG_SCUTTLE" => "FAST_SCUTTLE",
@@ -277,7 +284,8 @@ pub fn make(
             "",
             &mut poses,
         ));
-    } else if !anchored
+    } else if !aquatic
+        && !anchored
         && ![
             "FLOAT",
             "SERPENTINE_SLITHER",
@@ -300,12 +308,13 @@ pub fn make(
         animations.push(clip("jump_air", "JUMP_AIR", 6, 80, true, "", &mut poses));
         animations.push(clip("land", "LAND", 6, 65, false, "", &mut poses));
     }
-    if !anchored
+    if !aquatic
+        && !anchored
         && (locomotor.features.iter().any(|f| f == "CLIMB") || locomotor.body_plan == "ARACHNID")
     {
         animations.push(clip("climb", "CLIMB", 6, 115, true, "CLIMB", &mut poses));
     }
-    if !anchored && locomotor.features.iter().any(|f| f == "BURROW") {
+    if !aquatic && !anchored && locomotor.features.iter().any(|f| f == "BURROW") {
         animations.push(clip("burrow", "BURROW", 8, 65, false, "", &mut poses));
         animations.push(clip(
             "burrowed_move",
@@ -589,8 +598,9 @@ pub fn make(
         bind_attack(&mut animations, &summon);
         attacks.push(summon);
     }
-    let can_burrow = !anchored && locomotor.features.iter().any(|f| f == "BURROW");
-    let spectral = !anchored
+    let can_burrow = !aquatic && !anchored && locomotor.features.iter().any(|f| f == "BURROW");
+    let spectral = !aquatic
+        && !anchored
         && (locomotor.body_plan == "FLOATING"
             || locomotor
                 .materials
@@ -601,8 +611,8 @@ pub fn make(
         .nodes
         .iter()
         .any(|node| node.kind == "FOOT" && !node.id.contains("rider_"));
-    let heavy = !anchored && locomotor.size > 0.72 && support_feet;
-    let mobile = !anchored && (support_feet || locomotor.body_plan == "SERPENT");
+    let heavy = !aquatic && !anchored && locomotor.size > 0.72 && support_feet;
+    let mobile = !aquatic && !anchored && (support_feet || locomotor.body_plan == "SERPENT");
     let mut patterns = Vec::new();
     if can_fly {
         patterns.push(("swoop", "SWOOP", "SWIPE", 74.0, 350, 800));
@@ -613,7 +623,8 @@ pub fn make(
     if spectral {
         patterns.push(("blink_strike", "TELEPORT", "SWIPE", 67.0, 330, 250));
     }
-    if !anchored
+    if !aquatic
+        && !anchored
         && (locomotor.body_plan == "QUADRUPED"
             || locomotor.body_plan == "TANK"
             || ["BULL", "RHINO", "BUFFALO"].contains(&locomotor.affinity.as_str()))
@@ -647,8 +658,45 @@ pub fn make(
             travel,
         ));
     }
+    if water_capable {
+        if amphibious {
+            animations.push(clip("swim", "MOVE", 8, 90, true, "SWIM", &mut poses));
+            animations.push(clip(
+                "fast_swim",
+                "FAST_MOVE",
+                8,
+                58,
+                true,
+                "FAST_SWIM",
+                &mut poses,
+            ));
+        }
+        for (id, state, mode, looped) in [
+            ("water_hover", "WATER_HOVER", "WATER_HOVER", true),
+            ("water_rise", "WATER_RISE", "WATER_RISE", true),
+            ("water_dive", "WATER_DIVE", "WATER_DIVE", true),
+            ("water_turn", "WATER_TURN", "WATER_TURN", false),
+        ] {
+            animations.push(clip(id, state, 8, 90, looped, mode, &mut poses));
+        }
+        animations.push(clip(
+            "attack_water",
+            "ATTACK",
+            12,
+            60,
+            false,
+            "",
+            &mut poses,
+        ));
+        let mut water_attack = attacks[0].clone();
+        water_attack.id = "water_primary".into();
+        water_attack.animation_id = "attack_water".into();
+        bind_attack(&mut animations, &water_attack);
+        attacks.push(water_attack);
+    }
     for (id, duration) in [("move", 90), ("fast_move", 58)] {
         if [
+            "SWIM",
             "FLOAT",
             "SERPENTINE_SLITHER",
             "GLIDE",
@@ -683,11 +731,13 @@ pub fn make(
             kind: "DEATH_COMPLETE".into(),
             reference_id: String::new(),
         });
-    let archetype = if locomotor.affinity == "SAND_WORM" {
+    let archetype = if aquatic {
+        crate::locomotion::water_archetype(&locomotor)
+    } else if locomotor.affinity == "SAND_WORM" {
         "SAND_WORM"
     } else if locomotor.features.iter().any(|f| f == "WHIRLWIND") {
         "WHIRLWIND"
-    } else if locomotor.features.iter().any(|f| f == "FIN") {
+    } else if !amphibious && locomotor.features.iter().any(|f| f == "FIN") {
         "AQUATIC"
     } else if locomotor.affinity == "CENTIPEDE" {
         "CENTIPEDE"
@@ -705,14 +755,20 @@ pub fn make(
         locomotor.body_plan.as_str()
     };
     for pose in &mut poses {
-        pose.motion_archetype = archetype.into();
+        let water_clip = pose.clip_id.starts_with("water_")
+            || matches!(pose.clip_id.as_str(), "swim" | "fast_swim" | "attack_water");
+        pose.motion_archetype = if water_capable && water_clip {
+            crate::locomotion::water_archetype(&locomotor).into()
+        } else {
+            archetype.into()
+        };
     }
     let mut modes = vec![
         MovementMode {
             id: movement.into(),
             speed: (28.0 + locomotor.size * 15.0)
                 * if anchored { 0.0 } else { 1.0 }
-                * if locomotor.affinity == "ORCA" || locomotor.affinity == "WHALE" {
+                * if !aquatic && (locomotor.affinity == "ORCA" || locomotor.affinity == "WHALE") {
                     0.18
                 } else if locomotor.affinity == "SNAIL" {
                     0.35
@@ -728,7 +784,7 @@ pub fn make(
             id: fast_mode.into(),
             speed: (55.0 + locomotor.size * 22.0)
                 * if anchored { 0.0 } else { 1.0 }
-                * if locomotor.affinity == "ORCA" || locomotor.affinity == "WHALE" {
+                * if !aquatic && (locomotor.affinity == "ORCA" || locomotor.affinity == "WHALE") {
                     0.25
                 } else if locomotor.affinity == "SNAIL" {
                     0.4
@@ -765,15 +821,46 @@ pub fn make(
             ..Default::default()
         });
     }
+    if water_capable {
+        if amphibious {
+            for (id, animation_id, speed) in [
+                ("SWIM", "swim", 28.0 + locomotor.size * 15.0),
+                ("FAST_SWIM", "fast_swim", 55.0 + locomotor.size * 22.0),
+            ] {
+                modes.push(MovementMode {
+                    id: id.into(),
+                    animation_id: animation_id.into(),
+                    speed,
+                    ..Default::default()
+                });
+            }
+        }
+        for (id, animation_id, speed) in [
+            ("WATER_HOVER", "water_hover", 0.0),
+            ("WATER_RISE", "water_rise", 18.0),
+            ("WATER_DIVE", "water_dive", 22.0),
+            ("WATER_TURN", "water_turn", 0.0),
+        ] {
+            modes.push(MovementMode {
+                id: id.into(),
+                animation_id: animation_id.into(),
+                speed,
+                ..Default::default()
+            });
+        }
+    }
     motion::limit_ground_speed(body, &animations, &mut modes);
     crate::locomotion::describe(spec, &animations, &mut modes);
     for mode in &modes {
         if let Some(clip) = animations.iter_mut().find(|a| a.id == mode.animation_id) {
             for frame in &mut clip.frames {
                 let distance = mode.speed * frame.duration_ms as f32 / 1000.0;
-                if mode.id == "CLIMB" {
+                if mode.id == "CLIMB" || mode.id == "WATER_RISE" {
                     frame.root_dy = -distance;
                     frame.root_dx = 0.0;
+                } else if mode.id == "WATER_DIVE" {
+                    frame.root_dx = 0.0;
+                    frame.root_dy = distance;
                 } else {
                     frame.root_dx = distance;
                 }

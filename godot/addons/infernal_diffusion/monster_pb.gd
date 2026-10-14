@@ -791,6 +791,12 @@ class InfernalMonster:
 		service.func_ref = Callable(self, "new_mount")
 		data[__mount.tag] = service
 
+		__v2_profile = PBField.new("v2_profile", PB_DATA_TYPE.MESSAGE, PB_RULE.OPTIONAL, 18, true, DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE])
+		service = PBServiceField.new()
+		service.field = __v2_profile
+		service.func_ref = Callable(self, "new_v2_profile")
+		data[__v2_profile.tag] = service
+
 	var data = {}
 
 	var __format_version: PBField
@@ -1006,6 +1012,20 @@ class InfernalMonster:
 	func new_mount() -> InfernalMountInfo:
 		__mount.value = InfernalMountInfo.new()
 		return __mount.value
+
+	var __v2_profile: PBField
+	func has_v2_profile() -> bool:
+		if __v2_profile.value != null:
+			return true
+		return false
+	func get_v2_profile() -> InfernalV2Profile:
+		return __v2_profile.value
+	func clear_v2_profile() -> void:
+		data[18].state = PB_SERVICE_STATE.UNFILLED
+		__v2_profile.value = DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE]
+	func new_v2_profile() -> InfernalV2Profile:
+		__v2_profile.value = InfernalV2Profile.new()
+		return __v2_profile.value
 
 	func _to_string() -> String:
 		return PBPacker.message_to_string(data)
@@ -3803,6 +3823,515 @@ class InfernalMovementMode:
 		__modifiers.value.clear()
 	func add_modifiers(value : String) -> void:
 		__modifiers.value.append(value)
+
+	func _to_string() -> String:
+		return PBPacker.message_to_string(data)
+
+	func to_bytes() -> PackedByteArray:
+		return PBPacker.pack_message(data)
+
+	func from_bytes(bytes : PackedByteArray, offset : int = 0, limit : int = -1) -> int:
+		var cur_limit = bytes.size()
+		if limit != -1:
+			cur_limit = limit
+		var result = PBPacker.unpack_message(data, bytes, offset, cur_limit)
+		if result == cur_limit:
+			if PBPacker.check_required(data):
+				if limit == -1:
+					return PB_ERR.NO_ERRORS
+			else:
+				return PB_ERR.REQUIRED_FIELDS
+		elif limit == -1 && result > 0:
+			return PB_ERR.PARSE_INCOMPLETE
+		return result
+
+class InfernalV2Profile:
+	extends RefCounted
+	func _init():
+		var service
+
+		__profile_version = PBField.new("profile_version", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __profile_version
+		data[__profile_version.tag] = service
+
+		var __categories_default: Array[String] = []
+		__categories = PBField.new("categories", PB_DATA_TYPE.STRING, PB_RULE.REPEATED, 2, true, __categories_default)
+		service = PBServiceField.new()
+		service.field = __categories
+		data[__categories.tag] = service
+
+		var __capabilities_default: Array[String] = []
+		__capabilities = PBField.new("capabilities", PB_DATA_TYPE.STRING, PB_RULE.REPEATED, 3, true, __capabilities_default)
+		service = PBServiceField.new()
+		service.field = __capabilities
+		data[__capabilities.tag] = service
+
+		var __modifiers_default: Array[String] = []
+		__modifiers = PBField.new("modifiers", PB_DATA_TYPE.STRING, PB_RULE.REPEATED, 4, true, __modifiers_default)
+		service = PBServiceField.new()
+		service.field = __modifiers
+		data[__modifiers.tag] = service
+
+		var __attack_patterns_default: Array[InfernalAttackPatternDescriptor] = []
+		__attack_patterns = PBField.new("attack_patterns", PB_DATA_TYPE.MESSAGE, PB_RULE.REPEATED, 5, true, __attack_patterns_default)
+		service = PBServiceField.new()
+		service.field = __attack_patterns
+		service.func_ref = Callable(self, "add_attack_patterns")
+		data[__attack_patterns.tag] = service
+
+		__lure = PBField.new("lure", PB_DATA_TYPE.MESSAGE, PB_RULE.OPTIONAL, 6, true, DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE])
+		service = PBServiceField.new()
+		service.field = __lure
+		service.func_ref = Callable(self, "new_lure")
+		data[__lure.tag] = service
+
+	var data = {}
+
+	var __profile_version: PBField
+	func has_profile_version() -> bool:
+		if __profile_version.value != null:
+			return true
+		return false
+	func get_profile_version() -> int:
+		return __profile_version.value
+	func clear_profile_version() -> void:
+		data[1].state = PB_SERVICE_STATE.UNFILLED
+		__profile_version.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_profile_version(value : int) -> void:
+		__profile_version.value = value
+
+	var __categories: PBField
+	func get_categories() -> Array[String]:
+		return __categories.value
+	func clear_categories() -> void:
+		data[2].state = PB_SERVICE_STATE.UNFILLED
+		__categories.value.clear()
+	func add_categories(value : String) -> void:
+		__categories.value.append(value)
+
+	var __capabilities: PBField
+	func get_capabilities() -> Array[String]:
+		return __capabilities.value
+	func clear_capabilities() -> void:
+		data[3].state = PB_SERVICE_STATE.UNFILLED
+		__capabilities.value.clear()
+	func add_capabilities(value : String) -> void:
+		__capabilities.value.append(value)
+
+	var __modifiers: PBField
+	func get_modifiers() -> Array[String]:
+		return __modifiers.value
+	func clear_modifiers() -> void:
+		data[4].state = PB_SERVICE_STATE.UNFILLED
+		__modifiers.value.clear()
+	func add_modifiers(value : String) -> void:
+		__modifiers.value.append(value)
+
+	var __attack_patterns: PBField
+	func get_attack_patterns() -> Array[InfernalAttackPatternDescriptor]:
+		return __attack_patterns.value
+	func clear_attack_patterns() -> void:
+		data[5].state = PB_SERVICE_STATE.UNFILLED
+		__attack_patterns.value.clear()
+	func add_attack_patterns() -> InfernalAttackPatternDescriptor:
+		var element = InfernalAttackPatternDescriptor.new()
+		__attack_patterns.value.append(element)
+		return element
+
+	var __lure: PBField
+	func has_lure() -> bool:
+		if __lure.value != null:
+			return true
+		return false
+	func get_lure() -> InfernalLureDescriptor:
+		return __lure.value
+	func clear_lure() -> void:
+		data[6].state = PB_SERVICE_STATE.UNFILLED
+		__lure.value = DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE]
+	func new_lure() -> InfernalLureDescriptor:
+		__lure.value = InfernalLureDescriptor.new()
+		return __lure.value
+
+	func _to_string() -> String:
+		return PBPacker.message_to_string(data)
+
+	func to_bytes() -> PackedByteArray:
+		return PBPacker.pack_message(data)
+
+	func from_bytes(bytes : PackedByteArray, offset : int = 0, limit : int = -1) -> int:
+		var cur_limit = bytes.size()
+		if limit != -1:
+			cur_limit = limit
+		var result = PBPacker.unpack_message(data, bytes, offset, cur_limit)
+		if result == cur_limit:
+			if PBPacker.check_required(data):
+				if limit == -1:
+					return PB_ERR.NO_ERRORS
+			else:
+				return PB_ERR.REQUIRED_FIELDS
+		elif limit == -1 && result > 0:
+			return PB_ERR.PARSE_INCOMPLETE
+		return result
+
+class InfernalAttackPatternDescriptor:
+	extends RefCounted
+	func _init():
+		var service
+
+		__attack_id = PBField.new("attack_id", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __attack_id
+		data[__attack_id.tag] = service
+
+		__pattern = PBField.new("pattern", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 2, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __pattern
+		data[__pattern.tag] = service
+
+		__projectile_count = PBField.new("projectile_count", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 3, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __projectile_count
+		data[__projectile_count.tag] = service
+
+		__volley_count = PBField.new("volley_count", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 4, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __volley_count
+		data[__volley_count.tag] = service
+
+		__interval_ms = PBField.new("interval_ms", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 5, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __interval_ms
+		data[__interval_ms.tag] = service
+
+		__spread_deg = PBField.new("spread_deg", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 6, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __spread_deg
+		data[__spread_deg.tag] = service
+
+		__aim_mode = PBField.new("aim_mode", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 7, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __aim_mode
+		data[__aim_mode.tag] = service
+
+	var data = {}
+
+	var __attack_id: PBField
+	func has_attack_id() -> bool:
+		if __attack_id.value != null:
+			return true
+		return false
+	func get_attack_id() -> String:
+		return __attack_id.value
+	func clear_attack_id() -> void:
+		data[1].state = PB_SERVICE_STATE.UNFILLED
+		__attack_id.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_attack_id(value : String) -> void:
+		__attack_id.value = value
+
+	var __pattern: PBField
+	func has_pattern() -> bool:
+		if __pattern.value != null:
+			return true
+		return false
+	func get_pattern() -> String:
+		return __pattern.value
+	func clear_pattern() -> void:
+		data[2].state = PB_SERVICE_STATE.UNFILLED
+		__pattern.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_pattern(value : String) -> void:
+		__pattern.value = value
+
+	var __projectile_count: PBField
+	func has_projectile_count() -> bool:
+		if __projectile_count.value != null:
+			return true
+		return false
+	func get_projectile_count() -> int:
+		return __projectile_count.value
+	func clear_projectile_count() -> void:
+		data[3].state = PB_SERVICE_STATE.UNFILLED
+		__projectile_count.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_projectile_count(value : int) -> void:
+		__projectile_count.value = value
+
+	var __volley_count: PBField
+	func has_volley_count() -> bool:
+		if __volley_count.value != null:
+			return true
+		return false
+	func get_volley_count() -> int:
+		return __volley_count.value
+	func clear_volley_count() -> void:
+		data[4].state = PB_SERVICE_STATE.UNFILLED
+		__volley_count.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_volley_count(value : int) -> void:
+		__volley_count.value = value
+
+	var __interval_ms: PBField
+	func has_interval_ms() -> bool:
+		if __interval_ms.value != null:
+			return true
+		return false
+	func get_interval_ms() -> int:
+		return __interval_ms.value
+	func clear_interval_ms() -> void:
+		data[5].state = PB_SERVICE_STATE.UNFILLED
+		__interval_ms.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_interval_ms(value : int) -> void:
+		__interval_ms.value = value
+
+	var __spread_deg: PBField
+	func has_spread_deg() -> bool:
+		if __spread_deg.value != null:
+			return true
+		return false
+	func get_spread_deg() -> float:
+		return __spread_deg.value
+	func clear_spread_deg() -> void:
+		data[6].state = PB_SERVICE_STATE.UNFILLED
+		__spread_deg.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_spread_deg(value : float) -> void:
+		__spread_deg.value = value
+
+	var __aim_mode: PBField
+	func has_aim_mode() -> bool:
+		if __aim_mode.value != null:
+			return true
+		return false
+	func get_aim_mode() -> String:
+		return __aim_mode.value
+	func clear_aim_mode() -> void:
+		data[7].state = PB_SERVICE_STATE.UNFILLED
+		__aim_mode.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_aim_mode(value : String) -> void:
+		__aim_mode.value = value
+
+	func _to_string() -> String:
+		return PBPacker.message_to_string(data)
+
+	func to_bytes() -> PackedByteArray:
+		return PBPacker.pack_message(data)
+
+	func from_bytes(bytes : PackedByteArray, offset : int = 0, limit : int = -1) -> int:
+		var cur_limit = bytes.size()
+		if limit != -1:
+			cur_limit = limit
+		var result = PBPacker.unpack_message(data, bytes, offset, cur_limit)
+		if result == cur_limit:
+			if PBPacker.check_required(data):
+				if limit == -1:
+					return PB_ERR.NO_ERRORS
+			else:
+				return PB_ERR.REQUIRED_FIELDS
+		elif limit == -1 && result > 0:
+			return PB_ERR.PARSE_INCOMPLETE
+		return result
+
+class InfernalLureDescriptor:
+	extends RefCounted
+	func _init():
+		var service
+
+		__lure_animation_id = PBField.new("lure_animation_id", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __lure_animation_id
+		data[__lure_animation_id.tag] = service
+
+		__reveal_animation_id = PBField.new("reveal_animation_id", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 2, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __reveal_animation_id
+		data[__reveal_animation_id.tag] = service
+
+		__trigger = PBField.new("trigger", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 3, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __trigger
+		data[__trigger.tag] = service
+
+		__trigger_radius = PBField.new("trigger_radius", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 4, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __trigger_radius
+		data[__trigger_radius.tag] = service
+
+		__attack_id = PBField.new("attack_id", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 5, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __attack_id
+		data[__attack_id.tag] = service
+
+		__effect = PBField.new("effect", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 6, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __effect
+		data[__effect.tag] = service
+
+		__harmless = PBField.new("harmless", PB_DATA_TYPE.BOOL, PB_RULE.OPTIONAL, 7, true, DEFAULT_VALUES_3[PB_DATA_TYPE.BOOL])
+		service = PBServiceField.new()
+		service.field = __harmless
+		data[__harmless.tag] = service
+
+		__telegraph_ms = PBField.new("telegraph_ms", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 8, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __telegraph_ms
+		data[__telegraph_ms.tag] = service
+
+		__distant_state = PBField.new("distant_state", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 9, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __distant_state
+		data[__distant_state.tag] = service
+
+		__revealed_state = PBField.new("revealed_state", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 10, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __revealed_state
+		data[__revealed_state.tag] = service
+
+		__reset_policy = PBField.new("reset_policy", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 11, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __reset_policy
+		data[__reset_policy.tag] = service
+
+	var data = {}
+
+	var __lure_animation_id: PBField
+	func has_lure_animation_id() -> bool:
+		if __lure_animation_id.value != null:
+			return true
+		return false
+	func get_lure_animation_id() -> String:
+		return __lure_animation_id.value
+	func clear_lure_animation_id() -> void:
+		data[1].state = PB_SERVICE_STATE.UNFILLED
+		__lure_animation_id.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_lure_animation_id(value : String) -> void:
+		__lure_animation_id.value = value
+
+	var __reveal_animation_id: PBField
+	func has_reveal_animation_id() -> bool:
+		if __reveal_animation_id.value != null:
+			return true
+		return false
+	func get_reveal_animation_id() -> String:
+		return __reveal_animation_id.value
+	func clear_reveal_animation_id() -> void:
+		data[2].state = PB_SERVICE_STATE.UNFILLED
+		__reveal_animation_id.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_reveal_animation_id(value : String) -> void:
+		__reveal_animation_id.value = value
+
+	var __trigger: PBField
+	func has_trigger() -> bool:
+		if __trigger.value != null:
+			return true
+		return false
+	func get_trigger() -> String:
+		return __trigger.value
+	func clear_trigger() -> void:
+		data[3].state = PB_SERVICE_STATE.UNFILLED
+		__trigger.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_trigger(value : String) -> void:
+		__trigger.value = value
+
+	var __trigger_radius: PBField
+	func has_trigger_radius() -> bool:
+		if __trigger_radius.value != null:
+			return true
+		return false
+	func get_trigger_radius() -> float:
+		return __trigger_radius.value
+	func clear_trigger_radius() -> void:
+		data[4].state = PB_SERVICE_STATE.UNFILLED
+		__trigger_radius.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_trigger_radius(value : float) -> void:
+		__trigger_radius.value = value
+
+	var __attack_id: PBField
+	func has_attack_id() -> bool:
+		if __attack_id.value != null:
+			return true
+		return false
+	func get_attack_id() -> String:
+		return __attack_id.value
+	func clear_attack_id() -> void:
+		data[5].state = PB_SERVICE_STATE.UNFILLED
+		__attack_id.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_attack_id(value : String) -> void:
+		__attack_id.value = value
+
+	var __effect: PBField
+	func has_effect() -> bool:
+		if __effect.value != null:
+			return true
+		return false
+	func get_effect() -> String:
+		return __effect.value
+	func clear_effect() -> void:
+		data[6].state = PB_SERVICE_STATE.UNFILLED
+		__effect.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_effect(value : String) -> void:
+		__effect.value = value
+
+	var __harmless: PBField
+	func has_harmless() -> bool:
+		if __harmless.value != null:
+			return true
+		return false
+	func get_harmless() -> bool:
+		return __harmless.value
+	func clear_harmless() -> void:
+		data[7].state = PB_SERVICE_STATE.UNFILLED
+		__harmless.value = DEFAULT_VALUES_3[PB_DATA_TYPE.BOOL]
+	func set_harmless(value : bool) -> void:
+		__harmless.value = value
+
+	var __telegraph_ms: PBField
+	func has_telegraph_ms() -> bool:
+		if __telegraph_ms.value != null:
+			return true
+		return false
+	func get_telegraph_ms() -> int:
+		return __telegraph_ms.value
+	func clear_telegraph_ms() -> void:
+		data[8].state = PB_SERVICE_STATE.UNFILLED
+		__telegraph_ms.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_telegraph_ms(value : int) -> void:
+		__telegraph_ms.value = value
+
+	var __distant_state: PBField
+	func has_distant_state() -> bool:
+		if __distant_state.value != null:
+			return true
+		return false
+	func get_distant_state() -> String:
+		return __distant_state.value
+	func clear_distant_state() -> void:
+		data[9].state = PB_SERVICE_STATE.UNFILLED
+		__distant_state.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_distant_state(value : String) -> void:
+		__distant_state.value = value
+
+	var __revealed_state: PBField
+	func has_revealed_state() -> bool:
+		if __revealed_state.value != null:
+			return true
+		return false
+	func get_revealed_state() -> String:
+		return __revealed_state.value
+	func clear_revealed_state() -> void:
+		data[10].state = PB_SERVICE_STATE.UNFILLED
+		__revealed_state.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_revealed_state(value : String) -> void:
+		__revealed_state.value = value
+
+	var __reset_policy: PBField
+	func has_reset_policy() -> bool:
+		if __reset_policy.value != null:
+			return true
+		return false
+	func get_reset_policy() -> String:
+		return __reset_policy.value
+	func clear_reset_policy() -> void:
+		data[11].state = PB_SERVICE_STATE.UNFILLED
+		__reset_policy.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_reset_policy(value : String) -> void:
+		__reset_policy.value = value
 
 	func _to_string() -> String:
 		return PBPacker.message_to_string(data)

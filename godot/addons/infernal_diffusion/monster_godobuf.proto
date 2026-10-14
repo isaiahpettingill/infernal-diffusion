@@ -20,6 +20,7 @@ message Monster {
   repeated Projectile projectiles = 15;
   SizeInfo size = 16;
   MountInfo mount = 17;
+  V2Profile v2_profile = 18; // Absent in V1; declarative capabilities, never an AI controller.
 }
 // Paths are package-relative and point to complete child monster packages.
 message MountInfo {
@@ -162,4 +163,37 @@ message MovementMode {
   string animation_id = 3; // ID in Monster.animations, never a sprite frame index.
   string category = 4; // GROUNDED, AERIAL, SWIMMING, CLIMBING, BURROWING, STATIONARY.
   repeated string modifiers = 5; // Unordered qualifiers; ignore unrecognized values.
+}
+
+message V2Profile {
+  uint32 profile_version = 1;
+  repeated string categories = 2;
+  repeated string capabilities = 3;
+  repeated string modifiers = 4;
+  repeated AttackPatternDescriptor attack_patterns = 5;
+  LureDescriptor lure = 6;
+}
+
+message AttackPatternDescriptor {
+  string attack_id = 1;
+  string pattern = 2;
+  uint32 projectile_count = 3;
+  uint32 volley_count = 4;
+  uint32 interval_ms = 5;
+  float spread_deg = 6;
+  string aim_mode = 7;
+}
+
+message LureDescriptor {
+  string lure_animation_id = 1;
+  string reveal_animation_id = 2;
+  string trigger = 3;
+  float trigger_radius = 4;
+  string attack_id = 5;
+  string effect = 6;
+  bool harmless = 7;
+  uint32 telegraph_ms = 8;
+  string distant_state = 9;
+  string revealed_state = 10;
+  string reset_policy = 11;
 }

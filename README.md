@@ -5,6 +5,17 @@ metadata and collision information. An optional embedded BERT parser interprets
 prompts; anatomy, intermediate 3D meshes, animation and sprite baking are procedural
 and run on the CPU. No external image-generation service or model training is needed.
 
+## Opt-in V2
+
+V1 remains the default. Select the refined procedural profile explicitly:
+
+```sh
+cargo run --release --no-default-features -- "friendly frog that sprays acid" 42 output/frog --profile v2
+```
+
+[V2 recipes and capabilities](docs/V2.md), [CLI/Rust/C/Godot/WASM profile APIs](docs/generation-profiles.md),
+and [shared V1/V2 water navigation correction](docs/aquatic-animation.md).
+
 ## Browser / Web Worker build
 
 The full procedural pipeline can run in a modern browser with a shared-memory

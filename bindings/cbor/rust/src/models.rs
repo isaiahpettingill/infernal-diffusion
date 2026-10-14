@@ -21,6 +21,7 @@ pub struct Monster {
     pub projectiles: Vec<Projectile>,
     pub size: Option<SizeInfo>,
     pub mount: Option<MountInfo>,
+    pub v2_profile: Option<V2Profile>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -246,4 +247,43 @@ pub struct MovementMode {
     pub animation_id: String,
     pub category: String,
     pub modifiers: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct V2Profile {
+    pub profile_version: u32,
+    pub categories: Vec<String>,
+    pub capabilities: Vec<String>,
+    pub modifiers: Vec<String>,
+    pub attack_patterns: Vec<AttackPatternDescriptor>,
+    pub lure: Option<LureDescriptor>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AttackPatternDescriptor {
+    pub attack_id: String,
+    pub pattern: String,
+    pub projectile_count: u32,
+    pub volley_count: u32,
+    pub interval_ms: u32,
+    pub spread_deg: f32,
+    pub aim_mode: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LureDescriptor {
+    pub lure_animation_id: String,
+    pub reveal_animation_id: String,
+    pub trigger: String,
+    pub trigger_radius: f32,
+    pub attack_id: String,
+    pub effect: String,
+    pub harmless: bool,
+    pub telegraph_ms: u32,
+    pub distant_state: String,
+    pub revealed_state: String,
+    pub reset_policy: String,
 }

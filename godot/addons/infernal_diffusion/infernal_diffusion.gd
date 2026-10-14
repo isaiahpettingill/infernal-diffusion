@@ -3,6 +3,8 @@ extends RefCounted
 
 const FORMAT_PROTOBUF := 0
 const FORMAT_CBOR := 1
+const PROFILE_V1 := 1
+const PROFILE_V2 := 2
 
 var _generator: InfernalGenerator = InfernalGenerator.new()
 
@@ -21,6 +23,13 @@ func generate_async(prompt: String, seed: int, output_dir: String) -> int:
 
 func generate_async_format(prompt: String, seed: int, output_dir: String, format: int) -> int:
 	return _generator.generate_async_format(prompt, seed, ProjectSettings.globalize_path(output_dir), format, _library_dir())
+
+## Explicit profile selection; existing generation methods remain V1.
+func generate_async_profile(prompt: String, seed: int, output_dir: String, profile: int, format: int = FORMAT_PROTOBUF) -> int:
+	return _generator.generate_async_profile(prompt, seed, ProjectSettings.globalize_path(output_dir), format, profile, _library_dir())
+
+func generate_in_memory_async_profile(prompt: String, seed: int, profile: int) -> int:
+	return _generator.generate_in_memory_async_profile(prompt, seed, profile, _library_dir())
 
 func generate_in_memory_async(prompt: String, seed: int) -> int:
 	return _generator.generate_in_memory_async(prompt, seed, _library_dir())

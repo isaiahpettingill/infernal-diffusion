@@ -1020,9 +1020,7 @@ fn parse_vocabulary_clause(prompt: &str) -> MonsterSpec {
             "PROJECTILE".into()
         } else if affinity == "TANK" {
             "CANNON".into()
-        } else if affinity == "STORMTROOPER" {
-            "LASER".into()
-        } else if affinity == "DRONE" {
+        } else if matches!(affinity, "STORMTROOPER" | "DRONE") {
             "LASER".into()
         } else if affinity == "MUSHROOM" {
             "SPORES".into()
@@ -1737,8 +1735,9 @@ mod vocabulary_tests {
         let whale = parse_vocabulary("killer whale");
         let body = crate::anatomy::build(&whale, &mut rand_chacha::ChaCha8Rng::seed_from_u64(3));
         let (_, modes, _, _) = crate::animation::make(&whale, &body);
-        assert_eq!(modes[0].id, "BEACHED_FLOP");
-        assert!(modes[0].speed < 10.0);
+        assert_eq!(modes[0].id, "SWIM");
+        assert!(modes[0].speed > 0.0);
+        assert_eq!(modes[0].category, "SWIMMING");
         assert_eq!(parse_vocabulary("bracchiosaurus").affinity, "LONGNECK_DINO");
         assert_eq!(parse_vocabulary("stegasaurus").affinity, "STEGO");
         assert_eq!(parse_vocabulary("rhinocerous").affinity, "RHINO");

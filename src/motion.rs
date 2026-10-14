@@ -256,7 +256,7 @@ pub(super) fn limit_ground_speed(body: &Body, clips: &[Animation], modes: &mut [
         .iter_mut()
         .filter(|m| matches!(m.animation_id.as_str(), "move" | "fast_move"))
     {
-        if mode.speed <= 0.0 || mode.id.contains("HOP") {
+        if mode.speed <= 0.0 || mode.id.contains("HOP") || mode.id.contains("SWIM") {
             continue;
         }
         let Some(clip) = clips.iter().find(|c| c.id == mode.animation_id) else {
@@ -322,6 +322,9 @@ pub(super) fn sync_contacts(
         else {
             continue;
         };
+        if mode.category == "SWIMMING" {
+            continue;
+        }
         let archetype = poses[clip.frames[0].sprite_frame_id as usize]
             .motion_archetype
             .as_str();
@@ -412,6 +415,7 @@ pub(super) fn bake(
             let p = pose.phase;
             let t = p * TAU;
             let archetype = pose.motion_archetype.as_str();
+            let aquatic = archetype.starts_with("AQUATIC");
             let mut local = vec![0.0; body.nodes.len()];
             let mut root = (0.0, 0.0, 0.0);
             let mut planted = true;
@@ -543,6 +547,24 @@ pub(super) fn bake(
             }
             if moving && mode.contains("LIMP") {
                 root.1 += (t + 0.6).sin().max(0.0) * 1.3 * scale;
+            }
+            if aquatic {
+                planted = false;
+                // Water locomotion is free of floor contact and baked travel.
+                // The engine integrates frame root deltas along its chosen path.
+                let cruising = moving || matches!(pose.state.as_str(), "WATER_RISE" | "WATER_DIVE");
+                root.0 = 0.0;
+                root.1 = t.sin() * if cruising { 0.45 } else { 0.2 } * scale;
+                root.2 = match pose.state.as_str() {
+                    "WATER_RISE" => -0.16,
+                    "WATER_DIVE" => 0.16,
+                    "WATER_TURN" | "TURN" => -0.2 * (PI * p).sin().powi(2),
+                    _ => t.sin() * 0.018,
+                };
+                if pose.state == "DEATH" {
+                    root.1 = 4.0 * ramp(p, 0.0, 0.9) * scale;
+                    root.2 = 0.35 * ramp(p, 0.1, 0.8);
+                }
             }
             if let Some(a) = &a {
                 root.0 = (-1.5 * a.wind + 2.7 * a.hit) * scale;
@@ -707,6 +729,52 @@ pub(super) fn bake(
                     };
                 }
             }
+            if aquatic && pose.state != "DEATH" {
+                let cruising = moving || matches!(pose.state.as_str(), "WATER_RISE" | "WATER_DIVE");
+                let power = if fast {
+                    1.25
+                } else if cruising {
+                    1.0
+                } else {
+                    0.35
+                };
+                // Attack strokes settle exactly to the neutral pose on recovery.
+                let envelope = if a.is_some() {
+                    (PI * p).sin().powi(2)
+                } else {
+                    1.0
+                };
+                for (i, n) in body.nodes.iter().enumerate().skip(1) {
+                    if is_rider(&n.id) {
+                        continue;
+                    }
+                    let order = ordinal(&n.id) as f32;
+                    let wave = (t - order * 0.55).sin() * power * envelope;
+                    local[i] = match (archetype, n.kind.as_str()) {
+                        ("AQUATIC_FROG", "LIMB") => {
+                            (t + if order >= 2.0 { 0.0 } else { PI }).sin()
+                                * 0.48
+                                * power
+                                * envelope
+                        }
+                        ("AQUATIC_FROG", "SHIN") => -t.sin() * 0.65 * power * envelope,
+                        ("AQUATIC_FROG", "FOOT") => t.sin() * 0.22 * power * envelope,
+                        ("AQUATIC_JELLY", "TENTACLE") => wave * 0.22,
+                        ("AQUATIC_JELLY", "HEAD" | "NECK") => t.sin() * 0.035 * power * envelope,
+                        ("AQUATIC_JET", "TENTACLE") => {
+                            (t - order * 0.23).sin() * 0.28 * power * envelope
+                        }
+                        ("AQUATIC_CETACEAN", "TAIL") => wave * 0.19,
+                        ("AQUATIC_MERMAID", "TAIL") => wave * 0.11,
+                        (_, "TAIL") => wave * 0.045,
+                        (_, "FIN") => wave * 0.12,
+                        (_, "ARM" | "HAND") => wave * 0.12,
+                        (_, "HEAD") => -root.2 * 0.6,
+                        (_, "TENTACLE") => wave * 0.1,
+                        _ => 0.0,
+                    };
+                }
+            }
             // Bite, tail and horn attacks act through their actual attachment.
             if let (Some(attack), Some(a)) = (attack, &a) {
                 let origin = body
@@ -746,6 +814,9 @@ pub(super) fn bake(
                     let _ = n;
                     local[i] = 0.0;
                 }
+            }
+            if aquatic {
+                planted = false;
             }
             let mut positions = forward(body, root, &local);
             let mut fixed = vec![false; body.nodes.len()];
@@ -921,7 +992,7 @@ pub(super) fn bake(
                 }
             }
             reattach(body, &mut positions, &fixed);
-            if pose.state == "DEATH" && !matches!(archetype, "FLOATING" | "WHIRLWIND") {
+            if pose.state == "DEATH" && !aquatic && !matches!(archetype, "FLOATING" | "WHIRLWIND") {
                 // Resolve the entire connected corpse against the floor, rather
                 // than clamping individual ragdoll nodes (which tears joints).
                 let lowest = positions
@@ -1255,6 +1326,71 @@ mod tests {
                     "event outside {}",
                     clip.id
                 );
+            }
+        }
+    }
+    #[test]
+    fn aquatic_cycles_close_and_preserve_attachment_lengths() {
+        for prompt in ["fish", "mermaid", "jellyfish", "kraken", "orca", "frog"] {
+            let mut spec = crate::parser::parse_vocabulary(prompt);
+            if prompt == "frog" {
+                spec.affinity = "FROG".into();
+                spec.body_plan = "QUADRUPED".into();
+                spec.limb_count = 4;
+            }
+            let body = crate::anatomy::build(&spec, &mut ChaCha8Rng::seed_from_u64(31));
+            let (clips, modes, attacks, poses) = crate::animation::make(&spec, &body);
+            for pose in poses
+                .iter()
+                .filter(|p| p.motion_archetype.starts_with("AQUATIC"))
+            {
+                for (i, n) in body.nodes.iter().enumerate() {
+                    let q = pose.physical_positions[i];
+                    assert!(
+                        q.0.is_finite() && q.1.is_finite() && q.2.is_finite(),
+                        "{prompt}: {}",
+                        pose.clip_id
+                    );
+                    if let Some(parent) = n.parent {
+                        let length = (n.x - body.nodes[parent].x).hypot(n.y - body.nodes[parent].y);
+                        assert!(
+                            (distance(q, pose.physical_positions[parent]) - length).abs() < 0.06,
+                            "{prompt}: {} {}",
+                            pose.clip_id,
+                            n.id
+                        );
+                    }
+                }
+            }
+            let loops: Vec<_> = clips
+                .iter()
+                .filter(|c| {
+                    c.looped
+                        && poses[c.frames[0].sprite_frame_id as usize]
+                            .motion_archetype
+                            .starts_with("AQUATIC")
+                })
+                .cloned()
+                .collect();
+            let mut start = poses.clone();
+            let mut end = poses.clone();
+            for p in &mut start {
+                p.phase = 0.0;
+            }
+            for p in &mut end {
+                p.phase = 1.0;
+            }
+            bake(&body, &loops, &modes, &attacks, &mut start);
+            bake(&body, &loops, &modes, &attacks, &mut end);
+            for clip in &loops {
+                let i = clip.frames[0].sprite_frame_id as usize;
+                for (a, b) in start[i]
+                    .physical_positions
+                    .iter()
+                    .zip(&end[i].physical_positions)
+                {
+                    assert!(distance(*a, *b) < 0.001, "{prompt}: {} loop seam", clip.id);
+                }
             }
         }
     }

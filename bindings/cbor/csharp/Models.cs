@@ -40,6 +40,8 @@ public sealed class Monster
     public SizeInfo? Size { get; set; }
     [CborProperty(TextName = "mount")]
     public MountInfo? Mount { get; set; }
+    [CborProperty(TextName = "v2_profile")]
+    public V2Profile? V2Profile { get; set; }
 }
 
 public sealed class MountInfo
@@ -370,4 +372,64 @@ public sealed class MovementMode
     public string Category { get; set; } = "";
     [CborProperty(TextName = "modifiers")]
     public List<string> Modifiers { get; set; } = new();
+}
+
+public sealed class V2Profile
+{
+    [CborProperty(TextName = "profile_version")]
+    public uint ProfileVersion { get; set; }
+    [CborProperty(TextName = "categories")]
+    public List<string> Categories { get; set; } = new();
+    [CborProperty(TextName = "capabilities")]
+    public List<string> Capabilities { get; set; } = new();
+    [CborProperty(TextName = "modifiers")]
+    public List<string> Modifiers { get; set; } = new();
+    [CborProperty(TextName = "attack_patterns")]
+    public List<AttackPatternDescriptor> AttackPatterns { get; set; } = new();
+    [CborProperty(TextName = "lure")]
+    public LureDescriptor? Lure { get; set; }
+}
+
+public sealed class AttackPatternDescriptor
+{
+    [CborProperty(TextName = "attack_id")]
+    public string AttackID { get; set; } = "";
+    [CborProperty(TextName = "pattern")]
+    public string Pattern { get; set; } = "";
+    [CborProperty(TextName = "projectile_count")]
+    public uint ProjectileCount { get; set; }
+    [CborProperty(TextName = "volley_count")]
+    public uint VolleyCount { get; set; }
+    [CborProperty(TextName = "interval_ms")]
+    public uint IntervalMs { get; set; }
+    [CborProperty(TextName = "spread_deg")]
+    public float SpreadDeg { get; set; }
+    [CborProperty(TextName = "aim_mode")]
+    public string AimMode { get; set; } = "";
+}
+
+public sealed class LureDescriptor
+{
+    [CborProperty(TextName = "lure_animation_id")]
+    public string LureAnimationID { get; set; } = "";
+    [CborProperty(TextName = "reveal_animation_id")]
+    public string RevealAnimationID { get; set; } = "";
+    [CborProperty(TextName = "trigger")]
+    public string Trigger { get; set; } = "";
+    [CborProperty(TextName = "trigger_radius")]
+    public float TriggerRadius { get; set; }
+    [CborProperty(TextName = "attack_id")]
+    public string AttackID { get; set; } = "";
+    [CborProperty(TextName = "effect")]
+    public string Effect { get; set; } = "";
+    [CborProperty(TextName = "harmless")]
+    public bool Harmless { get; set; }
+    [CborProperty(TextName = "telegraph_ms")]
+    public uint TelegraphMs { get; set; }
+    [CborProperty(TextName = "distant_state")]
+    public string DistantState { get; set; } = "";
+    [CborProperty(TextName = "revealed_state")]
+    public string RevealedState { get; set; } = "";
+    [CborProperty(TextName = "reset_policy")]
+    public string ResetPolicy { get; set; } = "";
 }

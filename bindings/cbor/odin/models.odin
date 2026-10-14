@@ -19,6 +19,7 @@ Monster :: struct {
     projectiles: []Projectile,
     size: Maybe(SizeInfo),
     mount: Maybe(MountInfo),
+    v2_profile: Maybe(V2Profile),
 }
 
 MountInfo :: struct {
@@ -204,4 +205,37 @@ MovementMode :: struct {
     animation_id: string,
     category: string,
     modifiers: []string,
+}
+
+V2Profile :: struct {
+    profile_version: u32,
+    categories: []string,
+    capabilities: []string,
+    modifiers: []string,
+    attack_patterns: []AttackPatternDescriptor,
+    lure: Maybe(LureDescriptor),
+}
+
+AttackPatternDescriptor :: struct {
+    attack_id: string,
+    pattern: string,
+    projectile_count: u32,
+    volley_count: u32,
+    interval_ms: u32,
+    spread_deg: f32,
+    aim_mode: string,
+}
+
+LureDescriptor :: struct {
+    lure_animation_id: string,
+    reveal_animation_id: string,
+    trigger: string,
+    trigger_radius: f32,
+    attack_id: string,
+    effect: string,
+    harmless: bool,
+    telegraph_ms: u32,
+    distant_state: string,
+    revealed_state: string,
+    reset_policy: string,
 }

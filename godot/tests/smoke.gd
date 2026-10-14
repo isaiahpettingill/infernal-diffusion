@@ -84,6 +84,25 @@ func _test_props() -> void:
 			metadata.close()
 		print("INFERNAL_GDEXTENSION_EXTERNAL_PROP_OK: ", external_asset)
 
+func _test_v2_profile() -> void:
+	assert(generator.generate_in_memory_async_profile("wolf", 42, 0) == -1)
+	assert(generator.generate_in_memory_async_profile("wolf", 42, 3) == -1)
+	assert(generator.generate_async_profile("wolf", 42, "user://invalid", 3) == -1)
+	var path := "user://smoke/v2-wolf"
+	var disk := await _await_result(generator.generate_async_profile("wolf", 42, path, Infernal.PROFILE_V2))
+	assert(disk.ok, str(disk.get("error", "V2 disk generation failed")))
+	var monster := MonsterPb.InfernalMonster.new()
+	assert(monster.from_bytes(FileAccess.get_file_as_bytes(path.path_join("monster.pb"))) == MonsterPb.PB_ERR.NO_ERRORS)
+	assert(monster.has_v2_profile() and monster.get_v2_profile().get_profile_version() == 1)
+	var job := generator.generate_in_memory_async_profile("wolf", 42, Infernal.PROFILE_V2)
+	var result := await _await_result(job)
+	assert(result.ok, str(result.get("error", "V2 memory generation failed")))
+	assert(result.packages.back().monster.v2_profile.profile_version == 1)
+	var saved := await _await_result(generator.save_in_memory_async_format(job, path, Infernal.FORMAT_CBOR))
+	assert(saved.ok, str(saved.get("error", "V2 CBOR save failed")))
+	assert(FileAccess.file_exists(path.path_join("monster.cbor")))
+	assert(generator.release_in_memory(job))
+
 func _run() -> void:
 	generator = Infernal.new()
 	assert(generator.generate_in_memory_async("wolf", -1) == -1)
@@ -101,6 +120,7 @@ func _run() -> void:
 	assert(result.ok, str(result.get("error", "generation failed")))
 	assert(!result.packages.is_empty())
 	var root: Dictionary = result.packages.back()
+	assert(root.monster.get("v2_profile") == null, "default generation must remain V1")
 	var profile: Dictionary = root.locomotion
 	assert(profile.contract_version == 1)
 	assert(profile.distance_unit == "GENERATOR_UNIT")
@@ -167,5 +187,6 @@ func _run() -> void:
 	for queued in accepted:
 		var suggestion := await _await_result(queued)
 		assert(suggestion.ok and !suggestion.prompt.is_empty())
+	await _test_v2_profile()
 	print("INFERNAL_GDEXTENSION_SMOKE_OK")
 	quit(0)

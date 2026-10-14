@@ -1,6 +1,36 @@
 use std::path::Path;
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    let profile_requested = args.iter().any(|arg| arg == "--profile");
+    let (args, profile) = generation_args(&args).unwrap_or_else(|error| {
+        eprintln!("{error}");
+        std::process::exit(2)
+    });
+    if profile_requested
+        && args.get(1).is_some_and(|command| {
+            [
+                "bake-prop",
+                "suggest",
+                "arena-suggest",
+                "serve",
+                "parse",
+                "validate",
+                "inspect",
+            ]
+            .contains(&command.as_str())
+        })
+    {
+        eprintln!("--profile is only supported for monster generation");
+        std::process::exit(2);
+    }
+    if profile == infernal_diffusion::GenerationProfile::V2
+        && args
+            .get(1)
+            .is_some_and(|command| ["bake2d", "bake2d-cbor"].contains(&command.as_str()))
+    {
+        eprintln!("V2 requires the 3D pipeline; use bake3d or bake3d-cbor");
+        std::process::exit(2);
+    }
     if args.get(1).is_some_and(|a| a == "bake-prop") {
         let result = (|| -> Result<(), Box<dyn std::error::Error>> {
             if !(4..=5).contains(&args.len()) {
@@ -167,18 +197,25 @@ fn main() {
         } else {
             infernal_diffusion::PackageFormat::Protobuf
         };
-        let bake = if args[1].starts_with("bake2d") {
-            infernal_diffusion::generate_2d_with_format
+        let result = if args[1].starts_with("bake2d") {
+            infernal_diffusion::generate_2d_with_format(
+                &args[2],
+                seed,
+                Path::new(&args[4]),
+                args.get(5).map(Path::new),
+                format,
+            )
         } else {
-            infernal_diffusion::generate_3d_with_format
+            infernal_diffusion::generate_with_profile(
+                &args[2],
+                seed,
+                Path::new(&args[4]),
+                args.get(5).map(Path::new),
+                format,
+                profile,
+            )
         };
-        match bake(
-            &args[2],
-            seed,
-            Path::new(&args[4]),
-            args.get(5).map(Path::new),
-            format,
-        ) {
+        match result {
             Ok(monster) => println!("{}: {}", monster.id, monster.display_name),
             Err(error) => {
                 eprintln!("{error}");
@@ -188,15 +225,17 @@ fn main() {
         return;
     }
     if args.len() < 4 || args.len() > 5 {
-        eprintln!("Usage: infernal <prompt> <seed> <output-dir> [bert-model-dir]");
+        eprintln!(
+            "Usage: infernal <prompt> <seed> <output-dir> [bert-model-dir] [--profile v1|v2]"
+        );
         eprintln!("       infernal validate <package-dir>");
         eprintln!("       infernal inspect <package-dir>");
         eprintln!("       infernal parse <prompt> [bert-model-dir]");
         eprintln!("       infernal suggest <seed> <difficulty-1-to-3>");
         eprintln!("       infernal arena-suggest <run-seed> <round>");
-        eprintln!("       infernal bake3d <prompt> <seed> <output-dir> [bert-model-dir]");
+        eprintln!("       infernal bake3d <prompt> <seed> <output-dir> [bert-model-dir] [--profile v1|v2]");
         eprintln!("       infernal bake2d <prompt> <seed> <output-dir> [bert-model-dir]");
-        eprintln!("       infernal bake3d-cbor <prompt> <seed> <output-dir> [bert-model-dir]");
+        eprintln!("       infernal bake3d-cbor <prompt> <seed> <output-dir> [bert-model-dir] [--profile v1|v2]");
         eprintln!("       infernal bake2d-cbor <prompt> <seed> <output-dir> [bert-model-dir]");
         eprintln!("       infernal serve [port]");
         std::process::exit(2);
@@ -208,16 +247,84 @@ fn main() {
             std::process::exit(2)
         }
     };
-    match infernal_diffusion::generate(
+    match infernal_diffusion::generate_with_profile(
         &args[1],
         seed,
         Path::new(&args[3]),
         args.get(4).map(Path::new),
+        infernal_diffusion::PackageFormat::Protobuf,
+        profile,
     ) {
         Ok(m) => println!("{}: {}", m.id, m.display_name),
         Err(e) => {
             eprintln!("{e}");
             std::process::exit(1)
         }
+    }
+}
+
+// Extract explicit generation options while preserving existing positional arguments.
+fn generation_args(
+    args: &[String],
+) -> Result<(Vec<String>, infernal_diffusion::GenerationProfile), String> {
+    let mut positional = Vec::new();
+    let mut profile = infernal_diffusion::GenerationProfile::V1;
+    let mut seen_profile = false;
+    let mut args = args.iter();
+    while let Some(arg) = args.next() {
+        if arg == "--profile" {
+            if seen_profile {
+                return Err("--profile may only be supplied once".into());
+            }
+            seen_profile = true;
+            profile = args
+                .next()
+                .ok_or("--profile requires v1 or v2")?
+                .parse::<infernal_diffusion::GenerationProfile>()
+                .map_err(|error| error.to_string())?;
+        } else {
+            positional.push(arg.clone());
+        }
+    }
+    Ok((positional, profile))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn args(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| value.to_string()).collect()
+    }
+    #[test]
+    fn default_and_explicit_generation_profiles() {
+        let original = args(&["infernal", "ogre", "42", "out"]);
+        let (parsed, profile) = generation_args(&original).unwrap();
+        assert_eq!(parsed, original);
+        assert!(matches!(profile, infernal_diffusion::GenerationProfile::V1));
+        let (parsed, profile) =
+            generation_args(&args(&["infernal", "--profile", "v2", "ogre", "42", "out"])).unwrap();
+        assert_eq!(parsed, original);
+        assert!(matches!(profile, infernal_diffusion::GenerationProfile::V2));
+        let (parsed, profile) = generation_args(&args(&[
+            "infernal",
+            "bake3d-cbor",
+            "ogre",
+            "42",
+            "out",
+            "models",
+            "--profile",
+            "v2",
+        ]))
+        .unwrap();
+        assert_eq!(
+            parsed,
+            args(&["infernal", "bake3d-cbor", "ogre", "42", "out", "models"])
+        );
+        assert!(matches!(profile, infernal_diffusion::GenerationProfile::V2));
+        assert!(generation_args(&args(&["infernal", "--profile", "v3"])).is_err());
+        assert!(generation_args(&args(&["infernal", "--profile"])).is_err());
+        assert!(
+            generation_args(&args(&["infernal", "--profile", "v1", "--profile", "v2"])).is_err()
+        );
     }
 }

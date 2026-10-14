@@ -234,3 +234,12 @@ Use `--immediate-import` only to diagnose that separate upstream path. A native
 crash is always a test failure. The delayed cold-start path was checked with
 Godot 4.6 and 4.7.2 on Linux; normal interactive editor use is not the immediate
 headless shutdown path.
+
+## Opt-in V2 profile
+
+Existing generation methods remain V1. Use
+`generate_in_memory_async_profile(prompt, seed, InfernalDiffusion.PROFILE_V2)` or
+`generate_async_profile(prompt, seed, output_dir, InfernalDiffusion.PROFILE_V2)`
+to select V2 for one request. Unknown profile values are rejected; an older core
+without V2 support reports a failed job rather than silently falling back.
+See [generation profiles](../docs/generation-profiles.md) for the full API contract.

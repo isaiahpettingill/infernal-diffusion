@@ -37,6 +37,9 @@ pub struct Monster {
     pub size: Option<SizeInfo>,
     #[prost(message, optional, tag = "17")]
     pub mount: Option<MountInfo>,
+    #[prost(message, optional, tag = "18")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub v2_profile: Option<V2Profile>,
 }
 #[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
@@ -371,4 +374,67 @@ pub struct MovementMode {
     /// Unordered physical/style qualifiers, not a sequence of movement commands.
     #[prost(string, repeated, tag = "5")]
     pub modifiers: Vec<String>,
+}
+
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct V2Profile {
+    #[prost(uint32, tag = "1")]
+    pub profile_version: u32,
+    #[prost(string, repeated, tag = "2")]
+    pub categories: Vec<String>,
+    #[prost(string, repeated, tag = "3")]
+    pub capabilities: Vec<String>,
+    #[prost(string, repeated, tag = "4")]
+    pub modifiers: Vec<String>,
+    #[prost(message, repeated, tag = "5")]
+    pub attack_patterns: Vec<AttackPatternDescriptor>,
+    #[prost(message, optional, tag = "6")]
+    pub lure: Option<LureDescriptor>,
+}
+
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct AttackPatternDescriptor {
+    #[prost(string, tag = "1")]
+    pub attack_id: String,
+    #[prost(string, tag = "2")]
+    pub pattern: String,
+    #[prost(uint32, tag = "3")]
+    pub projectile_count: u32,
+    #[prost(uint32, tag = "4")]
+    pub volley_count: u32,
+    #[prost(uint32, tag = "5")]
+    pub interval_ms: u32,
+    #[prost(float, tag = "6")]
+    pub spread_deg: f32,
+    #[prost(string, tag = "7")]
+    pub aim_mode: String,
+}
+
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct LureDescriptor {
+    #[prost(string, tag = "1")]
+    pub lure_animation_id: String,
+    #[prost(string, tag = "2")]
+    pub reveal_animation_id: String,
+    #[prost(string, tag = "3")]
+    pub trigger: String,
+    #[prost(float, tag = "4")]
+    pub trigger_radius: f32,
+    #[prost(string, tag = "5")]
+    pub attack_id: String,
+    #[prost(string, tag = "6")]
+    pub effect: String,
+    #[prost(bool, tag = "7")]
+    pub harmless: bool,
+    #[prost(uint32, tag = "8")]
+    pub telegraph_ms: u32,
+    #[prost(string, tag = "9")]
+    pub distant_state: String,
+    #[prost(string, tag = "10")]
+    pub revealed_state: String,
+    #[prost(string, tag = "11")]
+    pub reset_policy: String,
 }

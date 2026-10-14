@@ -1,0 +1,56 @@
+[
+  {
+    "prompt": "beetle",
+    "seed": 42,
+    "rgba_sha256": "279751d312ab21902a8f517a4d68edfd60e5cd4b4618e401f68be393c77d94ca",
+    "protobuf_sha256": "d0459ed70a3a47858b84a5398d4231c886fba82c195291de41b76149e2877b60"
+  },
+  {
+    "prompt": "dragon",
+    "seed": 42,
+    "rgba_sha256": "8a5069cb66bce5bef530fa64dfefde19ec2b71aab87d22f7a4e53f3db90e17e7",
+    "protobuf_sha256": "1f0bb304e6de217583fbe1d637d1675361dc5d5d802da63f08dfc93bcded932a"
+  },
+  {
+    "prompt": "mammoth",
+    "seed": 42,
+    "rgba_sha256": "8259fb3fbb595b6246ff80e8e50b6d229de6db78e3da97eac25631c4a85f2974",
+    "protobuf_sha256": "532955dc64d936268741010197037bd3797fa4eecf7ca48d29f22dab652ea612"
+  },
+  {
+    "prompt": "orc",
+    "seed": 42,
+    "rgba_sha256": "412f7cd27b5a049f9ef3cad655f36e8cb5a4ce275c59e41a4920d66a221c8871",
+    "protobuf_sha256": "1f7f98fd549b89fe86cc9880a9677af7cc969c5c144c6eb13e648a338666ee16"
+  },
+  {
+    "prompt": "serpent",
+    "seed": 42,
+    "rgba_sha256": "006ecf88330eb7eee501912d334098a320c2d8abb6e075b4bb42e6467cccc5ce",
+    "protobuf_sha256": "d59cf0ae329aee9683a3c825896a997b7abe948cbb02391bf8f88228c7c2f2dc"
+  },
+  {
+    "prompt": "slime",
+    "seed": 42,
+    "rgba_sha256": "a97ca504ca97ef6fdaab01772b9e1b45fdb792c72343ee5f013395a183a289c3",
+    "protobuf_sha256": "df893e25dfc02ef538d72cabc983e302cce9ae082df532a0f4f5a829e9aab6c6"
+  },
+  {
+    "prompt": "snail",
+    "seed": 42,
+    "rgba_sha256": "ebebbeaf7ecb5de6fd4ec640d1cc9d15545f8b2dd7fb934bdc61659504268de7",
+    "protobuf_sha256": "1ba52a15f8a1010504c3f7ef7df91ce4e06ab03f72acbc9702f98e72c7cafb2e"
+  },
+  {
+    "prompt": "spider",
+    "seed": 42,
+    "rgba_sha256": "354bbd0b21864c2e77f2e80c3c1d7f29c88d3e7058abd5ffdd892a83b9aa60d3",
+    "protobuf_sha256": "16e65347dcbbebaf01b088991abb824de9b5a095cc9af078a52ddbdbf5589bd3"
+  },
+  {
+    "prompt": "wolf",
+    "seed": 42,
+    "rgba_sha256": "d0b138e731aa800ac32918533d429516cb0d22866697d48b1e0b4f33ee77fe09",
+    "protobuf_sha256": "77abbcd97572a8d66cd358f0b1f312a8121ea269886120fda321509b440e16e4"
+  }
+]

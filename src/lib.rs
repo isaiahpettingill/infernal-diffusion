@@ -12,18 +12,22 @@ pub mod proto;
 pub mod recipes;
 pub mod render;
 pub mod render3d;
-#[cfg(not(target_arch = "wasm32"))]
-pub mod web;
+pub mod v2;
+pub use v2::GenerationProfile;
 #[cfg(all(target_arch = "wasm32", feature = "wasm"))]
 mod wasm;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod web;
 
 #[cfg(all(target_arch = "wasm32", feature = "bert"))]
-compile_error!("Browser builds must use --no-default-features --features wasm; native BERT is unchanged");
+compile_error!(
+    "Browser builds must use --no-default-features --features wasm; native BERT is unchanged"
+);
 
-#[cfg(target_arch = "wasm32")]
-use web_time::Instant;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
+#[cfg(target_arch = "wasm32")]
+use web_time::Instant;
 
 use prost::Message;
 use rand::Rng;
@@ -200,6 +204,73 @@ pub fn generate_3d_with_format(
     )
 }
 
+/// Explicitly choose a versioned pipeline; legacy entry points remain V1.
+pub fn generate_with_profile(
+    prompt: &str,
+    seed: u64,
+    output_dir: &Path,
+    model_dir: Option<&Path>,
+    format: PackageFormat,
+    profile: GenerationProfile,
+) -> Result<proto::Monster, Error> {
+    generate_prompt_profile(
+        prompt,
+        seed,
+        output_dir,
+        model_dir,
+        RenderStyle::Mesh3d,
+        &mut DiskSink { format },
+        profile,
+    )
+}
+
+pub fn generate_in_memory_with_profile(
+    prompt: &str,
+    seed: u64,
+    profile: GenerationProfile,
+) -> Result<GeneratedMonster, Error> {
+    let mut sink = MemorySink {
+        packages: Vec::new(),
+    };
+    generate_prompt_profile(
+        prompt,
+        seed,
+        Path::new("."),
+        None,
+        RenderStyle::Mesh3d,
+        &mut sink,
+        profile,
+    )?;
+    Ok(GeneratedMonster {
+        packages: sink.packages,
+    })
+}
+
+pub fn generate_from_spec_with_profile(
+    spec: parser::MonsterSpec,
+    seed: u64,
+    output_dir: &Path,
+    format: PackageFormat,
+    profile: GenerationProfile,
+) -> Result<proto::Monster, Error> {
+    let source = serde_json::to_string(&spec).map_err(|e| Error::InvalidMonster(e.to_string()))?;
+    generate_spec_internal(
+        spec,
+        &source,
+        seed,
+        output_dir,
+        "recipe-v1-spec".into(),
+        &recipes::DefaultStages,
+        &mut DiskSink { format },
+        GenerationOptions {
+            profile,
+            render_style: RenderStyle::Mesh3d,
+            allow_auto_spawn: true,
+            randomize_unknown: false,
+        },
+    )
+}
+
 pub struct GeneratedPackage {
     pub path: std::path::PathBuf,
     pub monster: proto::Monster,
@@ -324,6 +395,27 @@ fn generate_prompt(
     render_style: RenderStyle,
     sink: &mut dyn PackageSink,
 ) -> Result<proto::Monster, Error> {
+    generate_prompt_profile(
+        prompt,
+        seed,
+        output_dir,
+        model_dir,
+        render_style,
+        sink,
+        GenerationProfile::V1,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn generate_prompt_profile(
+    prompt: &str,
+    seed: u64,
+    output_dir: &Path,
+    model_dir: Option<&Path>,
+    render_style: RenderStyle,
+    sink: &mut dyn PackageSink,
+    generation_profile: GenerationProfile,
+) -> Result<proto::Monster, Error> {
     let profile = std::env::var_os("INFERNAL_PROFILE").is_some();
     let started = Instant::now();
     if prompt.trim().is_empty() || prompt.len() > 4096 {
@@ -350,6 +442,11 @@ fn generate_prompt(
         {
             parser::parse_vocabulary(prompt)
         }
+    };
+    let spec = if generation_profile == GenerationProfile::V2 {
+        v2::interpret(spec, prompt)
+    } else {
+        spec
     };
     let parsing_ms = started.elapsed().as_secs_f64() * 1000.0;
     let recipe_version = if let Some(dir) = model_dir {
@@ -408,6 +505,7 @@ fn generate_prompt(
         &recipes::DefaultStages,
         sink,
         GenerationOptions {
+            profile: generation_profile,
             render_style,
             allow_auto_spawn: true,
             randomize_unknown: true,
@@ -446,6 +544,7 @@ pub fn generate_from_spec_with_format(
         &recipes::DefaultStages,
         &mut DiskSink { format },
         GenerationOptions {
+            profile: GenerationProfile::V1,
             render_style: RenderStyle::Mesh3d,
             allow_auto_spawn: true,
             randomize_unknown: false,
@@ -477,6 +576,7 @@ pub fn generate_from_spec_2d_with_format(
         &recipes::DefaultStages,
         &mut DiskSink { format },
         GenerationOptions {
+            profile: GenerationProfile::V1,
             render_style: RenderStyle::Flat2d,
             allow_auto_spawn: true,
             randomize_unknown: false,
@@ -533,6 +633,7 @@ pub fn generate_from_spec_with_stages_and_format(
         stages,
         &mut DiskSink { format },
         GenerationOptions {
+            profile: GenerationProfile::V1,
             render_style: RenderStyle::Flat2d,
             allow_auto_spawn: true,
             randomize_unknown: false,
@@ -542,6 +643,7 @@ pub fn generate_from_spec_with_stages_and_format(
 
 #[derive(Clone, Copy)]
 struct GenerationOptions {
+    profile: GenerationProfile,
     render_style: RenderStyle,
     allow_auto_spawn: bool,
     randomize_unknown: bool,
@@ -559,6 +661,17 @@ fn generate_spec_internal(
     options: GenerationOptions,
 ) -> Result<proto::Monster, Error> {
     let render_style = options.render_style;
+    if options.profile == GenerationProfile::V2 {
+        if render_style != RenderStyle::Mesh3d {
+            return Err(Error::InvalidMonster("V2 requires mesh3d rendering".into()));
+        }
+        v2::prepare(&mut spec);
+    }
+    if options.profile == GenerationProfile::V1 && spec.features.iter().any(|f| f == "PROFILE_V2") {
+        return Err(Error::InvalidMonster(
+            "PROFILE_V2 is reserved; select the V2 generation profile explicitly".into(),
+        ));
+    }
     let allow_auto_spawn = options.allow_auto_spawn;
     if !spec.size.is_finite()
         || !(0.0..=1.0).contains(&spec.size)
@@ -642,6 +755,12 @@ fn generate_spec_internal(
         ));
     }
     let mut recipe_ids = stages.registry().versions(&spec.body_plan);
+    if locomotion::aquatic(&spec) {
+        recipe_ids.push("motion.aquatic_navigation@1".into());
+    }
+    if options.profile == GenerationProfile::V2 {
+        recipe_ids.push("profile.v2@1".into());
+    }
     if spec.affinity == "STORMTROOPER" {
         recipe_ids.push("destructos.stormtrooper@1".into());
         recipe_ids.push("mesh.skull_stormtrooper@1".into());
@@ -706,10 +825,21 @@ fn generate_spec_internal(
         }
     }
     let mut body = stages.anatomy(&spec, &mut rng);
+    if options.profile == GenerationProfile::V2 {
+        v2::anatomy::refine(&spec, &mut body, seed);
+    }
     validate_body(&body)?;
     stages.repair(&mut body);
     validate_body(&body)?;
-    let (animations, movement_modes, mut attacks, poses) = stages.animate(&spec, &body);
+    let (animations, movement_modes, mut attacks, poses) =
+        if options.profile == GenerationProfile::V2 {
+            v2::combat::animate(&spec, &body, seed)
+        } else {
+            stages.animate(&spec, &body)
+        };
+    if options.profile == GenerationProfile::V2 {
+        v2::combat::validate(&animations, &attacks, &poses).map_err(Error::InvalidMonster)?;
+    }
     if movement_modes.len() < 2 || attacks.len() < 2 || poses.is_empty() {
         return Err(Error::InvalidMonster(
             "animation stage omitted required movement, attacks, or poses".into(),
@@ -851,6 +981,7 @@ fn generate_spec_internal(
         .iter()
         .map(|attack| match attack.id.as_str() {
             "primary" => 1.0,
+            id if id.starts_with("v2_pattern_") => 1.0,
             "secondary" => 0.65,
             "special" => 0.45,
             "summon" => 0.32,
@@ -903,6 +1034,7 @@ fn generate_spec_internal(
             stages,
             sink,
             GenerationOptions {
+                profile: options.profile,
                 render_style,
                 allow_auto_spawn: false,
                 randomize_unknown: false,
@@ -920,6 +1052,7 @@ fn generate_spec_internal(
             stages,
             sink,
             GenerationOptions {
+                profile: options.profile,
                 render_style,
                 allow_auto_spawn: false,
                 randomize_unknown: false,
@@ -960,6 +1093,7 @@ fn generate_spec_internal(
             stages,
             sink,
             GenerationOptions {
+                profile: options.profile,
                 render_style,
                 allow_auto_spawn: false,
                 randomize_unknown: false,
@@ -992,7 +1126,20 @@ fn generate_spec_internal(
     } else {
         0
     }) + (body.repairs.len() as u32 * 4).min(16);
+    let attack_elements: Vec<String> = if options.profile == GenerationProfile::V2 {
+        attacks
+            .iter()
+            .map(|attack| attack.element.clone())
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let v2_profile =
+        (options.profile == GenerationProfile::V2).then(|| v2::describe(&spec, &attacks));
     let monster = proto::Monster {
+        v2_profile,
         format_version: if render_style == RenderStyle::Mesh3d {
             7
         } else {
@@ -1090,6 +1237,7 @@ fn generate_spec_internal(
             .chain(spec.features.iter().cloned())
             .chain(std::iter::once(spec.materials[0].clone()))
             .chain(std::iter::once(spec.attack.element.clone()))
+            .chain(attack_elements)
             .chain(spec.mount.as_ref().map(|_| "MOUNTED".into()))
             .chain(spec.spawn.as_ref().map(|_| "SUMMONER".into()))
             .collect(),
@@ -1296,6 +1444,7 @@ fn validate_body(body: &anatomy::Body) -> Result<(), Error> {
 }
 
 pub fn validate(monster: &proto::Monster, sheet: &image::RgbaImage) -> Result<(), Error> {
+    v2::validate_profile(monster)?;
     if ![2, 3, 4, 5, 6, 7].contains(&monster.format_version) {
         return Err(Error::InvalidMonster("unsupported format_version".into()));
     }
@@ -1549,6 +1698,8 @@ pub fn validate(monster: &proto::Monster, sheet: &image::RgbaImage) -> Result<()
             || m.speed < 0.0
             || (m.speed == 0.0
                 && m.category != "STATIONARY"
+                && !(m.category == "SWIMMING"
+                    && ["WATER_HOVER", "WATER_TURN"].contains(&m.id.as_str()))
                 && !monster.tags.iter().any(|tag| tag == "ANCHORED"))
         {
             return Err(Error::InvalidMonster(format!("invalid movement {}", m.id)));
@@ -2212,6 +2363,41 @@ pub unsafe extern "C" fn infernal_generate_object(
                 Ok(Err(e)) => e,
                 Err(_) => "panic during generation".into(),
                 _ => unreachable!(),
+            };
+            if !error_out.is_null() {
+                *error_out = CString::new(message).unwrap_or_default().into_raw();
+            }
+            std::ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+/// # Safety
+/// Same pointer and ownership contract as `infernal_generate_object`.
+pub unsafe extern "C" fn infernal_generate_in_memory_profile(
+    prompt: *const c_char,
+    seed: u64,
+    profile: u32,
+    error_out: *mut *mut c_char,
+) -> *mut GeneratedMonster {
+    if !error_out.is_null() {
+        *error_out = std::ptr::null_mut();
+    }
+    let result = std::panic::catch_unwind(|| {
+        if prompt.is_null() {
+            return Err("null prompt".to_string());
+        }
+        let profile = GenerationProfile::try_from(profile).map_err(|e| e.to_string())?;
+        let text = CStr::from_ptr(prompt).to_str().map_err(|e| e.to_string())?;
+        generate_in_memory_with_profile(text, seed, profile).map_err(|e| e.to_string())
+    });
+    match result {
+        Ok(Ok(value)) => Box::into_raw(Box::new(value)),
+        other => {
+            let message = match other {
+                Ok(Err(e)) => e,
+                _ => "panic during generation".into(),
             };
             if !error_out.is_null() {
                 *error_out = CString::new(message).unwrap_or_default().into_raw();
