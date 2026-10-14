@@ -75,6 +75,22 @@ export class MonsterGenerator {
     return this._request('generate', { prompt, seed, profile }, signal);
   }
 
+  /** Validated HybridRecipe object or JSON text. Always V2; no prompt parser. */
+  generateHybrid(recipe, seed = 0n, { signal } = {}) {
+    let prompt;
+    try {
+      prompt = typeof recipe === 'string' ? recipe : JSON.stringify(recipe);
+      if (typeof prompt !== 'string' || !prompt.trim()) throw new TypeError('Hybrid recipe must be an object or JSON text');
+      const parsed = JSON.parse(prompt);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new TypeError('Hybrid recipe must be a JSON object');
+      if (typeof seed === 'number' && !Number.isSafeInteger(seed)) throw new RangeError('Numeric seed must be a safe integer; use bigint or decimal text for larger seeds');
+      if (!['bigint', 'number', 'string'].includes(typeof seed) || (typeof seed === 'string' && !/^\d+$/.test(seed))) throw new TypeError('Seed must be an unsigned integer');
+      seed = BigInt(seed);
+      if (seed < 0n || seed > 18446744073709551615n) throw new RangeError('Seed must fit an unsigned 64-bit integer');
+    } catch (error) { return Promise.reject(error); }
+    return this._request('generate_hybrid', { prompt, seed, profile: 'v2' }, signal);
+  }
+
   _reset(error) {
     // Terminating this dedicated worker also terminates its descendant Rayon
     // workers. A cancel message cannot interrupt synchronous WASM execution.

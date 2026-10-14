@@ -70,6 +70,7 @@ fn v2_never_accidentally_opts_in_from_prompt_text() {
 /// Aquatic outputs intentionally change under motion.aquatic_navigation@1.
 #[cfg(not(feature = "bert"))]
 #[test]
+#[ignore = "Frozen host-specific diagnostic; portable CI compares pinned V1 on the same runner with tools/check_v1_compatibility.py"]
 fn terrestrial_v1_matches_pre_v2_golden_bytes() {
     use prost::Message;
     use sha2::{Digest, Sha256};
@@ -90,4 +91,18 @@ fn terrestrial_v1_matches_pre_v2_golden_bytes() {
             "{prompt} metadata"
         );
     }
+}
+
+#[test]
+fn v2_stormtrooper_preserves_declared_random_aim_without_invalidating_patterns() {
+    let generated =
+        generate_in_memory_with_profile("stormtrooper", 42, GenerationProfile::V2).unwrap();
+    let root = generated.packages.last().unwrap();
+    assert!(root
+        .monster
+        .attacks
+        .iter()
+        .flat_map(|a| &a.steps)
+        .any(|step| step.primitive == "SPAWN_PROJECTILE" && step.target == "RANDOM_DIRECTION"));
+    infernal_diffusion::validate(&root.monster, &root.sprites).unwrap();
 }

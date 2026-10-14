@@ -1,0 +1,535 @@
+{
+  "profile": "V2 only",
+  "seed_used_for_sprite_qa": 42,
+  "entries": [
+    {
+      "affinity": "ALIEN",
+      "prompt": "alien",
+      "body_plan": "HUMANOID",
+      "v2_face": "alien",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "ANIME_GIRL",
+      "prompt": "anime girl",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "ARCHER",
+      "prompt": "archer",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "ASANBOSAM",
+      "prompt": "asanbosam",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "ASURA",
+      "prompt": "asura",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "BALOR",
+      "prompt": "balor",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "BANSHEE",
+      "prompt": "banshee",
+      "body_plan": "FLOATING",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "BIGFOOT",
+      "prompt": "bigfoot",
+      "body_plan": "HUMANOID",
+      "v2_face": "ape",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "CAILLEACH",
+      "prompt": "cailleach",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "CAT",
+      "prompt": "bastet",
+      "body_plan": "HUMANOID",
+      "v2_face": null,
+      "status": "intentional_animal_head",
+      "reason": "Preserve requested animal muzzle and skull"
+    },
+    {
+      "affinity": "CENTAUR",
+      "prompt": "centaur",
+      "body_plan": "QUADRUPED",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "CLOWN",
+      "prompt": "clown",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "CROCODILE",
+      "prompt": "sobek",
+      "body_plan": "HUMANOID",
+      "v2_face": null,
+      "status": "intentional_animal_head",
+      "reason": "Preserve requested animal muzzle and skull"
+    },
+    {
+      "affinity": "CYCLOPEAN",
+      "prompt": "cyclops",
+      "body_plan": "HUMANOID",
+      "v2_face": "cyclops",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "DEMONIC",
+      "prompt": "demon",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "DJINN",
+      "prompt": "djinn",
+      "body_plan": "FLOATING",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "DRAUGR",
+      "prompt": "draugr",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "DULLAHAN",
+      "prompt": "dullahan",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "ECHIDNA",
+      "prompt": "echidna",
+      "body_plan": "SERPENT",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "FAUN",
+      "prompt": "faun",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "FISHMAN",
+      "prompt": "fish man",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "FOMORIAN",
+      "prompt": "fomorian",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "GARUDA",
+      "prompt": "garuda",
+      "body_plan": "WINGED",
+      "v2_face": null,
+      "status": "intentional_animal_head",
+      "reason": "Preserve avian deity beak and skull"
+    },
+    {
+      "affinity": "GIANT",
+      "prompt": "giant",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "GOBLIN",
+      "prompt": "goblin",
+      "body_plan": "HUMANOID",
+      "v2_face": "orc",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "GORGON",
+      "prompt": "medusa",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "GORILLA",
+      "prompt": "gorilla",
+      "body_plan": "HUMANOID",
+      "v2_face": "ape",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "HARPY",
+      "prompt": "harpie",
+      "body_plan": "WINGED",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "HITLER",
+      "prompt": "adolph hitler",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "HULDRA",
+      "prompt": "huldra",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "HUMANOID",
+      "prompt": "guy",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "JACKAL",
+      "prompt": "anubis",
+      "body_plan": "HUMANOID",
+      "v2_face": null,
+      "status": "intentional_animal_head",
+      "reason": "Preserve requested animal muzzle and skull"
+    },
+    {
+      "affinity": "JAR_JAR",
+      "prompt": "jar jar binks",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "JOTUNN",
+      "prompt": "jotunn",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "KNIGHT",
+      "prompt": "knight",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "LAMIA",
+      "prompt": "lamia",
+      "body_plan": "SERPENT",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "LEMURE",
+      "prompt": "lemure",
+      "body_plan": "FLOATING",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "LION",
+      "prompt": "sekhmet",
+      "body_plan": "HUMANOID",
+      "v2_face": null,
+      "status": "intentional_animal_head",
+      "reason": "Preserve requested animal muzzle and skull"
+    },
+    {
+      "affinity": "MERMAID",
+      "prompt": "mermaid",
+      "body_plan": "HUMANOID",
+      "v2_face": "mermaid",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "MERMAN",
+      "prompt": "merman",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "MINOTAUR",
+      "prompt": "minotaur",
+      "body_plan": "HUMANOID",
+      "v2_face": null,
+      "status": "intentional_animal_head",
+      "reason": "Preserve requested animal muzzle and skull"
+    },
+    {
+      "affinity": "NAGA",
+      "prompt": "naga",
+      "body_plan": "SERPENT",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "NAGUAL",
+      "prompt": "nagual",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "ORC",
+      "prompt": "orc",
+      "body_plan": "HUMANOID",
+      "v2_face": "orc",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "PHANTOM",
+      "prompt": "phantom",
+      "body_plan": "FLOATING",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "PISACHA",
+      "prompt": "pisacha",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "RAKSHASA",
+      "prompt": "rakshasa",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "ROBOT",
+      "prompt": "evil robot",
+      "body_plan": "HUMANOID",
+      "v2_face": "robot",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "SATYR",
+      "prompt": "satyr",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "SIREN",
+      "prompt": "siren",
+      "body_plan": "WINGED",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "SKELETON",
+      "prompt": "skeleton",
+      "body_plan": "HUMANOID",
+      "v2_face": "skeleton",
+      "status": "covered",
+      "reason": "Dedicated open orbital skull, jaw and teeth; skeletal ribcage and bones"
+    },
+    {
+      "affinity": "SPECTRAL",
+      "prompt": "ghost",
+      "body_plan": "FLOATING",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "SPHINX",
+      "prompt": "sphinx",
+      "body_plan": "QUADRUPED",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "STORMTROOPER",
+      "prompt": "stormtrooper",
+      "body_plan": "HUMANOID",
+      "v2_face": "helmet",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "TOKOLOSHE",
+      "prompt": "tokoloshe",
+      "body_plan": "HUMANOID",
+      "v2_face": "orc",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "TROLL",
+      "prompt": "troll",
+      "body_plan": "HUMANOID",
+      "v2_face": "orc",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "TYPHON",
+      "prompt": "typhon",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "TZITZIMITL",
+      "prompt": "tzitzimitl",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "VALKYRIE",
+      "prompt": "valkyrie",
+      "body_plan": "WINGED",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "Winged humanoid with human face"
+    },
+    {
+      "affinity": "VANARA",
+      "prompt": "vanara",
+      "body_plan": "HUMANOID",
+      "v2_face": "ape",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "VETALA",
+      "prompt": "vetala",
+      "body_plan": "FLOATING",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "WARRIOR",
+      "prompt": "warrior",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "XOLOTL",
+      "prompt": "xolotl",
+      "body_plan": "HUMANOID",
+      "v2_face": null,
+      "status": "intentional_animal_head",
+      "reason": "Preserve requested animal muzzle and skull"
+    },
+    {
+      "affinity": "YAKSHA",
+      "prompt": "yaksha",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "YETI",
+      "prompt": "yeti",
+      "body_plan": "HUMANOID",
+      "v2_face": "ape",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    },
+    {
+      "affinity": "ZOMBIE",
+      "prompt": "zombie",
+      "body_plan": "HUMANOID",
+      "v2_face": "human",
+      "status": "covered",
+      "reason": "V2 shallow humanoid face geometry"
+    }
+  ],
+  "sprite_qa_note": "Representative native pixel sprites: seed42; ordinary mermaid seed0. Seeded extra arms/tails can change topology independently of face recipe."
+}

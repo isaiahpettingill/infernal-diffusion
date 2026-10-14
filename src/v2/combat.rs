@@ -109,12 +109,915 @@ fn friendly_wave(body: &Body, pose: &mut Pose) {
     }
 }
 
+pub const ARM_EXTENSION_EVENT: &str = "V2_ARM_EXTENSION_MAX_1_8";
+pub const AWKWARD_EVENT: &str = "V2_AWKWARD_COORDINATION_MAX_0_18_RAD";
+
+fn in_subtree(body: &Body, child: usize, root: usize) -> bool {
+    let mut next = Some(child);
+    for _ in 0..=body.nodes.len() {
+        let Some(i) = next else {
+            return false;
+        };
+        if i == root {
+            return true;
+        }
+        next = body.nodes[i].parent;
+    }
+    false
+}
+
+fn transform_subtree(body: &Body, pose: &mut Pose, root: usize, angle: f32, scale: f32) {
+    let pivot = pose.physical_positions[root];
+    let (sin, cos) = angle.sin_cos();
+    for i in 0..body.nodes.len() {
+        if in_subtree(body, i, root) {
+            let p = &mut pose.physical_positions[i];
+            let (x, y) = (p.0 - pivot.0, p.1 - pivot.1);
+            p.0 = pivot.0 + scale * (cos * x - sin * y);
+            p.1 = pivot.1 + scale * (sin * x + cos * y);
+            p.2 += angle;
+        }
+    }
+}
+
+fn pulse(time: f32, peak: f32, end: f32) -> f32 {
+    let x = if time <= peak {
+        time / peak
+    } else {
+        (end - time) / (end - peak)
+    };
+    let x = x.clamp(0.0, 1.0);
+    x * x * (3.0 - 2.0 * x)
+}
+
+fn expressive_attacks(
+    spec: &MonsterSpec,
+    body: &Body,
+    clips: &mut Vec<Animation>,
+    attacks: &mut Vec<Attack>,
+    poses: &mut Vec<Pose>,
+) {
+    // Lower-body identity drives propulsion and caudal attacks. Upper tree arms
+    // remain capable of their own smash on another compatible substrate.
+    let mut kinds = Vec::new();
+    if matches!(spec.affinity.as_str(), "MERMAID" | "MERMAN")
+        || enabled(spec, "HYBRID_LOWER_MERMAID")
+    {
+        kinds.extend(["mermaid_lunge", "mermaid_tail_whip"]);
+    }
+    if (spec.affinity == "TREE_MONSTER" || enabled(spec, "HYBRID_UPPER_TREE"))
+        && body.nodes.iter().filter(|n| n.kind == "SHOULDER").count() >= 2
+    {
+        kinds.push("tree_bilateral_smash");
+    }
+    for kind in &kinds {
+        let id = format!("v2_{kind}");
+        let clip_id = format!("attack_{id}");
+        let mut neutral = poses[0].clone();
+        neutral.physical_positions = body.nodes.iter().map(|n| (n.x, n.y, n.angle)).collect();
+        let mut clip = visual_clip(&clip_id, "ATTACK", 24, 50, false, &[neutral], poses);
+        let tree = *kind == "tree_bilateral_smash";
+        let lunge = *kind == "mermaid_lunge";
+        let origin = if tree {
+            body.nodes
+                .iter()
+                .position(|n| n.id == "v2_upper_torso")
+                .or_else(|| body.nodes.iter().position(|n| n.id == "torso"))
+        } else if lunge {
+            body.nodes.iter().position(|n| n.id == "torso")
+        } else {
+            // Extra mutant tails must not steal the primary caudal hit origin.
+            body.nodes
+                .iter()
+                .rposition(|n| n.id.starts_with("v2_fish_tail_"))
+                .or_else(|| {
+                    body.nodes
+                        .iter()
+                        .rposition(|n| n.kind == "TAIL" && !n.id.contains("extra"))
+                })
+                .or_else(|| body.nodes.iter().rposition(|n| n.kind == "TAIL"))
+        }
+        .unwrap_or(0);
+        let mut steps = vec![AttackStep {
+            primitive: "TELEGRAPH".into(),
+            value: 1.0,
+            ..Default::default()
+        }];
+        if lunge {
+            steps.push(AttackStep {
+                primitive: "DASH".into(),
+                at_ms: 450,
+                target: "TARGET_ACTOR".into(),
+                speed: 80.0,
+                duration_ms: 200,
+                value: 1.0,
+                ..Default::default()
+            });
+        }
+        steps.push(AttackStep {
+            primitive: if tree { "SLAM" } else { "SWIPE" }.into(),
+            at_ms: 650,
+            target: "TARGET_ACTOR".into(),
+            count: if tree { 2 } else { 1 },
+            radius: if tree { 72.0 } else { 52.0 },
+            duration_ms: 100,
+            value: 1.0,
+            ..Default::default()
+        });
+        steps.push(AttackStep {
+            primitive: "COOLDOWN".into(),
+            at_ms: 1000,
+            value: 1.0,
+            ..Default::default()
+        });
+        let attack = Attack {
+            id: id.clone(),
+            delivery: "MELEE".into(),
+            element: "PHYSICAL".into(),
+            origin_node: body.nodes[origin].id.clone(),
+            damage: if tree { 28 } else { 19 },
+            telegraph_ms: 450,
+            cooldown_ms: if tree { 1800 } else { 1400 },
+            range: if tree { 90.0 } else { 76.0 },
+            animation_id: clip_id.clone(),
+            steps,
+            ..Default::default()
+        };
+        for (time_ms, kind) in [(0, "TELEGRAPH"), (450, "ATTACK"), (650, "ATTACK_HIT")] {
+            clip.events.push(AnimationEvent {
+                time_ms,
+                kind: kind.into(),
+                reference_id: id.clone(),
+            });
+        }
+        if tree {
+            clip.events.push(AnimationEvent {
+                time_ms: 0,
+                kind: ARM_EXTENSION_EVENT.into(),
+                reference_id: id.clone(),
+            });
+        }
+        for (frame_index, frame) in clip.frames.iter().enumerate() {
+            let pose = &mut poses[frame.sprite_frame_id as usize];
+            let time = frame_index as f32 * 50.0;
+            let drive = pulse(time, 650.0, 1150.0);
+            if tree {
+                // Both shoulders share a common strike envelope; no unilateral replacement.
+                for (i, node) in body
+                    .nodes
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, n)| n.kind == "SHOULDER")
+                {
+                    let side = if node.x < body.com.0 { -1.0 } else { 1.0 };
+                    let windup = pulse(time, 350.0, 650.0);
+                    let angle = -side * 1.4 * windup + side * 0.6 * drive;
+                    transform_subtree(body, pose, i, angle, 1.0 + 0.8 * drive);
+                }
+            } else {
+                // The torso participates in every strike, with a connected tail coil/whip.
+                let tails: Vec<_> = body
+                    .nodes
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, n)| n.kind == "TAIL")
+                    .map(|(i, _)| i)
+                    .collect();
+                for (rank, i) in tails.into_iter().enumerate() {
+                    let coil = if lunge {
+                        -0.22 * drive
+                    } else {
+                        (if rank % 2 == 0 { 0.32 } else { 0.18 }) * drive
+                    };
+                    transform_subtree(body, pose, i, coil, 1.0);
+                }
+                let angle = if lunge { -0.65 * drive } else { 0.72 * drive };
+                let (sin, cos) = angle.sin_cos();
+                let root = pose.physical_positions[0];
+                for p in &mut pose.physical_positions {
+                    let (x, y) = (p.0 - root.0, p.1 - root.1);
+                    p.0 =
+                        root.0 + x * cos - y * sin + if lunge { 16.0 * drive } else { 4.0 * drive };
+                    p.1 = root.1 + x * sin + y * cos - 5.0 * drive;
+                    p.2 += angle;
+                }
+                pose.root_x = if lunge { 16.0 * drive } else { 4.0 * drive };
+                pose.root_y = -5.0 * drive;
+                pose.root_angle = angle;
+            }
+        }
+        clips.push(clip);
+        attacks.push(attack);
+    }
+}
+
+fn awkward_coordination(
+    body: &Body,
+    seed: u64,
+    clips: &mut [Animation],
+    attacks: &mut [Attack],
+    poses: &mut [Pose],
+) {
+    for (index, attack) in attacks.iter_mut().enumerate() {
+        let delay = 90 + ((seed.wrapping_add(index as u64)) % 3) as u32 * 30;
+        let Some(clip) = clips.iter_mut().find(|c| c.id == attack.animation_id) else {
+            continue;
+        };
+        attack.telegraph_ms += delay;
+        attack.cooldown_ms += delay + 180;
+        for step in &mut attack.steps {
+            if step.primitive != "TELEGRAPH" {
+                step.at_ms += delay;
+            }
+        }
+        for event in &mut clip.events {
+            if event.time_ms != 0 {
+                event.time_ms += delay;
+            }
+        }
+        if let Some(first) = clip.frames.first().cloned() {
+            let mut hold = first;
+            hold.duration_ms = delay;
+            clip.frames.insert(0, hold);
+        }
+        if let Some(last) = clip.frames.last_mut() {
+            last.duration_ms += 180;
+        }
+        clip.events.push(AnimationEvent {
+            time_ms: 0,
+            kind: AWKWARD_EVENT.into(),
+            reference_id: attack.id.clone(),
+        });
+        // Shared reverse frames must receive a transform only once.
+        let mut visited = std::collections::BTreeSet::new();
+        // Opposite arms lag differently, but hit times and damage remain reliable.
+        for frame in &clip.frames {
+            if !visited.insert(frame.sprite_frame_id) {
+                continue;
+            }
+            let pose = &mut poses[frame.sprite_frame_id as usize];
+            if pose.physical_positions.len() != body.nodes.len() {
+                continue;
+            }
+            for (rank, (i, _)) in body
+                .nodes
+                .iter()
+                .enumerate()
+                .filter(|(_, n)| n.kind == "SHOULDER")
+                .enumerate()
+            {
+                let angle = 0.18
+                    * (pose.phase * std::f32::consts::TAU + rank as f32 * 1.3).sin()
+                    * (std::f32::consts::PI * pose.phase).sin();
+                transform_subtree(body, pose, i, angle, 1.0);
+            }
+        }
+    }
+}
+
+pub const UNFOLD_EVENT: &str = "V2_FOLDED_EXTRA_ARMS_UNFOLD";
+
+fn unfold_extra_arms(body: &Body, clips: &mut [Animation], attacks: &[Attack], poses: &mut [Pose]) {
+    let extra: Vec<_> = body
+        .nodes
+        .iter()
+        .enumerate()
+        .filter(|(_, n)| n.kind == "SHOULDER")
+        .skip(2)
+        .map(|(i, _)| i)
+        .collect();
+    if extra.is_empty() {
+        return;
+    }
+    for pose in poses {
+        if pose.physical_positions.len() != body.nodes.len() {
+            continue;
+        }
+        let open =
+            if ["ATTACK", "ATTACK_SECONDARY", "SPECIAL_ATTACK"].contains(&pose.state.as_str()) {
+                pulse(pose.phase, 0.55, 1.0)
+            } else {
+                0.0
+            };
+        for &i in &extra {
+            let side = if body.nodes[i].x < body.com.0 {
+                -1.0
+            } else {
+                1.0
+            };
+            transform_subtree(body, pose, i, side * 0.9 * (1.0 - open), 1.0);
+        }
+    }
+    for attack in attacks {
+        if let Some(clip) = clips.iter_mut().find(|c| c.id == attack.animation_id) {
+            clip.events.push(AnimationEvent {
+                time_ms: 0,
+                kind: UNFOLD_EVENT.into(),
+                reference_id: attack.id.clone(),
+            });
+        }
+    }
+}
+
+/// Keep extra tails distinguishable in baked side views. Rotate their whole
+/// connected subtree about the existing torso socket; never stretch a bone.
+fn splay_extra_tails(body: &Body, poses: &mut [Pose]) {
+    let roots: Vec<_> = body
+        .nodes
+        .iter()
+        .enumerate()
+        .filter(|(_, n)| {
+            n.id.starts_with("v2_extra_tail_")
+                && n.parent
+                    .is_some_and(|p| !body.nodes[p].id.starts_with("v2_extra_tail_"))
+        })
+        .map(|(i, _)| i)
+        .collect();
+    for pose in poses {
+        if pose.physical_positions.len() != body.nodes.len() || pose.state == "DEATH" {
+            continue;
+        }
+        let angle = 0.3 + 0.1 * (pose.phase * std::f32::consts::TAU + 0.6).sin();
+        let (sin, cos) = angle.sin_cos();
+        for &root in &roots {
+            let pivot = pose.physical_positions[body.nodes[root].parent.unwrap()];
+            for i in 0..body.nodes.len() {
+                if in_subtree(body, i, root) {
+                    let p = &mut pose.physical_positions[i];
+                    let (x, y) = (p.0 - pivot.0, p.1 - pivot.1);
+                    p.0 = pivot.0 + x * cos - y * sin;
+                    p.1 = pivot.1 + x * sin + y * cos;
+                    p.2 += angle;
+                }
+            }
+        }
+    }
+}
+
+/// Explicit growth is restricted to tree arm descendants in one marked clip.
+/// Every other edge in these expressive clips retains its anatomical length.
+pub fn validate_rig_extensions(
+    body: &Body,
+    clips: &[Animation],
+    poses: &[Pose],
+) -> Result<(), String> {
+    for clip in clips.iter().filter(|c| {
+        c.id.starts_with("attack_v2_mermaid_")
+            || c.id.starts_with("attack_v2_spectral_")
+            || c.id == "attack_v2_tree_bilateral_smash"
+            || c.id.starts_with("attack_v2_shade_tendril_")
+    }) {
+        let extension = clip.id == "attack_v2_tree_bilateral_smash";
+        let shade = clip.id.starts_with("attack_v2_shade_tendril_");
+        if shade
+            && (!clip.events.iter().any(|e| {
+                e.kind == SHADE_EXTENSION_EVENT && clip.id == format!("attack_{}", e.reference_id)
+            }) || body
+                .nodes
+                .iter()
+                .filter(|n| n.id.starts_with("v2_shade_tendril_"))
+                .count()
+                != 15)
+        {
+            return Err("shade growth requires exact tagged tendril topology and contract".into());
+        }
+        if shade {
+            for chain in 0..3 {
+                let mut parent = 0;
+                for segment in 0..5 {
+                    let index = body
+                        .nodes
+                        .iter()
+                        .position(|n| n.id == format!("v2_shade_tendril_{chain}_{segment}"))
+                        .ok_or("missing shade segment")?;
+                    if body.nodes[index].kind != "TENTACLE"
+                        || body.nodes[index].parent != Some(parent)
+                    {
+                        return Err("shade segment has invalid anatomical parent".into());
+                    }
+                    parent = index;
+                }
+            }
+        }
+        let marked = clip
+            .events
+            .iter()
+            .any(|e| e.kind == ARM_EXTENSION_EVENT && e.reference_id == "v2_tree_bilateral_smash");
+        if marked != extension {
+            return Err("missing or unexpected bounded arm-extension contract".into());
+        }
+        let shoulders: Vec<_> = body
+            .nodes
+            .iter()
+            .enumerate()
+            .filter(|(_, n)| n.kind == "SHOULDER")
+            .map(|(i, _)| i)
+            .collect();
+        if extension && shoulders.len() < 2 {
+            return Err("bilateral smash requires two arms".into());
+        }
+        let mut extended = vec![false; shoulders.len()];
+        for frame in &clip.frames {
+            let pose = poses
+                .get(frame.sprite_frame_id as usize)
+                .ok_or("missing expressive pose")?;
+            if pose.physical_positions.len() != body.nodes.len() {
+                return Err("incomplete expressive rig".into());
+            }
+            let root = pose.physical_positions[0];
+            let (max_x, max_y) = if extension || shade {
+                (0.03, 0.03)
+            } else {
+                (16.03, 5.03)
+            };
+            if (root.0 - body.nodes[0].x).abs() > max_x || (root.1 - body.nodes[0].y).abs() > max_y
+            {
+                return Err("expressive root motion exceeds declared bounds".into());
+            }
+            for (i, node) in body.nodes.iter().enumerate() {
+                let p = pose.physical_positions[i];
+                if !p.0.is_finite() || !p.1.is_finite() || !p.2.is_finite() {
+                    return Err("nonfinite expressive pose".into());
+                }
+                if let Some(parent) = node.parent {
+                    let q = pose.physical_positions[parent];
+                    let rest = (node.x - body.nodes[parent].x).hypot(node.y - body.nodes[parent].y);
+                    let distance = (p.0 - q.0).hypot(p.1 - q.1);
+                    let arm = shoulders
+                        .iter()
+                        .position(|&s| i != s && in_subtree(body, i, s));
+                    let max = if (extension && arm.is_some())
+                        || (shade && node.id.starts_with("v2_shade_tendril_"))
+                    {
+                        1.8
+                    } else {
+                        1.0
+                    };
+                    if distance < rest - 0.03 || distance > rest * max + 0.03 {
+                        return Err("expressive rig exceeds declared bone-length bounds".into());
+                    }
+                    if extension && rest > 0.1 && distance > rest * 1.4 {
+                        if let Some(a) = arm {
+                            extended[a] = true;
+                        }
+                    }
+                }
+            }
+        }
+        if shade {
+            let hit = clip
+                .events
+                .iter()
+                .find(|e| e.kind == "ATTACK_HIT")
+                .ok_or("shade has no hit frame")?
+                .time_ms;
+            let lead = if clip.id.ends_with("thrust") { 1 } else { 0 };
+            let tip = body
+                .nodes
+                .iter()
+                .position(|n| n.id == format!("v2_shade_tendril_{lead}_4"))
+                .ok_or("missing shade hit tip")?;
+            let parent = body.nodes[tip].parent.unwrap();
+            let rest = (body.nodes[tip].x - body.nodes[parent].x)
+                .hypot(body.nodes[tip].y - body.nodes[parent].y);
+            let mut time = 0u32;
+            let mut active = false;
+            for frame in &clip.frames {
+                let end = time
+                    .checked_add(frame.duration_ms)
+                    .ok_or("shade duration overflow")?;
+                if time <= hit && hit < end {
+                    let pose = &poses[frame.sprite_frame_id as usize];
+                    let p = pose.physical_positions[tip];
+                    let q = pose.physical_positions[parent];
+                    active = (p.0 - q.0).hypot(p.1 - q.1) >= rest * 1.7;
+                }
+                time = end;
+            }
+            if !active {
+                return Err("shade hit event lacks its extended tendril pose".into());
+            }
+        }
+        if extension && extended.iter().any(|v| !*v) {
+            return Err("bilateral smash must visibly extend every arm".into());
+        }
+    }
+    Ok(())
+}
+
+pub const PHASE_BEGIN_EVENT: &str = "PHASE_BEGIN";
+pub const PHASE_END_EVENT: &str = "PHASE_END";
+pub const SPECTRAL_LUNGE_ID: &str = "v2_spectral_phase_lunge";
+
+fn spectral_attacks(
+    spec: &MonsterSpec,
+    body: &Body,
+    clips: &mut Vec<Animation>,
+    modes: &mut Vec<MovementMode>,
+    attacks: &mut Vec<Attack>,
+    poses: &mut Vec<Pose>,
+) {
+    if enabled(spec, "SHADE") || spec.affinity == "SHADE" {
+        return;
+    }
+    if !["GHOST", "GHOUL"]
+        .iter()
+        .any(|tag| enabled(spec, tag) || spec.affinity == *tag)
+    {
+        return;
+    }
+    let mut neutral = poses[0].clone();
+    neutral.physical_positions = body.nodes.iter().map(|n| (n.x, n.y, n.angle)).collect();
+    let origin = body
+        .nodes
+        .iter()
+        .find(|n| n.id == "torso")
+        .unwrap_or(&body.nodes[0])
+        .id
+        .clone();
+    let id = SPECTRAL_LUNGE_ID;
+    let mut lunge = visual_clip(
+        "attack_v2_spectral_phase_lunge",
+        "ATTACK",
+        24,
+        50,
+        false,
+        &[neutral.clone()],
+        poses,
+    );
+    for (time, kind) in [
+        (0, "TELEGRAPH"),
+        (150, PHASE_BEGIN_EVENT),
+        (450, "ATTACK"),
+        (550, PHASE_END_EVENT),
+        (650, "ATTACK_HIT"),
+    ] {
+        lunge.events.push(AnimationEvent {
+            time_ms: time,
+            kind: kind.into(),
+            reference_id: id.into(),
+        });
+    }
+    for (i, frame) in lunge.frames.iter().enumerate() {
+        let pose = &mut poses[frame.sprite_frame_id as usize];
+        let time = i as f32 * 50.0;
+        if (150.0..550.0).contains(&time) {
+            pose.state = "PHASE".into();
+        }
+        let drive = if time < 550.0 {
+            0.0
+        } else {
+            pulse(time - 550.0, 100.0, 600.0)
+        };
+        let hover = -3.0 * (std::f32::consts::PI * pose.phase).sin();
+        for p in &mut pose.physical_positions {
+            p.0 += 10.0 * drive;
+            p.1 += hover;
+        }
+        pose.root_x = 10.0 * drive;
+        pose.root_y = hover;
+    }
+    attacks.push(Attack {
+        id: id.into(),
+        delivery: "MELEE".into(),
+        element: "SHADOW".into(),
+        origin_node: origin.clone(),
+        damage: 17,
+        telegraph_ms: 450,
+        cooldown_ms: 1700,
+        range: 60.0,
+        animation_id: lunge.id.clone(),
+        steps: vec![
+            AttackStep {
+                primitive: "TELEGRAPH".into(),
+                value: 1.0,
+                ..Default::default()
+            },
+            AttackStep {
+                primitive: "DASH".into(),
+                at_ms: 550,
+                value: 1.0,
+                target: "TARGET_ACTOR".into(),
+                speed: 100.0,
+                duration_ms: 100,
+                ..Default::default()
+            },
+            AttackStep {
+                primitive: "SWIPE".into(),
+                at_ms: 650,
+                value: 1.0,
+                target: "TARGET_ACTOR".into(),
+                count: 1,
+                radius: 36.0,
+                duration_ms: 100,
+                ..Default::default()
+            },
+            AttackStep {
+                primitive: "COOLDOWN".into(),
+                at_ms: 1000,
+                value: 1.0,
+                ..Default::default()
+            },
+        ],
+        ..Default::default()
+    });
+    clips.push(lunge);
+    let id = "v2_pattern_spectral_burst";
+    let mut burst = visual_clip(
+        "attack_v2_spectral_burst",
+        "ATTACK",
+        30,
+        30,
+        false,
+        &[neutral.clone()],
+        poses,
+    );
+    for (i, frame) in burst.frames.iter().enumerate() {
+        let pose = &mut poses[frame.sprite_frame_id as usize];
+        let charge = pulse(i as f32 * 30.0, 420.0, 870.0);
+        for (j, node) in body
+            .nodes
+            .iter()
+            .enumerate()
+            .filter(|(_, n)| n.kind == "SHOULDER")
+        {
+            let side = if node.x < body.com.0 { -1.0 } else { 1.0 };
+            transform_subtree(body, pose, j, -side * 0.8 * charge, 1.0);
+        }
+        let recoil = if i == 14 || i == 19 { -2.0 } else { 0.0 };
+        for p in &mut pose.physical_positions {
+            p.0 += recoil;
+            p.1 -= 3.0 * charge;
+        }
+        pose.root_x = recoil;
+        pose.root_y = -3.0 * charge;
+    }
+    burst.events.push(AnimationEvent {
+        time_ms: 0,
+        kind: "TELEGRAPH".into(),
+        reference_id: id.into(),
+    });
+    burst.events.push(AnimationEvent {
+        time_ms: 420,
+        kind: "ATTACK".into(),
+        reference_id: id.into(),
+    });
+    let mut steps = vec![AttackStep {
+        primitive: "TELEGRAPH".into(),
+        value: 1.0,
+        ..Default::default()
+    }];
+    for time in [420, 570] {
+        steps.push(AttackStep {
+            primitive: "SPAWN_PROJECTILE".into(),
+            at_ms: time,
+            value: 1.0,
+            target: "TARGET_ACTOR".into(),
+            count: 3,
+            spread_deg: 24.0,
+            speed: 120.0,
+            radius: 4.0,
+            duration_ms: 1200,
+        });
+        burst.events.push(AnimationEvent {
+            time_ms: time,
+            kind: "PROJECTILE_SPAWN".into(),
+            reference_id: id.into(),
+        });
+        poses[burst.frames[(time / 30) as usize].sprite_frame_id as usize].phase = 0.5;
+    }
+    steps.push(AttackStep {
+        primitive: "COOLDOWN".into(),
+        at_ms: 810,
+        value: 1.0,
+        ..Default::default()
+    });
+    attacks.push(Attack {
+        id: id.into(),
+        delivery: "PROJECTILE".into(),
+        element: "SHADOW".into(),
+        origin_node: origin,
+        damage: 5,
+        telegraph_ms: 420,
+        cooldown_ms: 1800,
+        range: 144.0,
+        animation_id: burst.id.clone(),
+        steps,
+        ..Default::default()
+    });
+    clips.push(burst);
+    let mut drift = visual_clip(
+        "v2_spectral_drift",
+        "SPECTRAL_DRIFT",
+        12,
+        100,
+        true,
+        &[neutral],
+        poses,
+    );
+    drift.movement_mode = "SPECTRAL_DRIFT".into();
+    for frame in &mut drift.frames {
+        frame.root_dx = 2.0;
+        let pose = &mut poses[frame.sprite_frame_id as usize];
+        let hover = -2.5 * (pose.phase * std::f32::consts::TAU).sin();
+        for p in &mut pose.physical_positions {
+            p.1 += hover;
+        }
+        pose.root_y = hover;
+    }
+    modes.push(MovementMode {
+        id: "SPECTRAL_DRIFT".into(),
+        speed: 20.0,
+        animation_id: drift.id.clone(),
+        category: "AERIAL".into(),
+        modifiers: vec!["LEVITATING".into(), "SPECTRAL".into()],
+    });
+    clips.push(drift);
+}
+
+pub const SHADE_EXTENSION_EVENT: &str = "V2_SHADE_TENDRIL_EXTENSION_MAX_1_8";
+
+fn shade_attacks(
+    spec: &MonsterSpec,
+    body: &Body,
+    seed: u64,
+    clips: &mut Vec<Animation>,
+    attacks: &mut Vec<Attack>,
+    poses: &mut Vec<Pose>,
+) {
+    if !enabled(spec, "SHADE") && spec.affinity != "SHADE" {
+        return;
+    }
+    // Offensive clips are replaced as a unit: a shade never falls back to the
+    // gun/bite/caudal attacks associated with its original silhouette.
+    let replaced: std::collections::BTreeSet<_> =
+        attacks.iter().map(|a| a.animation_id.clone()).collect();
+    clips.retain(|c| !replaced.contains(&c.id));
+    attacks.clear();
+    let chains: Vec<Vec<usize>> = (0..3)
+        .map(|chain| {
+            (0..5)
+                .filter_map(|segment| {
+                    body.nodes
+                        .iter()
+                        .position(|n| n.id == format!("v2_shade_tendril_{chain}_{segment}"))
+                })
+                .collect()
+        })
+        .collect();
+    if chains.iter().any(|chain| chain.len() != 5) {
+        return;
+    }
+    for (lead, name, primitive) in [(0, "lash", "SWIPE"), (1, "thrust", "THRUST")] {
+        let id = format!("v2_shade_tendril_{name}");
+        let clip_id = format!("attack_{id}");
+        let mut neutral = poses[0].clone();
+        neutral.physical_positions = body.nodes.iter().map(|n| (n.x, n.y, n.angle)).collect();
+        let mut clip = visual_clip(&clip_id, "ATTACK", 14, 50, false, &[neutral], poses);
+        for (time, kind) in [
+            (0, "TELEGRAPH"),
+            (0, SHADE_EXTENSION_EVENT),
+            (150, PHASE_BEGIN_EVENT),
+            (450, "ATTACK"),
+            (1350, PHASE_END_EVENT),
+            (650, "ATTACK_HIT"),
+        ] {
+            clip.events.push(AnimationEvent {
+                time_ms: time,
+                kind: kind.into(),
+                reference_id: id.clone(),
+            });
+        }
+        let phase = (seed % 65521) as f32 / 65521.0 * std::f32::consts::TAU;
+        for (frame_index, frame) in clip.frames.iter().enumerate() {
+            let pose = &mut poses[frame.sprite_frame_id as usize];
+            let time = frame_index as f32 * 50.0;
+            let drive = pulse(time, 650.0, 1350.0);
+            let noise_envelope = (std::f32::consts::PI * time / 1350.0).sin().max(0.0);
+            pose.state = "SHADE_UNWIND".into();
+            pose.phase = frame_index as f32 / 13.0;
+            for (chain_index, chain) in chains.iter().enumerate() {
+                for (segment, &i) in chain.iter().enumerate() {
+                    let node = &body.nodes[i];
+                    let parent = node.parent.expect("shade tendril has an anatomical parent");
+                    let anchor = pose.physical_positions[parent];
+                    let rest = (node.x - body.nodes[parent].x, node.y - body.nodes[parent].y);
+                    let length = rest.0.hypot(rest.1);
+                    let base = rest.1.atan2(rest.0);
+                    let coherent_noise =
+                        ((time / 260.0 + phase + segment as f32 * 0.85 + chain_index as f32 * 1.7)
+                            .sin()
+                            * 0.32
+                            + (time / 470.0 + phase * 0.7 + segment as f32 * 1.3).sin() * 0.16)
+                            * noise_envelope;
+                    let aimed = if name == "lash" {
+                        ((time - 650.0) / 210.0).sin() * 0.55
+                    } else {
+                        0.0
+                    };
+                    // A traveling S-curve survives full extension, avoiding a
+                    // straight barrel silhouette at the actual impact frame.
+                    let curl = (segment as f32 * 1.35 - time / 430.0 + phase).sin() * 0.8 * drive;
+                    let angle = if chain_index == lead {
+                        base * (1.0 - drive) + aimed * drive + coherent_noise + curl
+                    } else {
+                        let fan = if (chain_index + 3 - lead) % 3 == 1 {
+                            -0.8
+                        } else {
+                            0.8
+                        };
+                        base * (1.0 - 0.9 * drive)
+                            + fan * 0.9 * drive
+                            + coherent_noise
+                            + curl * 0.65
+                    };
+                    let scale = 1.0
+                        + if chain_index == lead {
+                            0.8 * drive
+                        } else {
+                            0.55 * drive
+                        };
+                    pose.physical_positions[i] = (
+                        anchor.0 + length * scale * angle.cos(),
+                        anchor.1 + length * scale * angle.sin(),
+                        angle,
+                    );
+                }
+            }
+        }
+        // Recovery is literally the same baked images in reverse, not a second
+        // noisy evaluation. The contact image holds through the sole hit window.
+        clip.frames.last_mut().unwrap().duration_ms = 100;
+        let recovery: Vec<_> = clip.frames[..13].iter().rev().cloned().collect();
+        clip.frames.extend(recovery);
+        let chain = &chains[lead];
+        let reach: f32 = chain
+            .iter()
+            .map(|&i| {
+                let n = &body.nodes[i];
+                let p = &body.nodes[n.parent.unwrap()];
+                (n.x - p.x).hypot(n.y - p.y)
+            })
+            .sum();
+        attacks.push(Attack {
+            id,
+            delivery: "MELEE".into(),
+            element: "SHADOW".into(),
+            origin_node: body.nodes[*chain.last().unwrap()].id.clone(),
+            damage: if name == "lash" { 18 } else { 23 },
+            telegraph_ms: 450,
+            cooldown_ms: if name == "lash" { 1500 } else { 1800 },
+            range: reach * 1.8 + 20.0,
+            animation_id: clip_id,
+            steps: vec![
+                AttackStep {
+                    primitive: "TELEGRAPH".into(),
+                    value: 1.0,
+                    ..Default::default()
+                },
+                AttackStep {
+                    primitive: primitive.into(),
+                    at_ms: 650,
+                    value: 1.0,
+                    target: "TARGET_ACTOR".into(),
+                    count: 1,
+                    radius: 20.0,
+                    duration_ms: 100,
+                    ..Default::default()
+                },
+                AttackStep {
+                    primitive: "COOLDOWN".into(),
+                    at_ms: 1150,
+                    value: 1.0,
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        });
+        clips.push(clip);
+    }
+    let mut remap = std::collections::BTreeMap::new();
+    let mut used = Vec::new();
+    for clip in clips {
+        for frame in &mut clip.frames {
+            let old = frame.sprite_frame_id;
+            let new = *remap.entry(old).or_insert_with(|| {
+                let id = used.len() as u32;
+                used.push(poses[old as usize].clone());
+                id
+            });
+            frame.sprite_frame_id = new;
+        }
+    }
+    *poses = used;
+}
+
 pub fn animate(
     spec: &MonsterSpec,
     body: &Body,
     seed: u64,
 ) -> (Vec<Animation>, Vec<MovementMode>, Vec<Attack>, Vec<Pose>) {
-    let (mut clips, modes, mut attacks, mut poses) = animation::make(spec, body);
+    let (mut clips, mut modes, mut attacks, mut poses) = animation::make(spec, body);
     if !enabled(spec, "PROFILE_V2") {
         return (clips, modes, attacks, poses);
     }
@@ -278,18 +1181,368 @@ pub fn animate(
         });
         clips.push(reveal);
     }
+    expressive_attacks(spec, body, &mut clips, &mut attacks, &mut poses);
+    spectral_attacks(spec, body, &mut clips, &mut modes, &mut attacks, &mut poses);
+    shade_attacks(spec, body, seed, &mut clips, &mut attacks, &mut poses);
+    if enabled(spec, "MUTANT_UNSTABLE") {
+        awkward_coordination(body, seed, &mut clips, &mut attacks, &mut poses);
+    }
+    if enabled(spec, "FOUR_ARMED") {
+        unfold_extra_arms(body, &mut clips, &attacks, &mut poses);
+    }
+    if enabled(spec, "EXTRA_TAIL") {
+        splay_extra_tails(body, &mut poses);
+    }
+    super::grip::apply(spec, body, &mut poses);
     (clips, modes, attacks, poses)
 }
 
 /// Guards the V2 extension without imposing new rules on legacy attacks.
 pub fn validate_patterns(animations: &[Animation], attacks: &[Attack]) -> Result<(), String> {
+    for clip in animations {
+        let begin: Vec<_> = clip
+            .events
+            .iter()
+            .filter(|e| e.kind == PHASE_BEGIN_EVENT)
+            .collect();
+        let end: Vec<_> = clip
+            .events
+            .iter()
+            .filter(|e| e.kind == PHASE_END_EVENT)
+            .collect();
+        let phase_attack = attacks.iter().find(|a| {
+            (a.id == SPECTRAL_LUNGE_ID || a.id.starts_with("v2_shade_tendril_"))
+                && a.animation_id == clip.id
+        });
+        if !begin.is_empty() || !end.is_empty() || phase_attack.is_some() {
+            let attack = phase_attack.ok_or("phase event belongs to unknown attack")?;
+            let shade = attack.id.starts_with("v2_shade_tendril_");
+            if begin.len() != 1
+                || end.len() != 1
+                || begin[0].reference_id != attack.id
+                || end[0].reference_id != attack.id
+                || attack.telegraph_ms.checked_sub(300) != Some(begin[0].time_ms)
+                || attack
+                    .telegraph_ms
+                    .checked_add(if shade { 900 } else { 100 })
+                    != Some(end[0].time_ms)
+                || begin[0].time_ms >= end[0].time_ms
+                || end[0].time_ms - begin[0].time_ms != if shade { 1200 } else { 400 }
+            {
+                return Err("invalid bounded phase-event contract".into());
+            }
+            let duration = clip
+                .frames
+                .iter()
+                .try_fold(0u32, |n, f| n.checked_add(f.duration_ms))
+                .ok_or("phase clip duration overflow")?;
+            let shade = attack.id.starts_with("v2_shade_tendril_");
+            let hit_kind = if attack.id == "v2_shade_tendril_thrust" {
+                "THRUST"
+            } else {
+                "SWIPE"
+            };
+            if end[0].time_ms >= duration
+                || attack.delivery != "MELEE"
+                || attack.element != "SHADOW"
+                || attack.steps.len() != if shade { 3 } else { 4 }
+                || attack
+                    .steps
+                    .iter()
+                    .filter(|s| {
+                        s.primitive == hit_kind
+                            && s.at_ms == attack.telegraph_ms + 200
+                            && s.count == 1
+                    })
+                    .count()
+                    != 1
+                || !clip.events.iter().any(|e| {
+                    e.kind == "ATTACK_HIT"
+                        && e.reference_id == attack.id
+                        && e.time_ms == attack.telegraph_ms + 200
+                })
+                || (!shade
+                    && attack
+                        .steps
+                        .iter()
+                        .filter(|s| {
+                            s.primitive == "DASH"
+                                && s.at_ms == end[0].time_ms
+                                && s.speed == 100.0
+                                && s.duration_ms == 100
+                        })
+                        .count()
+                        != 1)
+            {
+                return Err("phase attack must reappear before its bounded hit".into());
+            }
+            if shade {
+                let delay = attack
+                    .telegraph_ms
+                    .checked_sub(450)
+                    .ok_or("shade telegraph precedes its unwind")?;
+                let awkward = clip.events.iter().any(|e| e.kind == AWKWARD_EVENT);
+                let offset = usize::from(awkward);
+                if (awkward && ![90, 120, 150].contains(&delay))
+                    || (!awkward && delay != 0)
+                    || clip.frames.len() != 27 + offset
+                {
+                    return Err("shade requires a bounded forward/reverse frame sequence".into());
+                }
+                let frames = &clip.frames[offset..];
+                if awkward
+                    && (clip.frames[0].duration_ms != delay
+                        || clip.frames[0].sprite_frame_id != frames[0].sprite_frame_id)
+                {
+                    return Err("shade mutant windup must hold the rest frame".into());
+                }
+                let unique: std::collections::BTreeSet<_> =
+                    frames[..14].iter().map(|f| f.sprite_frame_id).collect();
+                if unique.len() != 14
+                    || frames.iter().enumerate().any(|(i, frame)| {
+                        let duration = if i == 13 {
+                            100
+                        } else if i == 26 && awkward {
+                            230
+                        } else {
+                            50
+                        };
+                        frame.duration_ms != duration
+                            || frame.sprite_frame_id != frames[26 - i].sprite_frame_id
+                    })
+                {
+                    return Err(
+                        "shade recovery must reuse the exact outward images in reverse".into(),
+                    );
+                }
+                let tip = match attack.id.as_str() {
+                    "v2_shade_tendril_lash" => "v2_shade_tendril_0_4",
+                    "v2_shade_tendril_thrust" => "v2_shade_tendril_1_4",
+                    _ => return Err("unknown shade tendril recipe".into()),
+                };
+                if attack.origin_node != tip
+                    || attack
+                        .steps
+                        .iter()
+                        .filter(|s| s.primitive == "TELEGRAPH" && s.at_ms == 0)
+                        .count()
+                        != 1
+                    || attack
+                        .steps
+                        .iter()
+                        .filter(|s| {
+                            s.primitive == "COOLDOWN" && s.at_ms == attack.telegraph_ms + 700
+                        })
+                        .count()
+                        != 1
+                    || attack
+                        .steps
+                        .iter()
+                        .filter(|s| {
+                            s.primitive == hit_kind
+                                && s.radius == 20.0
+                                && s.duration_ms == 100
+                                && s.target == "TARGET_ACTOR"
+                        })
+                        .count()
+                        != 1
+                    || attack.steps.iter().any(|s| {
+                        !["TELEGRAPH", "COOLDOWN", hit_kind].contains(&s.primitive.as_str())
+                    })
+                    || !clip
+                        .events
+                        .iter()
+                        .any(|e| e.kind == SHADE_EXTENSION_EVENT && e.reference_id == attack.id)
+                {
+                    return Err("shade must attack through its declared tendril tip".into());
+                }
+            }
+        }
+    }
+    for clip in animations {
+        let mut combat_events = std::collections::BTreeSet::new();
+        for event in clip.events.iter().filter(|e| {
+            [
+                "TELEGRAPH",
+                "ATTACK",
+                "ATTACK_HIT",
+                "PROJECTILE_SPAWN",
+                "FIELD_SPAWN",
+                "MINION_SPAWN",
+            ]
+            .contains(&e.kind.as_str())
+        }) {
+            let attack = attacks
+                .iter()
+                .find(|a| a.id == event.reference_id && a.animation_id == clip.id)
+                .ok_or("dangling combat event")?;
+            if !combat_events.insert((
+                event.kind.as_str(),
+                event.time_ms,
+                event.reference_id.as_str(),
+            )) {
+                return Err("duplicate combat event".into());
+            }
+            let bound = match event.kind.as_str() {
+                "TELEGRAPH" => event.time_ms == 0,
+                "ATTACK" => event.time_ms == attack.telegraph_ms,
+                "PROJECTILE_SPAWN" => {
+                    attack.delivery == "PROJECTILE"
+                        && attack
+                            .steps
+                            .iter()
+                            .any(|s| s.primitive == "SPAWN_PROJECTILE" && s.at_ms == event.time_ms)
+                }
+                "FIELD_SPAWN" => {
+                    attack.delivery == "FIELD"
+                        && attack
+                            .steps
+                            .iter()
+                            .any(|s| s.primitive == "SPAWN_FIELD" && s.at_ms == event.time_ms)
+                }
+                "MINION_SPAWN" => {
+                    attack.delivery == "SUMMON"
+                        && attack
+                            .steps
+                            .iter()
+                            .any(|s| s.primitive == "SPAWN_MINION" && s.at_ms == event.time_ms)
+                }
+                _ => attack.steps.iter().any(|s| {
+                    ["SWIPE", "BITE", "THRUST", "SLAM"].contains(&s.primitive.as_str())
+                        && s.at_ms == event.time_ms
+                }),
+            };
+            if !bound {
+                return Err(format!(
+                    "combat event disagrees with executable attack step: {} {} at {} for {}",
+                    clip.id, event.kind, event.time_ms, attack.id
+                ));
+            }
+        }
+        let mut modifiers = std::collections::BTreeSet::new();
+        if clip.events.iter().any(|e| {
+            e.kind.starts_with("V2_")
+                && ![
+                    ARM_EXTENSION_EVENT,
+                    AWKWARD_EVENT,
+                    UNFOLD_EVENT,
+                    SHADE_EXTENSION_EVENT,
+                ]
+                .contains(&e.kind.as_str())
+        }) {
+            return Err("unknown bounded animation modifier".into());
+        }
+        for event in clip.events.iter().filter(|e| {
+            [
+                ARM_EXTENSION_EVENT,
+                AWKWARD_EVENT,
+                UNFOLD_EVENT,
+                SHADE_EXTENSION_EVENT,
+            ]
+            .contains(&e.kind.as_str())
+        }) {
+            if !modifiers.insert(event.kind.as_str())
+                || event.time_ms != 0
+                || !["ATTACK", "ATTACK_SECONDARY", "SPECIAL_ATTACK"]
+                    .contains(&clip.semantic_state.as_str())
+                || !attacks
+                    .iter()
+                    .any(|a| a.id == event.reference_id && a.animation_id == clip.id)
+                || (event.kind == SHADE_EXTENSION_EVENT
+                    && (!event.reference_id.starts_with("v2_shade_tendril_")
+                        || clip.id != format!("attack_{}", event.reference_id)))
+                || (event.kind == ARM_EXTENSION_EVENT
+                    && (event.reference_id != "v2_tree_bilateral_smash"
+                        || clip.id != "attack_v2_tree_bilateral_smash"))
+            {
+                return Err("invalid bounded animation modifier linkage".into());
+            }
+        }
+    }
+    for attack in attacks.iter().filter(|a| {
+        [
+            "v2_mermaid_lunge",
+            "v2_mermaid_tail_whip",
+            "v2_tree_bilateral_smash",
+        ]
+        .contains(&a.id.as_str())
+    }) {
+        let clip = animations
+            .iter()
+            .find(|c| c.id == attack.animation_id)
+            .ok_or("missing expressive attack clip")?;
+        let hit = attack
+            .steps
+            .iter()
+            .find(|s| ["SLAM", "SWIPE"].contains(&s.primitive.as_str()))
+            .ok_or("missing expressive hit")?;
+        let lunge = attack.id == "v2_mermaid_lunge";
+        if attack.steps.len() != if lunge { 4 } else { 3 }
+            || attack
+                .steps
+                .iter()
+                .filter(|s| s.primitive == "DASH")
+                .count()
+                != if lunge { 1 } else { 0 }
+            || attack
+                .steps
+                .iter()
+                .filter(|s| s.primitive == "TELEGRAPH" && s.at_ms == 0)
+                .count()
+                != 1
+            || attack
+                .steps
+                .iter()
+                .filter(|s| s.primitive == "COOLDOWN" && s.at_ms == attack.telegraph_ms + 550)
+                .count()
+                != 1
+        {
+            return Err("expressive attack must match its bounded primitive sequence".into());
+        }
+        if lunge
+            && !attack.steps.iter().any(|s| {
+                s.primitive == "DASH"
+                    && s.at_ms == attack.telegraph_ms
+                    && s.duration_ms == 200
+                    && s.speed == 80.0
+                    && s.target == "TARGET_ACTOR"
+            })
+        {
+            return Err("mermaid lunge requires its bounded full-body dash step".into());
+        }
+        if attack.delivery != "MELEE"
+            || attack.element != "PHYSICAL"
+            || hit.at_ms != attack.telegraph_ms + 200
+            || !clip.events.iter().any(|e| {
+                e.kind == "ATTACK_HIT" && e.reference_id == attack.id && e.time_ms == hit.at_ms
+            })
+            || (attack.id == "v2_tree_bilateral_smash"
+                && (hit.count != 2
+                    || hit.primitive != "SLAM"
+                    || !clip
+                        .events
+                        .iter()
+                        .any(|e| e.kind == ARM_EXTENSION_EVENT && e.reference_id == attack.id)))
+        {
+            return Err("invalid expressive attack timing or growth contract".into());
+        }
+    }
     for attack in attacks.iter().filter(|a| pattern_name(a).is_some()) {
         let name = pattern_name(attack).unwrap();
-        if !["aimed", "burst", "fan", "acid_spray", "fire_spray"].contains(&name)
+        if ![
+            "aimed",
+            "burst",
+            "fan",
+            "acid_spray",
+            "fire_spray",
+            "spectral_burst",
+        ]
+        .contains(&name)
             || attack.delivery != "PROJECTILE"
             || attack.spawn.is_some()
             || (name == "acid_spray" && attack.element != "ACID")
             || (name == "fire_spray" && attack.element != "FIRE")
+            || (name == "spectral_burst" && attack.element != "SHADOW")
         {
             return Err("incompatible V2 pattern and delivery/element".into());
         }
@@ -316,13 +1569,14 @@ pub fn validate_patterns(animations: &[Animation], attacks: &[Attack]) -> Result
             "fan" => (1, 5, 48.0, 0),
             "acid_spray" => (4, 3, 32.0, 120),
             "fire_spray" => (5, 3, 40.0, 90),
+            "spectral_burst" => (2, 3, 24.0, 150),
             _ => unreachable!(),
         };
         if shots.len() != expected_volleys
             || shots.iter().any(|s| {
                 s.count != expected_count
                     || s.spread_deg != expected_spread
-                    || s.target != "TARGET_ACTOR"
+                    || !["TARGET_ACTOR", "RANDOM_DIRECTION"].contains(&s.target.as_str())
             })
             || shots
                 .windows(2)
@@ -360,6 +1614,54 @@ pub fn validate(
     poses: &[Pose],
 ) -> Result<(), String> {
     validate_patterns(animations, attacks)?;
+    for clip in animations.iter().filter(|c| {
+        c.id == "attack_v2_spectral_phase_lunge" || c.id.starts_with("attack_v2_shade_tendril_")
+    }) {
+        let start = clip
+            .events
+            .iter()
+            .find(|e| e.kind == PHASE_BEGIN_EVENT)
+            .ok_or("missing phase begin")?
+            .time_ms;
+        let end = clip
+            .events
+            .iter()
+            .find(|e| e.kind == PHASE_END_EVENT)
+            .ok_or("missing phase end")?
+            .time_ms;
+        let mut time = 0u32;
+        for frame in &clip.frames {
+            let pose = poses
+                .get(frame.sprite_frame_id as usize)
+                .ok_or("missing phase pose")?;
+            if clip.id.starts_with("attack_v2_shade_tendril_") {
+                let hit = clip
+                    .events
+                    .iter()
+                    .find(|e| e.kind == "ATTACK_HIT")
+                    .ok_or("missing shade contact")?
+                    .time_ms;
+                let delay = hit - 650;
+                let elapsed = time.saturating_sub(delay);
+                let expected = if elapsed <= 650 {
+                    elapsed as f32 / 650.0
+                } else {
+                    (1400u32.saturating_sub(elapsed + 50)) as f32 / 650.0
+                };
+                if pose.state != "SHADE_UNWIND"
+                    || !pose.phase.is_finite()
+                    || (pose.phase - expected).abs() > 0.001
+                {
+                    return Err("invalid shade surface-unwind envelope".into());
+                }
+            } else if (pose.state == "PHASE") != (time >= start && time < end) {
+                return Err("phase visuals disagree with phase interval".into());
+            }
+            time = time
+                .checked_add(frame.duration_ms)
+                .ok_or("phase duration overflow")?;
+        }
+    }
     for clip in animations
         .iter()
         .filter(|c| c.id == LURE_CLIP || c.id == REVEAL_CLIP)
@@ -589,6 +1891,497 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+    fn expressive_fixture(prompt: &str, mutant: bool) -> (MonsterSpec, Body) {
+        let mut spec = crate::v2::interpret(crate::parser::parse_vocabulary(prompt), prompt);
+        crate::v2::prepare(&mut spec);
+        if mutant {
+            spec.features
+                .extend(["MUTANT_UNSTABLE".into(), "FOUR_ARMED".into()]);
+            spec.arm_count = 4;
+        }
+        let mut body =
+            crate::anatomy::build(&spec, &mut rand_chacha::ChaCha8Rng::seed_from_u64(42));
+        crate::v2::anatomy::refine(&spec, &mut body, 42);
+        crate::v2::grip::prepare_body(&spec, &mut body);
+        (spec, body)
+    }
+    #[test]
+    fn expressive_mermaid_and_bilateral_tree_attacks_are_bounded() {
+        for prompt in ["mermaid", "tree monster"] {
+            let (spec, body) = expressive_fixture(prompt, false);
+            let (clips, _, attacks, poses) = animate(&spec, &body, 42);
+            validate(&clips, &attacks, &poses).unwrap();
+            validate_rig_extensions(&body, &clips, &poses).unwrap();
+            let id = if prompt == "mermaid" {
+                "v2_mermaid_lunge"
+            } else {
+                "v2_tree_bilateral_smash"
+            };
+            let attack = attacks.iter().find(|a| a.id == id).unwrap();
+            let clip = clips.iter().find(|c| c.id == attack.animation_id).unwrap();
+            assert!(clip
+                .events
+                .iter()
+                .any(|e| e.kind == "ATTACK_HIT" && e.time_ms == 650));
+            if prompt == "mermaid" {
+                assert!(poses[clip.frames[13].sprite_frame_id as usize].root_x >= 15.0);
+            } else {
+                let mut malformed = poses.clone();
+                let frame = clip.frames[13].sprite_frame_id as usize;
+                let hand = body.nodes.iter().position(|n| n.kind == "HAND").unwrap();
+                malformed[frame].physical_positions[hand].0 += 100.0;
+                assert!(validate_rig_extensions(&body, &clips, &malformed).is_err());
+                let mut unmarked = clips.clone();
+                unmarked
+                    .iter_mut()
+                    .find(|c| c.id == clip.id)
+                    .unwrap()
+                    .events
+                    .retain(|e| e.kind != ARM_EXTENSION_EVENT);
+                assert!(validate_rig_extensions(&body, &unmarked, &poses).is_err());
+            }
+        }
+    }
+    #[test]
+    fn awkward_mutant_preserves_emissions_and_declares_unfolding() {
+        let (mut spec, body) = expressive_fixture("mermaid", true);
+        spec.attack.delivery = "PROJECTILE".into();
+        spec.attack.element = "ACID".into();
+        let (clips, _, attacks, poses) = animate(&spec, &body, 42);
+        validate(&clips, &attacks, &poses).unwrap();
+        validate_rig_extensions(&body, &clips, &poses).unwrap();
+        let primary = attacks.iter().find(|a| pattern_name(a).is_some()).unwrap();
+        assert!((450..=510).contains(&primary.telegraph_ms));
+        let clip = clips.iter().find(|c| c.id == primary.animation_id).unwrap();
+        assert!(clip.events.iter().any(|e| e.kind == AWKWARD_EVENT));
+        assert!(clip.events.iter().any(|e| e.kind == UNFOLD_EVENT));
+        assert_eq!(
+            primary
+                .steps
+                .iter()
+                .filter(|s| s.primitive == "SPAWN_PROJECTILE")
+                .count(),
+            4
+        );
+        let mut bad = clips.clone();
+        let c = bad.iter_mut().find(|c| c.id == clip.id).unwrap();
+        c.events.push(
+            c.events
+                .iter()
+                .find(|e| e.kind == "PROJECTILE_SPAWN")
+                .unwrap()
+                .clone(),
+        );
+        assert!(validate_patterns(&bad, &attacks).is_err());
+    }
+    #[test]
+    fn full_specialty_packages_validate() {
+        for (prompt, mutant) in [
+            ("mermaid", false),
+            ("tree monster", false),
+            ("mermaid", true),
+        ] {
+            let (spec, _) = expressive_fixture(prompt, mutant);
+            let dir = tempfile::tempdir().unwrap();
+            let monster = crate::generate_from_spec_with_profile(
+                spec,
+                42,
+                dir.path(),
+                crate::PackageFormat::Protobuf,
+                crate::GenerationProfile::V2,
+            )
+            .unwrap();
+            let expected = if prompt == "mermaid" {
+                "v2_mermaid_lunge"
+            } else {
+                "v2_tree_bilateral_smash"
+            };
+            assert!(monster.attacks.iter().any(|a| a.id == expected));
+            let profile = monster.v2_profile.as_ref().unwrap();
+            if mutant {
+                assert!(profile
+                    .modifiers
+                    .iter()
+                    .any(|m| m == "AWKWARD_COORDINATION"));
+            }
+            if prompt == "tree monster" {
+                assert!(profile
+                    .modifiers
+                    .iter()
+                    .any(|m| m == "BOUNDED_ARM_EXTENSION_MAX_1_8"));
+            }
+        }
+    }
+    #[test]
+    fn hybrid_lower_body_controls_modes_and_upper_origins_remain_attached() {
+        use crate::v2::hybrid::{HeadKind as H, HybridRecipe, LowerBody as L, UpperBody as U};
+        for (upper, lower, head, legs, category) in [
+            (U::Humanoid, L::Horse, H::Humanoid, 6, "GROUNDED"),
+            (U::Humanoid, L::Spider, H::Humanoid, 8, "GROUNDED"),
+            (U::Humanoid, L::Humanoid, H::Fish, 2, "GROUNDED"),
+            (U::Stormtrooper, L::Mermaid, H::Stormtrooper, 0, "SWIMMING"),
+            (U::Tree, L::Tree, H::Tree, 2, "GROUNDED"),
+        ] {
+            let recipe = HybridRecipe {
+                schema_version: 1,
+                upper_body: upper,
+                lower_body: lower,
+                head,
+                lower_limb_count: legs,
+                upper_arm_count: 2,
+            };
+            let mut spec = crate::parser::parse_vocabulary("humanoid");
+            crate::v2::hybrid::apply_spec(&recipe, &mut spec);
+            crate::v2::prepare(&mut spec);
+            let mut body =
+                crate::anatomy::build(&spec, &mut rand_chacha::ChaCha8Rng::seed_from_u64(42));
+            crate::v2::anatomy::refine(&spec, &mut body, 42);
+            crate::v2::grip::prepare_body(&spec, &mut body);
+            let (clips, modes, attacks, poses) = animate(&spec, &body, 42);
+            validate(&clips, &attacks, &poses).unwrap();
+            validate_rig_extensions(&body, &clips, &poses).unwrap();
+            assert_eq!(modes[0].category, category, "{recipe:?}");
+            assert!(
+                attacks
+                    .iter()
+                    .all(|a| body.nodes.iter().any(|n| n.id == a.origin_node)),
+                "{recipe:?}"
+            );
+            if lower == L::Spider {
+                assert!(modes[0].modifiers.iter().any(|m| m == "MULTILEGGED"));
+            }
+            if lower == L::Mermaid {
+                assert!(attacks
+                    .iter()
+                    .any(|a| a.id == "v2_mermaid_lunge" && a.origin_node == "torso"));
+                assert!(attacks.iter().any(|a| a.id == "v2_mermaid_tail_whip"
+                    && a.origin_node.starts_with("v2_fish_tail_")));
+                assert!(attacks
+                    .iter()
+                    .any(|a| a.delivery == "PROJECTILE" && a.origin_node == "weapon"));
+            }
+            if lower == L::Tree {
+                assert!(attacks.iter().any(|a| a.id == "v2_tree_bilateral_smash"));
+            }
+        }
+    }
+    #[test]
+    fn spectral_phase_burst_and_drift_are_visually_bound() {
+        for prompt in ["ghost", "ghoul"] {
+            let (spec, body) = expressive_fixture(prompt, false);
+            let (clips, modes, attacks, poses) = animate(&spec, &body, 42);
+            validate(&clips, &attacks, &poses).unwrap();
+            validate_rig_extensions(&body, &clips, &poses).unwrap();
+            let attack = attacks.iter().find(|a| a.id == SPECTRAL_LUNGE_ID).unwrap();
+            let clip = clips.iter().find(|c| c.id == attack.animation_id).unwrap();
+            assert_eq!(
+                clip.events
+                    .iter()
+                    .find(|e| e.kind == PHASE_BEGIN_EVENT)
+                    .unwrap()
+                    .time_ms,
+                150
+            );
+            assert_eq!(
+                clip.events
+                    .iter()
+                    .find(|e| e.kind == PHASE_END_EVENT)
+                    .unwrap()
+                    .time_ms,
+                550
+            );
+            assert_eq!(
+                poses[clip.frames[3].sprite_frame_id as usize].state,
+                "PHASE"
+            );
+            assert_eq!(
+                poses[clip.frames[11].sprite_frame_id as usize].state,
+                "ATTACK"
+            );
+            assert!(modes
+                .iter()
+                .any(|m| m.id == "SPECTRAL_DRIFT" && m.speed == 20.0));
+            let burst = attacks
+                .iter()
+                .find(|a| a.id == "v2_pattern_spectral_burst")
+                .unwrap();
+            assert_eq!(crate::projectile::recipe_kind(&spec, burst), "SHADOW_ORB");
+            let mut bad = clips.clone();
+            bad.iter_mut()
+                .find(|c| c.id == clip.id)
+                .unwrap()
+                .events
+                .retain(|e| e.kind != PHASE_END_EVENT);
+            assert!(validate_patterns(&bad, &attacks).is_err());
+            let mut bad = poses.clone();
+            bad[clip.frames[3].sprite_frame_id as usize].state = "ATTACK".into();
+            assert!(validate(&clips, &attacks, &bad).is_err());
+        }
+    }
+    #[test]
+    fn awkward_spectral_phase_window_tracks_delayed_visuals() {
+        let (mut spec, body) = expressive_fixture("ghost", false);
+        spec.features.push("MUTANT_UNSTABLE".into());
+        let (clips, _, attacks, poses) = animate(&spec, &body, 42);
+        validate(&clips, &attacks, &poses).unwrap();
+        validate_rig_extensions(&body, &clips, &poses).unwrap();
+        let attack = attacks.iter().find(|a| a.id == SPECTRAL_LUNGE_ID).unwrap();
+        assert!(attack.telegraph_ms > 450);
+        let clip = clips.iter().find(|c| c.id == attack.animation_id).unwrap();
+        let start = clip
+            .events
+            .iter()
+            .find(|e| e.kind == PHASE_BEGIN_EVENT)
+            .unwrap()
+            .time_ms;
+        let end = clip
+            .events
+            .iter()
+            .find(|e| e.kind == PHASE_END_EVENT)
+            .unwrap()
+            .time_ms;
+        assert_eq!(end - start, 400);
+        assert_eq!(end, attack.telegraph_ms + 100);
+    }
+    #[test]
+    fn full_spectral_packages_validate_interaction_windows() {
+        for prompt in ["shade", "ghost", "ghoul"] {
+            let generated =
+                crate::generate_in_memory_with_profile(prompt, 42, crate::GenerationProfile::V2)
+                    .unwrap();
+            let monster = &generated.packages.last().unwrap().monster;
+            let spectral = monster
+                .v2_profile
+                .as_ref()
+                .unwrap()
+                .spectral
+                .as_ref()
+                .unwrap();
+            assert_eq!(
+                spectral.phase_windows.len(),
+                if prompt == "shade" { 2 } else { 1 }
+            );
+            if prompt == "shade" {
+                assert!(monster
+                    .attacks
+                    .iter()
+                    .all(|a| a.id.starts_with("v2_shade_tendril_")));
+            } else {
+                assert!(monster
+                    .attacks
+                    .iter()
+                    .any(|a| a.id == "v2_pattern_spectral_burst"));
+            }
+            assert_eq!(
+                spectral.phase_windows[0].end_ms - spectral.phase_windows[0].start_ms,
+                if prompt == "shade" { 1200 } else { 400 }
+            );
+            if prompt == "ghoul" {
+                assert_eq!(spectral.opacity, 1.0);
+                assert_eq!(spectral.default_damage_multiplier, 1.0);
+            }
+        }
+    }
+    #[test]
+    fn universal_shade_replaces_original_offense_with_coherent_tendrils() {
+        for prompt in [
+            "shade humanoid",
+            "shade wolf",
+            "shade tree monster",
+            "shade mermaid",
+            "shade stormtrooper top on a mermaid bottom",
+        ] {
+            let (spec, body) = expressive_fixture(prompt, false);
+            let (clips, _, attacks, poses) = animate(&spec, &body, 42);
+            validate(&clips, &attacks, &poses).unwrap();
+            validate_rig_extensions(&body, &clips, &poses).unwrap();
+            assert_eq!(attacks.len(), 2, "{prompt}");
+            assert!(attacks.iter().all(|a| a.id.starts_with("v2_shade_tendril_")
+                && a.delivery == "MELEE"
+                && a.projectile_id.is_empty()));
+            assert!(clips
+                .iter()
+                .all(|c| !c.events.iter().any(|e| e.kind == "PROJECTILE_SPAWN")));
+            assert!(poses
+                .iter()
+                .all(|p| !p.clip_id.starts_with("attack_primary")));
+            let attack = &attacks[0];
+            let clip = clips.iter().find(|c| c.id == attack.animation_id).unwrap();
+            let tip = body
+                .nodes
+                .iter()
+                .position(|n| n.id == attack.origin_node)
+                .unwrap();
+            let start = poses[clip.frames[0].sprite_frame_id as usize].physical_positions[tip];
+            let hit = poses[clip.frames[13].sprite_frame_id as usize].physical_positions[tip];
+            let peak = &poses[clip.frames[13].sprite_frame_id as usize];
+            let root = peak.physical_positions[0];
+            let chord = (hit.0 - root.0, hit.1 - root.1);
+            let mut max_curve = 0.0f32;
+            for segment in 0..4 {
+                let i = body
+                    .nodes
+                    .iter()
+                    .position(|n| n.id == format!("v2_shade_tendril_0_{segment}"))
+                    .unwrap();
+                let p = peak.physical_positions[i];
+                let distance = ((p.0 - root.0) * chord.1 - (p.1 - root.1) * chord.0).abs()
+                    / chord.0.hypot(chord.1).max(0.1);
+                max_curve = max_curve.max(distance);
+            }
+            assert!(
+                max_curve > 1.0,
+                "shade tendril became a straight barrel at impact: {prompt}"
+            );
+            let end =
+                poses[clip.frames.last().unwrap().sprite_frame_id as usize].physical_positions[tip];
+            assert!((hit.0 - start.0).hypot(hit.1 - start.1) > 10.0, "{prompt}");
+            assert!((end.0 - start.0).hypot(end.1 - start.1) < 0.01);
+            for pair in clip.frames.windows(2) {
+                let a = poses[pair[0].sprite_frame_id as usize].physical_positions[tip];
+                let b = poses[pair[1].sprite_frame_id as usize].physical_positions[tip];
+                assert!(
+                    (b.0 - a.0).hypot(b.1 - a.1) < attack.range * 0.35,
+                    "discontinuous shade noise: {prompt}"
+                );
+            }
+            let mut malformed = poses.clone();
+            malformed[clip.frames[13].sprite_frame_id as usize].physical_positions[tip].0 += 100.0;
+            assert!(validate_rig_extensions(&body, &clips, &malformed).is_err());
+        }
+    }
+    #[test]
+    fn shade_recovery_is_exact_reversal_and_never_damages() {
+        for mutant in [false, true] {
+            let (mut spec, body) = expressive_fixture("shade humanoid", false);
+            if mutant {
+                spec.features.push("MUTANT_UNSTABLE".into());
+            }
+            let (clips, _, attacks, poses) = animate(&spec, &body, 42);
+            validate(&clips, &attacks, &poses).unwrap();
+            validate_rig_extensions(&body, &clips, &poses).unwrap();
+            for attack in &attacks {
+                let clip = clips.iter().find(|c| c.id == attack.animation_id).unwrap();
+                let offset = usize::from(mutant);
+                let frames = &clip.frames[offset..];
+                assert_eq!(frames.len(), 27);
+                assert_eq!(frames[13].duration_ms, 100);
+                for i in 0..14 {
+                    assert_eq!(frames[i].sprite_frame_id, frames[26 - i].sprite_frame_id);
+                }
+                let hit = attack.telegraph_ms + 200;
+                assert!(attack
+                    .steps
+                    .iter()
+                    .filter(|s| !["COOLDOWN", "TELEGRAPH"].contains(&s.primitive.as_str()))
+                    .all(|s| s.at_ms == hit && s.duration_ms == 100));
+                assert!(!clip.events.iter().any(|e| e.time_ms >= hit + 100
+                    && ["ATTACK", "ATTACK_HIT", "PROJECTILE_SPAWN"].contains(&e.kind.as_str())));
+                let mut malformed = clips.clone();
+                let bad = malformed.iter_mut().find(|c| c.id == clip.id).unwrap();
+                bad.frames[offset + 25].sprite_frame_id = bad.frames[offset + 24].sprite_frame_id;
+                assert!(validate_patterns(&malformed, &attacks).is_err());
+                let mut malformed = clips.clone();
+                malformed
+                    .iter_mut()
+                    .find(|c| c.id == clip.id)
+                    .unwrap()
+                    .events
+                    .push(AnimationEvent {
+                        time_ms: hit + 150,
+                        kind: "ATTACK_HIT".into(),
+                        reference_id: attack.id.clone(),
+                    });
+                assert!(validate_patterns(&malformed, &attacks).is_err());
+            }
+        }
+    }
+
+    #[test]
+    fn full_shade_source_families_have_only_tendril_offense() {
+        for prompt in [
+            "shade humanoid",
+            "shade wolf",
+            "shade tree monster",
+            "shade mermaid",
+            "shade stormtrooper top on a mermaid bottom",
+        ] {
+            let generated =
+                crate::generate_in_memory_with_profile(prompt, 42, crate::GenerationProfile::V2)
+                    .unwrap();
+            let root = &generated.packages.last().unwrap().monster;
+            assert_eq!(root.attacks.len(), 2, "{prompt}");
+            assert!(root
+                .attacks
+                .iter()
+                .all(|a| a.id.starts_with("v2_shade_tendril_")));
+            assert!(root.projectiles.is_empty());
+            assert_eq!(
+                root.v2_profile
+                    .as_ref()
+                    .unwrap()
+                    .spectral
+                    .as_ref()
+                    .unwrap()
+                    .phase_windows
+                    .len(),
+                2
+            );
+        }
+    }
+    #[test]
+    fn extra_mermaid_tails_splay_without_stretching_or_stealing_primary_origin() {
+        for seed in [10, 42] {
+            let mut spec = crate::v2::interpret(
+                crate::parser::parse_vocabulary("friendly mermaid"),
+                "friendly mermaid",
+            );
+            crate::v2::prepare(&mut spec);
+            crate::v2::anatomy::prepare_seeded(&mut spec, seed);
+            assert!(enabled(&spec, "EXTRA_TAIL"));
+            let mut body =
+                crate::anatomy::build(&spec, &mut rand_chacha::ChaCha8Rng::seed_from_u64(seed));
+            crate::v2::anatomy::refine(&spec, &mut body, seed);
+            let (clips, _, attacks, poses) = animate(&spec, &body, seed);
+            validate(&clips, &attacks, &poses).unwrap();
+            validate_rig_extensions(&body, &clips, &poses).unwrap();
+            let whip = attacks
+                .iter()
+                .find(|a| a.id == "v2_mermaid_tail_whip")
+                .unwrap();
+            assert!(whip.origin_node.starts_with("v2_fish_tail_"));
+            let clip = clips.iter().find(|c| c.id == whip.animation_id).unwrap();
+            let mut unchanged = spec.clone();
+            unchanged.features.retain(|f| f != "EXTRA_TAIL");
+            let (_, _, _, baseline) = animate(&unchanged, &body, seed);
+            let tip = body
+                .nodes
+                .iter()
+                .rposition(|n| n.id.starts_with("v2_extra_tail_") && n.kind == "TAIL")
+                .unwrap();
+            let main = body
+                .nodes
+                .iter()
+                .position(|n| n.id == whip.origin_node)
+                .unwrap();
+            let mut separated = false;
+            for frame in &clip.frames {
+                let pose = &poses[frame.sprite_frame_id as usize];
+                let original = &baseline[frame.sprite_frame_id as usize];
+                let p = pose.physical_positions[tip];
+                let q = original.physical_positions[tip];
+                separated |= (p.0 - q.0).hypot(p.1 - q.1) > 2.0;
+                assert_eq!(
+                    pose.physical_positions[main],
+                    original.physical_positions[main]
+                );
+            }
+            assert!(
+                separated,
+                "extra tail remains visually stacked at seed{seed}"
+            );
         }
     }
     #[test]

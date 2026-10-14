@@ -258,6 +258,9 @@ pub struct V2Profile {
     pub modifiers: Vec<String>,
     pub attack_patterns: Vec<AttackPatternDescriptor>,
     pub lure: Option<LureDescriptor>,
+    pub spectral: Option<SpectralDescriptor>,
+    pub hybrid: Option<HybridRecipeDescriptor>,
+    pub body_motion_samples: Vec<BodyMotionSample>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -270,6 +273,7 @@ pub struct AttackPatternDescriptor {
     pub interval_ms: u32,
     pub spread_deg: f32,
     pub aim_mode: String,
+    pub motion_samples: Vec<AttackOriginSample>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -286,4 +290,74 @@ pub struct LureDescriptor {
     pub distant_state: String,
     pub revealed_state: String,
     pub reset_policy: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SpectralDescriptor {
+    pub kind: String,
+    pub visual_style: String,
+    pub opacity: f32,
+    pub collision_mode: String,
+    pub damage_rules: Vec<DamageRule>,
+    pub default_damage_multiplier: f32,
+    pub default_projectile_pass_through: bool,
+    pub phase_windows: Vec<PhaseWindow>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DamageRule {
+    pub priority: u32,
+    pub elements: Vec<String>,
+    pub delivery: String,
+    pub required_tag: String,
+    pub damage_multiplier: f32,
+    pub projectile_pass_through: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PhaseWindow {
+    pub animation_id: String,
+    pub start_ms: u32,
+    pub end_ms: u32,
+    pub solid_pass_through: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct HybridRecipeDescriptor {
+    pub schema_version: u32,
+    pub upper_body: String,
+    pub lower_body: String,
+    pub head: String,
+    pub lower_limb_count: u32,
+    pub upper_arm_count: u32,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AttackOriginSample {
+    pub time_ms: u32,
+    pub sprite_frame_id: u32,
+    pub node_id: String,
+    pub views: Vec<ColliderView>,
+    pub active: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct BodyMotionSample {
+    pub animation_id: String,
+    pub time_ms: u32,
+    pub sprite_frame_id: u32,
+    pub hurtboxes: Vec<PosedHurtbox>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PosedHurtbox {
+    pub node_id: String,
+    pub views: Vec<ColliderView>,
 }

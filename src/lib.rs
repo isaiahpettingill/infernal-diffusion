@@ -271,6 +271,57 @@ pub fn generate_from_spec_with_profile(
     )
 }
 
+/// Generate an explicit, validated V2 part-assembly recipe without a text model.
+pub fn generate_hybrid(
+    recipe: &v2::hybrid::HybridRecipe,
+    seed: u64,
+    output_dir: &Path,
+    format: PackageFormat,
+) -> Result<proto::Monster, Error> {
+    generate_hybrid_internal(recipe, seed, output_dir, &mut DiskSink { format })
+}
+
+/// Generate the same explicit hybrid package in memory for engine bindings.
+pub fn generate_hybrid_in_memory(
+    recipe: &v2::hybrid::HybridRecipe,
+    seed: u64,
+) -> Result<GeneratedMonster, Error> {
+    let mut sink = MemorySink {
+        packages: Vec::new(),
+    };
+    generate_hybrid_internal(recipe, seed, Path::new("."), &mut sink)?;
+    Ok(GeneratedMonster {
+        packages: sink.packages,
+    })
+}
+
+fn generate_hybrid_internal(
+    recipe: &v2::hybrid::HybridRecipe,
+    seed: u64,
+    output_dir: &Path,
+    sink: &mut dyn PackageSink,
+) -> Result<proto::Monster, Error> {
+    recipe.validate().map_err(Error::InvalidMonster)?;
+    let mut spec = parser::parse_vocabulary("humanoid");
+    v2::hybrid::apply_spec(recipe, &mut spec);
+    let source = serde_json::to_string(recipe).map_err(|e| Error::InvalidMonster(e.to_string()))?;
+    generate_spec_internal(
+        spec,
+        &source,
+        seed,
+        output_dir,
+        "recipe-v2-hybrid@1".into(),
+        &recipes::DefaultStages,
+        sink,
+        GenerationOptions {
+            profile: GenerationProfile::V2,
+            render_style: RenderStyle::Mesh3d,
+            allow_auto_spawn: false,
+            randomize_unknown: false,
+        },
+    )
+}
+
 pub struct GeneratedPackage {
     pub path: std::path::PathBuf,
     pub monster: proto::Monster,
@@ -444,6 +495,7 @@ fn generate_prompt_profile(
         }
     };
     let spec = if generation_profile == GenerationProfile::V2 {
+        v2::hybrid::parse_prompt_checked(prompt).map_err(Error::InvalidMonster)?;
         v2::interpret(spec, prompt)
     } else {
         spec
@@ -666,13 +718,18 @@ fn generate_spec_internal(
             return Err(Error::InvalidMonster("V2 requires mesh3d rendering".into()));
         }
         v2::prepare(&mut spec);
+        v2::anatomy::prepare_seeded(&mut spec, seed);
+        spec.features.retain(|feature| feature != "TOPOLOGY_LOCKED_INTERNAL");
+        v2::spectral::validate_spec(&spec).map_err(Error::InvalidMonster)?;
     }
     if options.profile == GenerationProfile::V1 && spec.features.iter().any(|f| f == "PROFILE_V2") {
         return Err(Error::InvalidMonster(
             "PROFILE_V2 is reserved; select the V2 generation profile explicitly".into(),
         ));
     }
-    let allow_auto_spawn = options.allow_auto_spawn;
+    let allow_auto_spawn = options.allow_auto_spawn
+        && !(options.profile == GenerationProfile::V2
+            && spec.features.iter().any(|feature| feature == "SHADE"));
     if !spec.size.is_finite()
         || !(0.0..=1.0).contains(&spec.size)
         || !spec.bulk.is_finite()
@@ -759,9 +816,15 @@ fn generate_spec_internal(
         recipe_ids.push("motion.aquatic_navigation@1".into());
     }
     if options.profile == GenerationProfile::V2 {
-        recipe_ids.push("profile.v2@1".into());
+        recipe_ids.push("profile.v2@2".into());
     }
-    if spec.affinity == "STORMTROOPER" {
+    if spec.affinity == "STORMTROOPER"
+        || (options.profile == GenerationProfile::V2
+            && spec
+                .features
+                .iter()
+                .any(|f| f == "HYBRID_UPPER_STORMTROOPER"))
+    {
         recipe_ids.push("destructos.stormtrooper@1".into());
         recipe_ids.push("mesh.skull_stormtrooper@1".into());
     }
@@ -827,6 +890,7 @@ fn generate_spec_internal(
     let mut body = stages.anatomy(&spec, &mut rng);
     if options.profile == GenerationProfile::V2 {
         v2::anatomy::refine(&spec, &mut body, seed);
+        v2::grip::prepare_body(&spec, &mut body);
     }
     validate_body(&body)?;
     stages.repair(&mut body);
@@ -839,20 +903,30 @@ fn generate_spec_internal(
         };
     if options.profile == GenerationProfile::V2 {
         v2::combat::validate(&animations, &attacks, &poses).map_err(Error::InvalidMonster)?;
+        v2::combat::validate_rig_extensions(&body, &animations, &poses)
+            .map_err(Error::InvalidMonster)?;
     }
     if movement_modes.len() < 2 || attacks.len() < 2 || poses.is_empty() {
         return Err(Error::InvalidMonster(
             "animation stage omitted required movement, attacks, or poses".into(),
         ));
     }
-    if spec.affinity == "STORMTROOPER" {
+    if spec.affinity == "STORMTROOPER"
+        || (options.profile == GenerationProfile::V2
+            && spec
+                .features
+                .iter()
+                .any(|f| f == "HYBRID_UPPER_STORMTROOPER"))
+    {
         for attack in &mut attacks {
             if attack.delivery == "PROJECTILE" {
                 for step in &mut attack.steps {
                     if step.primitive == "SPAWN_PROJECTILE" {
                         step.target = "RANDOM_DIRECTION".into();
                         // A fresh random direction, not a 360-degree projectile fan.
-                        step.spread_deg = 0.0;
+                        if options.profile == GenerationProfile::V1 {
+                            step.spread_deg = 0.0;
+                        }
                     }
                 }
             }
@@ -981,6 +1055,12 @@ fn generate_spec_internal(
         .iter()
         .map(|attack| match attack.id.as_str() {
             "primary" => 1.0,
+            "v2_mermaid_lunge"
+            | "v2_mermaid_tail_whip"
+            | "v2_tree_bilateral_smash"
+            | "v2_spectral_phase_lunge"
+            | "v2_shade_tendril_lash"
+            | "v2_shade_tendril_thrust" => 1.4,
             id if id.starts_with("v2_pattern_") => 1.0,
             "secondary" => 0.65,
             "special" => 0.45,
@@ -1018,6 +1098,11 @@ fn generate_spec_internal(
         rider_spec.mount = None;
         rider_spec.spawn = None;
         rider_spec.secondary_affinities.clear();
+        if options.profile == GenerationProfile::V2 {
+            // Companion rigs inherit the assembled counts instead of rerolling
+            // independent novelty with the companion seed.
+            rider_spec.features.push("TOPOLOGY_LOCKED_INTERNAL".into());
+        }
         rider_spec.size = if ["GOBLIN", "TOKOLOSHE"].contains(&spec.affinity.as_str()) {
             0.26
         } else {
@@ -1040,7 +1125,10 @@ fn generate_spec_internal(
                 randomize_unknown: false,
             },
         )?;
-        let mount_spec = parser::mount_spec(&spec, mount);
+        let mut mount_spec = parser::mount_spec(&spec, mount);
+        if options.profile == GenerationProfile::V2 {
+            mount_spec.features.push("TOPOLOGY_LOCKED_INTERNAL".into());
+        }
         let mount_source = serde_json::to_string(&mount_spec)
             .map_err(|error| Error::InvalidMonster(error.to_string()))?;
         let mount_child = generate_spec_internal(
@@ -1136,8 +1224,11 @@ fn generate_spec_internal(
     } else {
         Vec::new()
     };
-    let v2_profile =
-        (options.profile == GenerationProfile::V2).then(|| v2::describe(&spec, &attacks));
+    let v2_profile = (options.profile == GenerationProfile::V2).then(|| {
+        let mut profile = v2::describe(&spec, &attacks, &animations);
+        v2::attack_tracks::populate(&mut profile, &body, &animations, &attacks, &poses, size);
+        profile
+    });
     let monster = proto::Monster {
         v2_profile,
         format_version: if render_style == RenderStyle::Mesh3d {
@@ -2398,6 +2489,45 @@ pub unsafe extern "C" fn infernal_generate_in_memory_profile(
             let message = match other {
                 Ok(Err(e)) => e,
                 _ => "panic during generation".into(),
+            };
+            if !error_out.is_null() {
+                *error_out = CString::new(message).unwrap_or_default().into_raw();
+            }
+            std::ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+/// # Safety
+/// `recipe_json` must be valid NUL-terminated UTF-8. `error_out`, when non-null,
+/// must point to writable storage for one pointer. Free the returned object with
+/// `infernal_object_free` and an error string with `infernal_free_string`.
+pub unsafe extern "C" fn infernal_generate_hybrid_json(
+    recipe_json: *const c_char,
+    seed: u64,
+    error_out: *mut *mut c_char,
+) -> *mut GeneratedMonster {
+    if !error_out.is_null() {
+        *error_out = std::ptr::null_mut();
+    }
+    let result = std::panic::catch_unwind(|| {
+        if recipe_json.is_null() {
+            return Err("null hybrid recipe".to_string());
+        }
+        let text = CStr::from_ptr(recipe_json)
+            .to_str()
+            .map_err(|e| e.to_string())?;
+        let recipe: v2::hybrid::HybridRecipe =
+            serde_json::from_str(text).map_err(|e| e.to_string())?;
+        generate_hybrid_in_memory(&recipe, seed).map_err(|e| e.to_string())
+    });
+    match result {
+        Ok(Ok(value)) => Box::into_raw(Box::new(value)),
+        other => {
+            let message = match other {
+                Ok(Err(error)) => error,
+                _ => "panic during hybrid generation".into(),
             };
             if !error_out.is_null() {
                 *error_out = CString::new(message).unwrap_or_default().into_raw();

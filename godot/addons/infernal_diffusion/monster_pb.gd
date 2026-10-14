@@ -3886,6 +3886,25 @@ class InfernalV2Profile:
 		service.func_ref = Callable(self, "new_lure")
 		data[__lure.tag] = service
 
+		__spectral = PBField.new("spectral", PB_DATA_TYPE.MESSAGE, PB_RULE.OPTIONAL, 7, true, DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE])
+		service = PBServiceField.new()
+		service.field = __spectral
+		service.func_ref = Callable(self, "new_spectral")
+		data[__spectral.tag] = service
+
+		__hybrid = PBField.new("hybrid", PB_DATA_TYPE.MESSAGE, PB_RULE.OPTIONAL, 8, true, DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE])
+		service = PBServiceField.new()
+		service.field = __hybrid
+		service.func_ref = Callable(self, "new_hybrid")
+		data[__hybrid.tag] = service
+
+		var __body_motion_samples_default: Array[InfernalBodyMotionSample] = []
+		__body_motion_samples = PBField.new("body_motion_samples", PB_DATA_TYPE.MESSAGE, PB_RULE.REPEATED, 9, true, __body_motion_samples_default)
+		service = PBServiceField.new()
+		service.field = __body_motion_samples
+		service.func_ref = Callable(self, "add_body_motion_samples")
+		data[__body_motion_samples.tag] = service
+
 	var data = {}
 
 	var __profile_version: PBField
@@ -3953,6 +3972,45 @@ class InfernalV2Profile:
 		__lure.value = InfernalLureDescriptor.new()
 		return __lure.value
 
+	var __spectral: PBField
+	func has_spectral() -> bool:
+		if __spectral.value != null:
+			return true
+		return false
+	func get_spectral() -> InfernalSpectralDescriptor:
+		return __spectral.value
+	func clear_spectral() -> void:
+		data[7].state = PB_SERVICE_STATE.UNFILLED
+		__spectral.value = DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE]
+	func new_spectral() -> InfernalSpectralDescriptor:
+		__spectral.value = InfernalSpectralDescriptor.new()
+		return __spectral.value
+
+	var __hybrid: PBField
+	func has_hybrid() -> bool:
+		if __hybrid.value != null:
+			return true
+		return false
+	func get_hybrid() -> InfernalHybridRecipeDescriptor:
+		return __hybrid.value
+	func clear_hybrid() -> void:
+		data[8].state = PB_SERVICE_STATE.UNFILLED
+		__hybrid.value = DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE]
+	func new_hybrid() -> InfernalHybridRecipeDescriptor:
+		__hybrid.value = InfernalHybridRecipeDescriptor.new()
+		return __hybrid.value
+
+	var __body_motion_samples: PBField
+	func get_body_motion_samples() -> Array[InfernalBodyMotionSample]:
+		return __body_motion_samples.value
+	func clear_body_motion_samples() -> void:
+		data[9].state = PB_SERVICE_STATE.UNFILLED
+		__body_motion_samples.value.clear()
+	func add_body_motion_samples() -> InfernalBodyMotionSample:
+		var element = InfernalBodyMotionSample.new()
+		__body_motion_samples.value.append(element)
+		return element
+
 	func _to_string() -> String:
 		return PBPacker.message_to_string(data)
 
@@ -4013,6 +4071,13 @@ class InfernalAttackPatternDescriptor:
 		service = PBServiceField.new()
 		service.field = __aim_mode
 		data[__aim_mode.tag] = service
+
+		var __motion_samples_default: Array[InfernalAttackOriginSample] = []
+		__motion_samples = PBField.new("motion_samples", PB_DATA_TYPE.MESSAGE, PB_RULE.REPEATED, 8, true, __motion_samples_default)
+		service = PBServiceField.new()
+		service.field = __motion_samples
+		service.func_ref = Callable(self, "add_motion_samples")
+		data[__motion_samples.tag] = service
 
 	var data = {}
 
@@ -4106,6 +4171,17 @@ class InfernalAttackPatternDescriptor:
 		__aim_mode.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
 	func set_aim_mode(value : String) -> void:
 		__aim_mode.value = value
+
+	var __motion_samples: PBField
+	func get_motion_samples() -> Array[InfernalAttackOriginSample]:
+		return __motion_samples.value
+	func clear_motion_samples() -> void:
+		data[8].state = PB_SERVICE_STATE.UNFILLED
+		__motion_samples.value.clear()
+	func add_motion_samples() -> InfernalAttackOriginSample:
+		var element = InfernalAttackOriginSample.new()
+		__motion_samples.value.append(element)
+		return element
 
 	func _to_string() -> String:
 		return PBPacker.message_to_string(data)
@@ -4332,6 +4408,829 @@ class InfernalLureDescriptor:
 		__reset_policy.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
 	func set_reset_policy(value : String) -> void:
 		__reset_policy.value = value
+
+	func _to_string() -> String:
+		return PBPacker.message_to_string(data)
+
+	func to_bytes() -> PackedByteArray:
+		return PBPacker.pack_message(data)
+
+	func from_bytes(bytes : PackedByteArray, offset : int = 0, limit : int = -1) -> int:
+		var cur_limit = bytes.size()
+		if limit != -1:
+			cur_limit = limit
+		var result = PBPacker.unpack_message(data, bytes, offset, cur_limit)
+		if result == cur_limit:
+			if PBPacker.check_required(data):
+				if limit == -1:
+					return PB_ERR.NO_ERRORS
+			else:
+				return PB_ERR.REQUIRED_FIELDS
+		elif limit == -1 && result > 0:
+			return PB_ERR.PARSE_INCOMPLETE
+		return result
+
+class InfernalSpectralDescriptor:
+	extends RefCounted
+	func _init():
+		var service
+
+		__kind = PBField.new("kind", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __kind
+		data[__kind.tag] = service
+
+		__visual_style = PBField.new("visual_style", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 2, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __visual_style
+		data[__visual_style.tag] = service
+
+		__opacity = PBField.new("opacity", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 3, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __opacity
+		data[__opacity.tag] = service
+
+		__collision_mode = PBField.new("collision_mode", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 4, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __collision_mode
+		data[__collision_mode.tag] = service
+
+		var __damage_rules_default: Array[InfernalDamageRule] = []
+		__damage_rules = PBField.new("damage_rules", PB_DATA_TYPE.MESSAGE, PB_RULE.REPEATED, 5, true, __damage_rules_default)
+		service = PBServiceField.new()
+		service.field = __damage_rules
+		service.func_ref = Callable(self, "add_damage_rules")
+		data[__damage_rules.tag] = service
+
+		__default_damage_multiplier = PBField.new("default_damage_multiplier", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 6, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __default_damage_multiplier
+		data[__default_damage_multiplier.tag] = service
+
+		__default_projectile_pass_through = PBField.new("default_projectile_pass_through", PB_DATA_TYPE.BOOL, PB_RULE.OPTIONAL, 7, true, DEFAULT_VALUES_3[PB_DATA_TYPE.BOOL])
+		service = PBServiceField.new()
+		service.field = __default_projectile_pass_through
+		data[__default_projectile_pass_through.tag] = service
+
+		var __phase_windows_default: Array[InfernalPhaseWindow] = []
+		__phase_windows = PBField.new("phase_windows", PB_DATA_TYPE.MESSAGE, PB_RULE.REPEATED, 8, true, __phase_windows_default)
+		service = PBServiceField.new()
+		service.field = __phase_windows
+		service.func_ref = Callable(self, "add_phase_windows")
+		data[__phase_windows.tag] = service
+
+	var data = {}
+
+	var __kind: PBField
+	func has_kind() -> bool:
+		if __kind.value != null:
+			return true
+		return false
+	func get_kind() -> String:
+		return __kind.value
+	func clear_kind() -> void:
+		data[1].state = PB_SERVICE_STATE.UNFILLED
+		__kind.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_kind(value : String) -> void:
+		__kind.value = value
+
+	var __visual_style: PBField
+	func has_visual_style() -> bool:
+		if __visual_style.value != null:
+			return true
+		return false
+	func get_visual_style() -> String:
+		return __visual_style.value
+	func clear_visual_style() -> void:
+		data[2].state = PB_SERVICE_STATE.UNFILLED
+		__visual_style.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_visual_style(value : String) -> void:
+		__visual_style.value = value
+
+	var __opacity: PBField
+	func has_opacity() -> bool:
+		if __opacity.value != null:
+			return true
+		return false
+	func get_opacity() -> float:
+		return __opacity.value
+	func clear_opacity() -> void:
+		data[3].state = PB_SERVICE_STATE.UNFILLED
+		__opacity.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_opacity(value : float) -> void:
+		__opacity.value = value
+
+	var __collision_mode: PBField
+	func has_collision_mode() -> bool:
+		if __collision_mode.value != null:
+			return true
+		return false
+	func get_collision_mode() -> String:
+		return __collision_mode.value
+	func clear_collision_mode() -> void:
+		data[4].state = PB_SERVICE_STATE.UNFILLED
+		__collision_mode.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_collision_mode(value : String) -> void:
+		__collision_mode.value = value
+
+	var __damage_rules: PBField
+	func get_damage_rules() -> Array[InfernalDamageRule]:
+		return __damage_rules.value
+	func clear_damage_rules() -> void:
+		data[5].state = PB_SERVICE_STATE.UNFILLED
+		__damage_rules.value.clear()
+	func add_damage_rules() -> InfernalDamageRule:
+		var element = InfernalDamageRule.new()
+		__damage_rules.value.append(element)
+		return element
+
+	var __default_damage_multiplier: PBField
+	func has_default_damage_multiplier() -> bool:
+		if __default_damage_multiplier.value != null:
+			return true
+		return false
+	func get_default_damage_multiplier() -> float:
+		return __default_damage_multiplier.value
+	func clear_default_damage_multiplier() -> void:
+		data[6].state = PB_SERVICE_STATE.UNFILLED
+		__default_damage_multiplier.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_default_damage_multiplier(value : float) -> void:
+		__default_damage_multiplier.value = value
+
+	var __default_projectile_pass_through: PBField
+	func has_default_projectile_pass_through() -> bool:
+		if __default_projectile_pass_through.value != null:
+			return true
+		return false
+	func get_default_projectile_pass_through() -> bool:
+		return __default_projectile_pass_through.value
+	func clear_default_projectile_pass_through() -> void:
+		data[7].state = PB_SERVICE_STATE.UNFILLED
+		__default_projectile_pass_through.value = DEFAULT_VALUES_3[PB_DATA_TYPE.BOOL]
+	func set_default_projectile_pass_through(value : bool) -> void:
+		__default_projectile_pass_through.value = value
+
+	var __phase_windows: PBField
+	func get_phase_windows() -> Array[InfernalPhaseWindow]:
+		return __phase_windows.value
+	func clear_phase_windows() -> void:
+		data[8].state = PB_SERVICE_STATE.UNFILLED
+		__phase_windows.value.clear()
+	func add_phase_windows() -> InfernalPhaseWindow:
+		var element = InfernalPhaseWindow.new()
+		__phase_windows.value.append(element)
+		return element
+
+	func _to_string() -> String:
+		return PBPacker.message_to_string(data)
+
+	func to_bytes() -> PackedByteArray:
+		return PBPacker.pack_message(data)
+
+	func from_bytes(bytes : PackedByteArray, offset : int = 0, limit : int = -1) -> int:
+		var cur_limit = bytes.size()
+		if limit != -1:
+			cur_limit = limit
+		var result = PBPacker.unpack_message(data, bytes, offset, cur_limit)
+		if result == cur_limit:
+			if PBPacker.check_required(data):
+				if limit == -1:
+					return PB_ERR.NO_ERRORS
+			else:
+				return PB_ERR.REQUIRED_FIELDS
+		elif limit == -1 && result > 0:
+			return PB_ERR.PARSE_INCOMPLETE
+		return result
+
+class InfernalDamageRule:
+	extends RefCounted
+	func _init():
+		var service
+
+		__priority = PBField.new("priority", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __priority
+		data[__priority.tag] = service
+
+		var __elements_default: Array[String] = []
+		__elements = PBField.new("elements", PB_DATA_TYPE.STRING, PB_RULE.REPEATED, 2, true, __elements_default)
+		service = PBServiceField.new()
+		service.field = __elements
+		data[__elements.tag] = service
+
+		__delivery = PBField.new("delivery", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 3, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __delivery
+		data[__delivery.tag] = service
+
+		__required_tag = PBField.new("required_tag", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 4, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __required_tag
+		data[__required_tag.tag] = service
+
+		__damage_multiplier = PBField.new("damage_multiplier", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 5, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __damage_multiplier
+		data[__damage_multiplier.tag] = service
+
+		__projectile_pass_through = PBField.new("projectile_pass_through", PB_DATA_TYPE.BOOL, PB_RULE.OPTIONAL, 6, true, DEFAULT_VALUES_3[PB_DATA_TYPE.BOOL])
+		service = PBServiceField.new()
+		service.field = __projectile_pass_through
+		data[__projectile_pass_through.tag] = service
+
+	var data = {}
+
+	var __priority: PBField
+	func has_priority() -> bool:
+		if __priority.value != null:
+			return true
+		return false
+	func get_priority() -> int:
+		return __priority.value
+	func clear_priority() -> void:
+		data[1].state = PB_SERVICE_STATE.UNFILLED
+		__priority.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_priority(value : int) -> void:
+		__priority.value = value
+
+	var __elements: PBField
+	func get_elements() -> Array[String]:
+		return __elements.value
+	func clear_elements() -> void:
+		data[2].state = PB_SERVICE_STATE.UNFILLED
+		__elements.value.clear()
+	func add_elements(value : String) -> void:
+		__elements.value.append(value)
+
+	var __delivery: PBField
+	func has_delivery() -> bool:
+		if __delivery.value != null:
+			return true
+		return false
+	func get_delivery() -> String:
+		return __delivery.value
+	func clear_delivery() -> void:
+		data[3].state = PB_SERVICE_STATE.UNFILLED
+		__delivery.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_delivery(value : String) -> void:
+		__delivery.value = value
+
+	var __required_tag: PBField
+	func has_required_tag() -> bool:
+		if __required_tag.value != null:
+			return true
+		return false
+	func get_required_tag() -> String:
+		return __required_tag.value
+	func clear_required_tag() -> void:
+		data[4].state = PB_SERVICE_STATE.UNFILLED
+		__required_tag.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_required_tag(value : String) -> void:
+		__required_tag.value = value
+
+	var __damage_multiplier: PBField
+	func has_damage_multiplier() -> bool:
+		if __damage_multiplier.value != null:
+			return true
+		return false
+	func get_damage_multiplier() -> float:
+		return __damage_multiplier.value
+	func clear_damage_multiplier() -> void:
+		data[5].state = PB_SERVICE_STATE.UNFILLED
+		__damage_multiplier.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_damage_multiplier(value : float) -> void:
+		__damage_multiplier.value = value
+
+	var __projectile_pass_through: PBField
+	func has_projectile_pass_through() -> bool:
+		if __projectile_pass_through.value != null:
+			return true
+		return false
+	func get_projectile_pass_through() -> bool:
+		return __projectile_pass_through.value
+	func clear_projectile_pass_through() -> void:
+		data[6].state = PB_SERVICE_STATE.UNFILLED
+		__projectile_pass_through.value = DEFAULT_VALUES_3[PB_DATA_TYPE.BOOL]
+	func set_projectile_pass_through(value : bool) -> void:
+		__projectile_pass_through.value = value
+
+	func _to_string() -> String:
+		return PBPacker.message_to_string(data)
+
+	func to_bytes() -> PackedByteArray:
+		return PBPacker.pack_message(data)
+
+	func from_bytes(bytes : PackedByteArray, offset : int = 0, limit : int = -1) -> int:
+		var cur_limit = bytes.size()
+		if limit != -1:
+			cur_limit = limit
+		var result = PBPacker.unpack_message(data, bytes, offset, cur_limit)
+		if result == cur_limit:
+			if PBPacker.check_required(data):
+				if limit == -1:
+					return PB_ERR.NO_ERRORS
+			else:
+				return PB_ERR.REQUIRED_FIELDS
+		elif limit == -1 && result > 0:
+			return PB_ERR.PARSE_INCOMPLETE
+		return result
+
+class InfernalPhaseWindow:
+	extends RefCounted
+	func _init():
+		var service
+
+		__animation_id = PBField.new("animation_id", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __animation_id
+		data[__animation_id.tag] = service
+
+		__start_ms = PBField.new("start_ms", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 2, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __start_ms
+		data[__start_ms.tag] = service
+
+		__end_ms = PBField.new("end_ms", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 3, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __end_ms
+		data[__end_ms.tag] = service
+
+		__solid_pass_through = PBField.new("solid_pass_through", PB_DATA_TYPE.BOOL, PB_RULE.OPTIONAL, 4, true, DEFAULT_VALUES_3[PB_DATA_TYPE.BOOL])
+		service = PBServiceField.new()
+		service.field = __solid_pass_through
+		data[__solid_pass_through.tag] = service
+
+	var data = {}
+
+	var __animation_id: PBField
+	func has_animation_id() -> bool:
+		if __animation_id.value != null:
+			return true
+		return false
+	func get_animation_id() -> String:
+		return __animation_id.value
+	func clear_animation_id() -> void:
+		data[1].state = PB_SERVICE_STATE.UNFILLED
+		__animation_id.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_animation_id(value : String) -> void:
+		__animation_id.value = value
+
+	var __start_ms: PBField
+	func has_start_ms() -> bool:
+		if __start_ms.value != null:
+			return true
+		return false
+	func get_start_ms() -> int:
+		return __start_ms.value
+	func clear_start_ms() -> void:
+		data[2].state = PB_SERVICE_STATE.UNFILLED
+		__start_ms.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_start_ms(value : int) -> void:
+		__start_ms.value = value
+
+	var __end_ms: PBField
+	func has_end_ms() -> bool:
+		if __end_ms.value != null:
+			return true
+		return false
+	func get_end_ms() -> int:
+		return __end_ms.value
+	func clear_end_ms() -> void:
+		data[3].state = PB_SERVICE_STATE.UNFILLED
+		__end_ms.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_end_ms(value : int) -> void:
+		__end_ms.value = value
+
+	var __solid_pass_through: PBField
+	func has_solid_pass_through() -> bool:
+		if __solid_pass_through.value != null:
+			return true
+		return false
+	func get_solid_pass_through() -> bool:
+		return __solid_pass_through.value
+	func clear_solid_pass_through() -> void:
+		data[4].state = PB_SERVICE_STATE.UNFILLED
+		__solid_pass_through.value = DEFAULT_VALUES_3[PB_DATA_TYPE.BOOL]
+	func set_solid_pass_through(value : bool) -> void:
+		__solid_pass_through.value = value
+
+	func _to_string() -> String:
+		return PBPacker.message_to_string(data)
+
+	func to_bytes() -> PackedByteArray:
+		return PBPacker.pack_message(data)
+
+	func from_bytes(bytes : PackedByteArray, offset : int = 0, limit : int = -1) -> int:
+		var cur_limit = bytes.size()
+		if limit != -1:
+			cur_limit = limit
+		var result = PBPacker.unpack_message(data, bytes, offset, cur_limit)
+		if result == cur_limit:
+			if PBPacker.check_required(data):
+				if limit == -1:
+					return PB_ERR.NO_ERRORS
+			else:
+				return PB_ERR.REQUIRED_FIELDS
+		elif limit == -1 && result > 0:
+			return PB_ERR.PARSE_INCOMPLETE
+		return result
+
+class InfernalHybridRecipeDescriptor:
+	extends RefCounted
+	func _init():
+		var service
+
+		__schema_version = PBField.new("schema_version", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __schema_version
+		data[__schema_version.tag] = service
+
+		__upper_body = PBField.new("upper_body", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 2, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __upper_body
+		data[__upper_body.tag] = service
+
+		__lower_body = PBField.new("lower_body", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 3, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __lower_body
+		data[__lower_body.tag] = service
+
+		__head = PBField.new("head", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 4, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __head
+		data[__head.tag] = service
+
+		__lower_limb_count = PBField.new("lower_limb_count", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 5, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __lower_limb_count
+		data[__lower_limb_count.tag] = service
+
+		__upper_arm_count = PBField.new("upper_arm_count", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 6, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __upper_arm_count
+		data[__upper_arm_count.tag] = service
+
+	var data = {}
+
+	var __schema_version: PBField
+	func has_schema_version() -> bool:
+		if __schema_version.value != null:
+			return true
+		return false
+	func get_schema_version() -> int:
+		return __schema_version.value
+	func clear_schema_version() -> void:
+		data[1].state = PB_SERVICE_STATE.UNFILLED
+		__schema_version.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_schema_version(value : int) -> void:
+		__schema_version.value = value
+
+	var __upper_body: PBField
+	func has_upper_body() -> bool:
+		if __upper_body.value != null:
+			return true
+		return false
+	func get_upper_body() -> String:
+		return __upper_body.value
+	func clear_upper_body() -> void:
+		data[2].state = PB_SERVICE_STATE.UNFILLED
+		__upper_body.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_upper_body(value : String) -> void:
+		__upper_body.value = value
+
+	var __lower_body: PBField
+	func has_lower_body() -> bool:
+		if __lower_body.value != null:
+			return true
+		return false
+	func get_lower_body() -> String:
+		return __lower_body.value
+	func clear_lower_body() -> void:
+		data[3].state = PB_SERVICE_STATE.UNFILLED
+		__lower_body.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_lower_body(value : String) -> void:
+		__lower_body.value = value
+
+	var __head: PBField
+	func has_head() -> bool:
+		if __head.value != null:
+			return true
+		return false
+	func get_head() -> String:
+		return __head.value
+	func clear_head() -> void:
+		data[4].state = PB_SERVICE_STATE.UNFILLED
+		__head.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_head(value : String) -> void:
+		__head.value = value
+
+	var __lower_limb_count: PBField
+	func has_lower_limb_count() -> bool:
+		if __lower_limb_count.value != null:
+			return true
+		return false
+	func get_lower_limb_count() -> int:
+		return __lower_limb_count.value
+	func clear_lower_limb_count() -> void:
+		data[5].state = PB_SERVICE_STATE.UNFILLED
+		__lower_limb_count.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_lower_limb_count(value : int) -> void:
+		__lower_limb_count.value = value
+
+	var __upper_arm_count: PBField
+	func has_upper_arm_count() -> bool:
+		if __upper_arm_count.value != null:
+			return true
+		return false
+	func get_upper_arm_count() -> int:
+		return __upper_arm_count.value
+	func clear_upper_arm_count() -> void:
+		data[6].state = PB_SERVICE_STATE.UNFILLED
+		__upper_arm_count.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_upper_arm_count(value : int) -> void:
+		__upper_arm_count.value = value
+
+	func _to_string() -> String:
+		return PBPacker.message_to_string(data)
+
+	func to_bytes() -> PackedByteArray:
+		return PBPacker.pack_message(data)
+
+	func from_bytes(bytes : PackedByteArray, offset : int = 0, limit : int = -1) -> int:
+		var cur_limit = bytes.size()
+		if limit != -1:
+			cur_limit = limit
+		var result = PBPacker.unpack_message(data, bytes, offset, cur_limit)
+		if result == cur_limit:
+			if PBPacker.check_required(data):
+				if limit == -1:
+					return PB_ERR.NO_ERRORS
+			else:
+				return PB_ERR.REQUIRED_FIELDS
+		elif limit == -1 && result > 0:
+			return PB_ERR.PARSE_INCOMPLETE
+		return result
+
+class InfernalAttackOriginSample:
+	extends RefCounted
+	func _init():
+		var service
+
+		__time_ms = PBField.new("time_ms", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __time_ms
+		data[__time_ms.tag] = service
+
+		__sprite_frame_id = PBField.new("sprite_frame_id", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 2, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __sprite_frame_id
+		data[__sprite_frame_id.tag] = service
+
+		__node_id = PBField.new("node_id", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 3, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __node_id
+		data[__node_id.tag] = service
+
+		var __views_default: Array[InfernalColliderView] = []
+		__views = PBField.new("views", PB_DATA_TYPE.MESSAGE, PB_RULE.REPEATED, 4, true, __views_default)
+		service = PBServiceField.new()
+		service.field = __views
+		service.func_ref = Callable(self, "add_views")
+		data[__views.tag] = service
+
+		__active = PBField.new("active", PB_DATA_TYPE.BOOL, PB_RULE.OPTIONAL, 5, true, DEFAULT_VALUES_3[PB_DATA_TYPE.BOOL])
+		service = PBServiceField.new()
+		service.field = __active
+		data[__active.tag] = service
+
+	var data = {}
+
+	var __time_ms: PBField
+	func has_time_ms() -> bool:
+		if __time_ms.value != null:
+			return true
+		return false
+	func get_time_ms() -> int:
+		return __time_ms.value
+	func clear_time_ms() -> void:
+		data[1].state = PB_SERVICE_STATE.UNFILLED
+		__time_ms.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_time_ms(value : int) -> void:
+		__time_ms.value = value
+
+	var __sprite_frame_id: PBField
+	func has_sprite_frame_id() -> bool:
+		if __sprite_frame_id.value != null:
+			return true
+		return false
+	func get_sprite_frame_id() -> int:
+		return __sprite_frame_id.value
+	func clear_sprite_frame_id() -> void:
+		data[2].state = PB_SERVICE_STATE.UNFILLED
+		__sprite_frame_id.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_sprite_frame_id(value : int) -> void:
+		__sprite_frame_id.value = value
+
+	var __node_id: PBField
+	func has_node_id() -> bool:
+		if __node_id.value != null:
+			return true
+		return false
+	func get_node_id() -> String:
+		return __node_id.value
+	func clear_node_id() -> void:
+		data[3].state = PB_SERVICE_STATE.UNFILLED
+		__node_id.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_node_id(value : String) -> void:
+		__node_id.value = value
+
+	var __views: PBField
+	func get_views() -> Array[InfernalColliderView]:
+		return __views.value
+	func clear_views() -> void:
+		data[4].state = PB_SERVICE_STATE.UNFILLED
+		__views.value.clear()
+	func add_views() -> InfernalColliderView:
+		var element = InfernalColliderView.new()
+		__views.value.append(element)
+		return element
+
+	var __active: PBField
+	func has_active() -> bool:
+		if __active.value != null:
+			return true
+		return false
+	func get_active() -> bool:
+		return __active.value
+	func clear_active() -> void:
+		data[5].state = PB_SERVICE_STATE.UNFILLED
+		__active.value = DEFAULT_VALUES_3[PB_DATA_TYPE.BOOL]
+	func set_active(value : bool) -> void:
+		__active.value = value
+
+	func _to_string() -> String:
+		return PBPacker.message_to_string(data)
+
+	func to_bytes() -> PackedByteArray:
+		return PBPacker.pack_message(data)
+
+	func from_bytes(bytes : PackedByteArray, offset : int = 0, limit : int = -1) -> int:
+		var cur_limit = bytes.size()
+		if limit != -1:
+			cur_limit = limit
+		var result = PBPacker.unpack_message(data, bytes, offset, cur_limit)
+		if result == cur_limit:
+			if PBPacker.check_required(data):
+				if limit == -1:
+					return PB_ERR.NO_ERRORS
+			else:
+				return PB_ERR.REQUIRED_FIELDS
+		elif limit == -1 && result > 0:
+			return PB_ERR.PARSE_INCOMPLETE
+		return result
+
+class InfernalBodyMotionSample:
+	extends RefCounted
+	func _init():
+		var service
+
+		__animation_id = PBField.new("animation_id", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __animation_id
+		data[__animation_id.tag] = service
+
+		__time_ms = PBField.new("time_ms", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 2, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __time_ms
+		data[__time_ms.tag] = service
+
+		__sprite_frame_id = PBField.new("sprite_frame_id", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 3, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __sprite_frame_id
+		data[__sprite_frame_id.tag] = service
+
+		var __hurtboxes_default: Array[InfernalPosedHurtbox] = []
+		__hurtboxes = PBField.new("hurtboxes", PB_DATA_TYPE.MESSAGE, PB_RULE.REPEATED, 4, true, __hurtboxes_default)
+		service = PBServiceField.new()
+		service.field = __hurtboxes
+		service.func_ref = Callable(self, "add_hurtboxes")
+		data[__hurtboxes.tag] = service
+
+	var data = {}
+
+	var __animation_id: PBField
+	func has_animation_id() -> bool:
+		if __animation_id.value != null:
+			return true
+		return false
+	func get_animation_id() -> String:
+		return __animation_id.value
+	func clear_animation_id() -> void:
+		data[1].state = PB_SERVICE_STATE.UNFILLED
+		__animation_id.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_animation_id(value : String) -> void:
+		__animation_id.value = value
+
+	var __time_ms: PBField
+	func has_time_ms() -> bool:
+		if __time_ms.value != null:
+			return true
+		return false
+	func get_time_ms() -> int:
+		return __time_ms.value
+	func clear_time_ms() -> void:
+		data[2].state = PB_SERVICE_STATE.UNFILLED
+		__time_ms.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_time_ms(value : int) -> void:
+		__time_ms.value = value
+
+	var __sprite_frame_id: PBField
+	func has_sprite_frame_id() -> bool:
+		if __sprite_frame_id.value != null:
+			return true
+		return false
+	func get_sprite_frame_id() -> int:
+		return __sprite_frame_id.value
+	func clear_sprite_frame_id() -> void:
+		data[3].state = PB_SERVICE_STATE.UNFILLED
+		__sprite_frame_id.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_sprite_frame_id(value : int) -> void:
+		__sprite_frame_id.value = value
+
+	var __hurtboxes: PBField
+	func get_hurtboxes() -> Array[InfernalPosedHurtbox]:
+		return __hurtboxes.value
+	func clear_hurtboxes() -> void:
+		data[4].state = PB_SERVICE_STATE.UNFILLED
+		__hurtboxes.value.clear()
+	func add_hurtboxes() -> InfernalPosedHurtbox:
+		var element = InfernalPosedHurtbox.new()
+		__hurtboxes.value.append(element)
+		return element
+
+	func _to_string() -> String:
+		return PBPacker.message_to_string(data)
+
+	func to_bytes() -> PackedByteArray:
+		return PBPacker.pack_message(data)
+
+	func from_bytes(bytes : PackedByteArray, offset : int = 0, limit : int = -1) -> int:
+		var cur_limit = bytes.size()
+		if limit != -1:
+			cur_limit = limit
+		var result = PBPacker.unpack_message(data, bytes, offset, cur_limit)
+		if result == cur_limit:
+			if PBPacker.check_required(data):
+				if limit == -1:
+					return PB_ERR.NO_ERRORS
+			else:
+				return PB_ERR.REQUIRED_FIELDS
+		elif limit == -1 && result > 0:
+			return PB_ERR.PARSE_INCOMPLETE
+		return result
+
+class InfernalPosedHurtbox:
+	extends RefCounted
+	func _init():
+		var service
+
+		__node_id = PBField.new("node_id", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __node_id
+		data[__node_id.tag] = service
+
+		var __views_default: Array[InfernalColliderView] = []
+		__views = PBField.new("views", PB_DATA_TYPE.MESSAGE, PB_RULE.REPEATED, 2, true, __views_default)
+		service = PBServiceField.new()
+		service.field = __views
+		service.func_ref = Callable(self, "add_views")
+		data[__views.tag] = service
+
+	var data = {}
+
+	var __node_id: PBField
+	func has_node_id() -> bool:
+		if __node_id.value != null:
+			return true
+		return false
+	func get_node_id() -> String:
+		return __node_id.value
+	func clear_node_id() -> void:
+		data[1].state = PB_SERVICE_STATE.UNFILLED
+		__node_id.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_node_id(value : String) -> void:
+		__node_id.value = value
+
+	var __views: PBField
+	func get_views() -> Array[InfernalColliderView]:
+		return __views.value
+	func clear_views() -> void:
+		data[2].state = PB_SERVICE_STATE.UNFILLED
+		__views.value.clear()
+	func add_views() -> InfernalColliderView:
+		var element = InfernalColliderView.new()
+		__views.value.append(element)
+		return element
 
 	func _to_string() -> String:
 		return PBPacker.message_to_string(data)

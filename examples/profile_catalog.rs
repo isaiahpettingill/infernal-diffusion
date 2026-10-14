@@ -9,6 +9,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ("beetle", "beetle"),
         ("spider", "spider that shoots fire"),
         ("orc", "orc with a sword"),
+        ("stormtrooper", "stormtrooper"),
+        ("humanoid", "humanoid"),
+        ("harpy", "harpy"),
+        ("siren", "siren"),
         ("dragon", "dragon that breathes fire"),
         ("frog", "friendly frog"),
         ("mermaid", "friendly mermaid that sprays acid"),
@@ -20,8 +24,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ] {
         for (version, profile) in [("v1", GenerationProfile::V1), ("v2", GenerationProfile::V2)] {
             let path = root.join(name).join(version);
+            // Keep the baseline mermaid unmutated; seeded mutant examples live
+            // in v2_variants, where their extra anatomy is explicitly labeled.
+            let seed = if name == "mermaid" { 0 } else { 42 };
             let monster =
-                generate_with_profile(prompt, 42, &path, None, PackageFormat::Cbor, profile)?;
+                generate_with_profile(prompt, seed, &path, None, PackageFormat::Cbor, profile)?;
             std::fs::write(
                 path.join("metadata.json"),
                 serde_json::to_vec_pretty(&monster)?,

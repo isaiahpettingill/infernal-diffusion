@@ -1,7 +1,7 @@
 name: Procedural profile contracts
 on:
   push:
-    paths: ["src/**", "tests/**", "examples/**", "Cargo.toml", "Cargo.lock", ".github/workflows/core-tests.yml"]
+    paths: ["src/**", "tests/**", "examples/**", "tools/check_v1_compatibility.py", "Cargo.toml", "Cargo.lock", ".github/workflows/core-tests.yml"]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
+      fail-fast: false
       matrix:
         features: ["", "--no-default-features"]
     steps:
@@ -22,3 +23,27 @@ jobs:
       - run: cargo test --locked --release ${{ matrix.features }}
       - if: matrix.features == '--no-default-features'
         run: cargo clippy --locked --no-default-features --all-targets -- -D warnings
+
+  v1-compatibility:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: 6f0c9b31eabfdc9e1b593cf1c3621f75d63dd9f3
+          path: .v1-reference
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build candidate and pinned baseline with the same compiler
+        run: |
+          cargo build --locked --release --no-default-features --bin infernal
+          cargo build --locked --release --no-default-features --manifest-path .v1-reference/Cargo.toml --target-dir target/v1-reference --bin infernal
+      - name: Require byte-identical terrestrial V1 outputs
+        run: python tools/check_v1_compatibility.py --baseline target/v1-reference/release/infernal --candidate target/release/infernal
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v1-compatibility-report
+          path: v1-compatibility-report.json

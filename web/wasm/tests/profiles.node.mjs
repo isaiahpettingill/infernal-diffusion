@@ -28,7 +28,7 @@ test('unknown profiles reject before worker initialization', async () => {
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
-async function runWorker(profile, supportsV2) {
+async function runWorker(profile, supportsV2, type = 'generate', supportsHybrid = false) {
   const calls = [];
   const messages = [];
   const api = {
@@ -39,6 +39,9 @@ async function runWorker(profile, supportsV2) {
   if (supportsV2) api.generate_monster_with_profile = (...args) => {
     calls.push(['v2', ...args]); return { packages: [] };
   };
+  if (supportsHybrid) api.generate_hybrid_json = (...args) => {
+    calls.push(['hybrid', ...args]); return { packages: [] };
+  };
   // Substitute only the WASM module loader, preserving the worker's real request
   // validation, export selection and error serialization.
   const source = (await readFile(new URL('../worker.js', import.meta.url), 'utf8'))
@@ -46,7 +49,7 @@ async function runWorker(profile, supportsV2) {
   const self = { crossOriginIsolated: true, postMessage: message => messages.push(message) };
   vm.runInNewContext(source, { self, __api: api, WebAssembly, SharedArrayBuffer,
     navigator: { hardwareConcurrency: 4 }, setTimeout, clearTimeout });
-  await self.onmessage({ data: { id: 1, type: 'generate', prompt: 'ogre', seed: 42n, profile } });
+  await self.onmessage({ data: { id: 1, type, prompt: 'ogre', seed: 42n, profile } });
   return { calls, messages };
 }
 
@@ -74,4 +77,31 @@ test('worker independently rejects unknown profiles', async () => {
   assert.equal(calls.length, 0);
   assert.equal(messages[0].type, 'error');
   assert.match(messages[0].error.message, /Profile must be v1 or v2/);
+});
+
+
+test('structured hybrid JSON uses a dedicated explicit V2 request', async () => {
+  const recipe = { schema_version: 1, upper_body: 'HUMANOID', lower_body: 'HORSE',
+    head: 'HUMANOID', lower_limb_count: 6, upper_arm_count: 2 };
+  const result = await new RecordingGenerator().generateHybrid(recipe, '42');
+  assert.equal(result.type, 'generate_hybrid');
+  assert.equal(result.profile, 'v2');
+  assert.equal(result.seed, 42n);
+  assert.deepEqual(JSON.parse(result.prompt), recipe);
+  for (const invalid of [null, [], 2, '{bad json']) {
+    await assert.rejects(new RecordingGenerator().generateHybrid(invalid, 42));
+  }
+  await assert.rejects(new RecordingGenerator().generateHybrid(recipe, -1));
+});
+
+test('worker routes structured hybrids without falling back to a prompt parser', async () => {
+  const supported = await runWorker('v2', true, 'generate_hybrid', true);
+  assert.equal(supported.calls[0][0], 'hybrid');
+  assert.equal(supported.messages[0].type, 'result');
+  const unsupported = await runWorker('v2', true, 'generate_hybrid', false);
+  assert.equal(unsupported.calls.length, 0);
+  assert.match(unsupported.messages[0].error.message, /does not support structured hybrids/);
+  const invalid = await runWorker('v1', true, 'generate_hybrid', true);
+  assert.equal(invalid.calls.length, 0);
+  assert.match(invalid.messages[0].error.message, /requires V2/);
 });

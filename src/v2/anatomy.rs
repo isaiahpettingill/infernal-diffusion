@@ -16,8 +16,71 @@ pub fn prepare_spec(spec: &mut MonsterSpec) {
             }
         }
     }
-    if spec.affinity == "MERMAID" && !has(spec, "EXPLICIT_LEGS") {
+    if matches!(
+        spec.affinity.as_str(),
+        "CENTAUR" | "NAGA" | "LAMIA" | "ECHIDNA" | "GARUDA" | "VALKYRIE"
+    ) && spec.arm_count == 0
+        && !has(spec, "EXPLICIT_ARMS")
+    {
+        spec.arm_count = 2;
+    }
+    if matches!(spec.affinity.as_str(), "MERMAID" | "MERMAN") && !has(spec, "EXPLICIT_LEGS") {
         spec.limb_count = 0;
+    }
+}
+
+/// Sample topology before the base builder so native arm chains, attack origins
+/// and rig solvers agree on their count. An independent integer stream means
+/// adding a material draw can never change whether a specimen is a mutant.
+pub fn prepare_seeded(spec: &mut MonsterSpec, seed: u64) {
+    if !has(spec, "PROFILE_V2") || spec.mount.is_some() || has(spec, "TOPOLOGY_LOCKED_INTERNAL") {
+        return;
+    }
+    let mut bits = seed ^ 0x9e3779b97f4a7c15;
+    for byte in spec.affinity.bytes() {
+        bits = (bits ^ byte as u64).wrapping_mul(0x100000001b3);
+    }
+    bits ^= bits >> 30;
+    bits = bits.wrapping_mul(0xbf58476d1ce4e5b9);
+    bits ^= bits >> 27;
+    let humanoid = spec.body_plan == "HUMANOID"
+        || matches!(
+            spec.affinity.as_str(),
+            "TREE_MONSTER"
+                | "HARPY"
+                | "SIREN"
+                | "GARUDA"
+                | "VALKYRIE"
+                | "CENTAUR"
+                | "NAGA"
+                | "LAMIA"
+                | "ECHIDNA"
+        );
+    let organic = !matches!(spec.affinity.as_str(), "ROBOT" | "STORMTROOPER");
+    if humanoid
+        && organic
+        && spec.arm_count == 2
+        && !has(spec, "EXPLICIT_ARMS")
+        && bits.is_multiple_of(8)
+    {
+        spec.arm_count = 4;
+        for tag in ["FOUR_ARMED", "MUTANT_UNSTABLE"] {
+            if !has(spec, tag) {
+                spec.features.push(tag.into());
+            }
+        }
+    }
+    let merfolk = matches!(spec.affinity.as_str(), "MERMAID" | "MERMAN");
+    let tail_family = merfolk
+        || matches!(spec.body_plan.as_str(), "QUADRUPED" | "SERPENT")
+        || (humanoid && organic && spec.affinity != "TREE_MONSTER");
+    let chance = if merfolk { 6 } else { 12 };
+    if tail_family && !has(spec, "EXPLICIT_TAILS") && (bits >> 32).is_multiple_of(chance) {
+        for tag in ["MUTATION_EXTRA_TAIL", "EXTRA_TAIL", "MUTANT_UNSTABLE"] {
+            if !has(spec, tag) {
+                spec.features.push(tag.into());
+            }
+        }
     }
 }
 
@@ -189,7 +252,7 @@ fn mermaid(spec: &MonsterSpec, body: &mut Body, s: f32) {
         return;
     };
     // Keep the humanoid shoulders/arms; the lower silhouette is a single fish tail.
-    body.nodes[t].rx *= 0.65;
+    body.nodes[t].rx *= 0.43 + spec.bulk * 0.12;
     body.nodes[t].rz = Some(body.nodes[t].rx * 0.58);
     let material = body.nodes[t].material.clone();
     let mut parent = t;
@@ -221,7 +284,7 @@ fn mermaid(spec: &MonsterSpec, body: &mut Body, s: f32) {
             &format!("v2_fluke_{i}"),
             "FIN",
             [-12.3 * s, 20.0 * s, side * 2.7 * s],
-            [3.8 * s, 1.2 * s, 3.3 * s],
+            [4.6 * s, 2.6 * s, 3.7 * s],
             &material,
         );
         body.nodes[fin].angle = side * 0.45;
@@ -276,6 +339,354 @@ fn tree(body: &mut Body, s: f32) {
     }
 }
 
+/// A narrow waist and a weight-bearing pelvis unify humanoid hybrids without
+/// replacing their animal heads, horns, explicit limbs, materials or equipment.
+fn humanoid_hybrid(spec: &MonsterSpec, body: &mut Body, s: f32) {
+    let bird = matches!(spec.affinity.as_str(), "HARPY" | "SIREN" | "GARUDA");
+    let upright = spec.body_plan == "HUMANOID" || bird || spec.affinity == "VALKYRIE";
+    if !upright {
+        return;
+    }
+    let Some(t) = index(body, "torso") else {
+        return;
+    };
+    let torso = body.nodes[t].clone();
+    if bird {
+        body.nodes[t].rx *= 0.59 + spec.bulk * 0.12;
+        body.nodes[t].ry *= 1.08;
+        body.nodes[t].rz = Some(body.nodes[t].rx * 0.61);
+    }
+    if spec.limb_count > 0 {
+        landmark(
+            body,
+            t,
+            "v2_pelvis",
+            "LOBE",
+            [torso.x, torso.y + torso.ry * 0.69, 0.0],
+            [
+                torso.rx * if bird { 0.55 } else { 0.66 },
+                torso.ry * 0.38,
+                torso.rx * if bird { 0.36 } else { 0.48 },
+            ],
+            &torso.material,
+        );
+    }
+    for h in 0..spec.heads.min(5) {
+        if let Some(i) = index(body, &format!("head_{h}")) {
+            if bird {
+                body.nodes[i].rx *= 0.88;
+                body.nodes[i].ry *= 1.08;
+                if body.nodes[i].material.starts_with("FEATHER")
+                    && matches!(spec.affinity.as_str(), "HARPY" | "SIREN")
+                {
+                    body.nodes[i].material = "FLESH".into();
+                }
+            } else if matches!(
+                spec.affinity.as_str(),
+                "JACKAL"
+                    | "XOLOTL"
+                    | "NAGUAL"
+                    | "CROCODILE"
+                    | "MINOTAUR"
+                    | "LION"
+                    | "CAT"
+                    | "RAKSHASA"
+            ) {
+                body.nodes[i].rx *= 1.12;
+                body.nodes[i].ry *= 0.94;
+            }
+        }
+    }
+    if bird {
+        for wing in 0..2 {
+            if let Some(i) = index(body, &format!("wing_{wing}")) {
+                let sign = if wing == 0 { 1.0 } else { -1.0 };
+                move_branch(
+                    body,
+                    i,
+                    torso.x - 1.2 * s,
+                    torso.y - 4.3 * s,
+                    sign * 3.8 * s,
+                );
+                body.nodes[i].rx *= 1.06;
+            }
+        }
+    }
+    if bird || matches!(spec.affinity.as_str(), "MERMAID" | "MERMAN") {
+        for arm in 0..spec.arm_count.min(8) {
+            if let Some(i) = index(body, &format!("shoulder_{arm}")) {
+                let n = body.nodes[i].clone();
+                move_branch(body, i, n.x * 0.8, n.y, n.z.unwrap_or(0.0) * 0.9);
+            }
+        }
+        for n in &mut body.nodes {
+            if matches!(n.kind.as_str(), "SHOULDER" | "ARM") {
+                n.rx *= 0.76;
+                n.rz = n.rz.map(|r| r * 0.8);
+            }
+            if n.kind == "HAND" {
+                n.rx *= 0.86;
+            }
+        }
+    }
+    if bird
+        || matches!(
+            spec.affinity.as_str(),
+            "FAUN" | "SATYR" | "MINOTAUR" | "JACKAL" | "XOLOTL" | "NAGUAL"
+        )
+    {
+        for leg in 0..spec.limb_count.min(12) {
+            if let Some(i) = index(body, &format!("shin_{leg}")) {
+                let n = body.nodes[i].clone();
+                move_branch(body, i, n.x - 1.8 * s, n.y - 0.6 * s, n.z.unwrap_or(0.0));
+                body.nodes[i].rx *= 0.75;
+            }
+            if let Some(i) = index(body, &format!("foot_{leg}")) {
+                let n = body.nodes[i].clone();
+                move_branch(body, i, n.x + 2.0 * s, n.y, n.z.unwrap_or(0.0));
+                body.nodes[i].rx *= if bird { 1.24 } else { 1.08 };
+                body.nodes[i].ry *= 0.8;
+            }
+        }
+    }
+    // Four arms emerge from two distinct shoulder levels, not one overlapping
+    // socket. The ordinary ARM/HAND IDs retain support for attack and IK code.
+    if spec.arm_count >= 4 {
+        for arm in 2..spec.arm_count.min(8) {
+            if let Some(i) = index(body, &format!("shoulder_{arm}")) {
+                let n = body.nodes[i].clone();
+                let sign = if arm % 2 == 0 { 1.0 } else { -1.0 };
+                move_branch(body, i, n.x * 0.9, n.y + 1.2 * s, sign * 4.0 * s);
+            }
+        }
+    }
+}
+
+/// Human upper body joined to a horse or serpent substrate. The original
+/// locomotor graph stays intact; all raised head/arm details move together.
+fn composite_hybrid(spec: &MonsterSpec, body: &mut Body, s: f32) {
+    if !matches!(
+        spec.affinity.as_str(),
+        "CENTAUR" | "NAGA" | "LAMIA" | "ECHIDNA"
+    ) {
+        return;
+    }
+    let Some(t) = index(body, "torso") else {
+        return;
+    };
+    let mat = body.nodes[t].material.clone();
+    landmark(
+        body,
+        t,
+        "v2_hybrid_chest",
+        "LOBE",
+        [5.0 * s, -10.0 * s, 0.0],
+        [4.8 * s, 8.0 * s, 3.4 * s],
+        &mat,
+    );
+    for h in 0..spec.heads.min(5) {
+        let spread = (h as f32 - (spec.heads.min(5) as f32 - 1.0) * 0.5) * 5.0 * s;
+        if let Some(i) = index(body, &format!("neck_{h}")) {
+            move_branch(body, i, 5.5 * s + spread, -17.0 * s, 0.0);
+            body.nodes[i].rx *= 0.8;
+            body.nodes[i].ry = 3.2 * s;
+        }
+        if let Some(i) = index(body, &format!("head_{h}")) {
+            move_branch(body, i, 6.5 * s + spread, -22.0 * s, 0.0);
+            body.nodes[i].ry *= 1.25;
+        }
+    }
+    for arm in 0..spec.arm_count.min(8) {
+        if let Some(i) = index(body, &format!("shoulder_{arm}")) {
+            let sign = if arm % 2 == 0 { 1.0 } else { -1.0 };
+            move_branch(
+                body,
+                i,
+                5.0 * s + sign * 3.4 * s,
+                (-13.0 + (arm / 2) as f32 * 3.8) * s,
+                sign * 3.3 * s,
+            );
+        }
+    }
+}
+
+/// A secondary tail is a full tapered rig with its own descendants. Clone only
+/// native tail anatomy, never weapons, hybrid heads, or unrelated appendages.
+fn extra_tail(spec: &MonsterSpec, body: &mut Body, s: f32) {
+    if !has(spec, "MUTATION_EXTRA_TAIL") || has(spec, "EXPLICIT_TAILS") {
+        return;
+    }
+    let Some(t) = index(body, "torso") else {
+        return;
+    };
+    let merfolk = matches!(spec.affinity.as_str(), "MERMAID" | "MERMAN");
+    let source = if merfolk {
+        index(body, "v2_fish_tail_0")
+    } else {
+        body.nodes
+            .iter()
+            .position(|n| n.kind == "TAIL" && n.parent == Some(t))
+    };
+    if let Some(root) = source {
+        let old = body.nodes.clone();
+        let mut remap = vec![None; old.len()];
+        for (i, n) in old.iter().enumerate().skip(root) {
+            let selected = i == root || n.parent.and_then(|p| remap[p]).is_some();
+            if !selected
+                || !matches!(
+                    n.kind.as_str(),
+                    "TAIL" | "FIN" | "LOBE" | "SHELL" | "STINGER"
+                )
+            {
+                continue;
+            }
+            // At most twelve segments/details keep topology and bake cost bounded.
+            if remap.iter().filter(|v| v.is_some()).count() >= 12 {
+                break;
+            }
+            let mut node = n.clone();
+            node.id = format!("v2_extra_tail_{}", n.id);
+            node.parent = Some(n.parent.and_then(|p| remap[p]).unwrap_or(t));
+            node.x = old[t].x + (n.x - old[t].x) * 0.88;
+            node.y = old[t].y + (n.y - old[t].y) * 0.92;
+            node.z = Some(n.z.unwrap_or(0.0) + 3.8 * s);
+            node.rx *= 0.82;
+            node.ry *= 0.82;
+            node.rz = Some(n.rz.unwrap_or(n.rx.min(n.ry) * 0.85) * 0.82);
+            remap[i] = Some(body.nodes.len());
+            body.nodes.push(node);
+        }
+        // Separate paired roots while leaving every child's branch offset intact.
+        let n = body.nodes[root].clone();
+        move_branch(body, root, n.x, n.y, n.z.unwrap_or(0.0) - 1.8 * s);
+    } else {
+        let mat = body.nodes[t].material.clone();
+        let mut parent = t;
+        for i in 0..5 {
+            let taper = 1.0 - i as f32 * 0.16;
+            parent = landmark(
+                body,
+                parent,
+                &format!("v2_extra_tail_{i}"),
+                "TAIL",
+                [
+                    -3.0 * s - i as f32 * 3.0 * s,
+                    4.0 * s + i as f32 * 0.7 * s,
+                    2.0 * s,
+                ],
+                [3.0 * s * taper, 2.3 * s * taper, 2.0 * s * taper],
+                &mat,
+            );
+        }
+    }
+}
+
+/// Broken-looking off-axis bone growth is decorative; the functional joint
+/// centers and bone lengths stay intact so the skeleton remains animatable.
+fn skeletal_spurs(spec: &MonsterSpec, body: &mut Body, seed: u64, s: f32) {
+    if !matches!(spec.affinity.as_str(), "SKELETON" | "TZITZIMITL")
+        && !spec.materials.iter().any(|m| m == "BONE")
+    {
+        return;
+    }
+    let candidates: Vec<_> = body
+        .nodes
+        .iter()
+        .enumerate()
+        .filter(|(_, n)| matches!(n.kind.as_str(), "ARM" | "LIMB" | "SHIN"))
+        .map(|(i, _)| i)
+        .collect();
+    let mut added = 0;
+    for (rank, parent) in candidates.into_iter().enumerate() {
+        if added >= 4 {
+            break;
+        }
+        let bits = seed
+            .wrapping_add(rank as u64 * 0x9e37)
+            .wrapping_mul(0xbf58476d1ce4e5b9);
+        if (bits >> 27).is_multiple_of(3) {
+            continue;
+        }
+        let n = body.nodes[parent].clone();
+        let sign = if rank % 2 == 0 { 1.0 } else { -1.0 };
+        let spur = landmark(
+            body,
+            parent,
+            &format!("v2_bone_spur_{added}"),
+            "BONE_SPUR",
+            [
+                n.x + sign * 0.45 * s,
+                n.y - 0.5 * s,
+                n.z.unwrap_or(0.0) + sign * 0.6 * s,
+            ],
+            [0.38 * s, (1.2 + (bits % 7) as f32 * 0.1) * s, 0.32 * s],
+            "BONE",
+        );
+        body.nodes[spur].angle = sign * (0.25 + (bits % 5) as f32 * 0.12);
+        body.nodes[spur].feature = true;
+        body.nodes[spur].density = 1.35;
+        added += 1;
+    }
+}
+
+/// Three continuous, bounded shade tendrils coexist with the base silhouette.
+/// Their rest skeleton is fixed; combat supplies the smooth lash deformation.
+fn shade_tendrils(spec: &MonsterSpec, body: &mut Body, s: f32) {
+    if !has(spec, "PROFILE_V2")
+        || !has(spec, "SHADE")
+        || body.nodes.is_empty()
+        || body
+            .nodes
+            .iter()
+            .any(|n| n.id.starts_with("v2_shade_tendril_"))
+    {
+        return;
+    }
+    remove_where(body, |n| n.kind == "WEAPON");
+    let torso = body.nodes[0].clone();
+    for chain in 0..3 {
+        let lateral = match chain {
+            0 => -1.0,
+            1 => 1.0,
+            _ => 0.0,
+        };
+        let mut parent = 0;
+        for segment in 0..5 {
+            let i = segment as f32;
+            let radius = (1.4 - i * 0.23) * s;
+            parent = landmark(
+                body,
+                parent,
+                &format!("v2_shade_tendril_{chain}_{segment}"),
+                "TENTACLE",
+                [
+                    torso.x - torso.rx * 0.4 - i * 2.7 * s,
+                    torso.y + ((chain as f32 - 1.0) * 1.6 + (i * 0.7).sin() * 1.5) * s,
+                    lateral * (2.5 + i * 0.7) * s,
+                ],
+                [radius, radius, radius],
+                "SPECTRAL",
+            );
+            body.nodes[parent].density = 0.12;
+        }
+    }
+}
+
+fn recompute_mass(body: &mut Body) {
+    let mut mass = 0.0;
+    let mut weighted = (0.0, 0.0);
+    for n in &body.nodes {
+        let m = std::f32::consts::PI * n.rx * n.ry * n.density;
+        mass += m;
+        weighted.0 += m * n.x;
+        weighted.1 += m * n.y;
+    }
+    body.mass = mass;
+    if mass > 0.0 {
+        body.com = (weighted.0 / mass, weighted.1 / mass);
+    }
+}
+
 /// Apply modest, coherent shape changes across all families, then defining
 /// species landmarks. Explicit modifiers and counts remain on the same graph.
 pub fn refine(spec: &MonsterSpec, body: &mut Body, _seed: u64) {
@@ -285,6 +696,8 @@ pub fn refine(spec: &MonsterSpec, body: &mut Body, _seed: u64) {
     // Composite mounts retain their separately built anatomy and attachment graph.
     // Do not reshape the mount as though it were the rider's species.
     if spec.mount.is_some() {
+        shade_tendrils(spec, body, crate::anatomy::morphology_scale(spec.size));
+        recompute_mass(body);
         return;
     }
     if spec.secondary_affinities.is_empty() {
@@ -374,12 +787,15 @@ pub fn refine(spec: &MonsterSpec, body: &mut Body, _seed: u64) {
             _ => {}
         }
     }
+    humanoid_hybrid(spec, body, s);
+    composite_hybrid(spec, body, s);
     match spec.affinity.as_str() {
         "FROG" | "TOAD" => frog(spec, body, s),
-        "MERMAID" => mermaid(spec, body, s),
+        "MERMAID" | "MERMAN" => mermaid(spec, body, s),
         "TREE_MONSTER" => tree(body, s),
         _ => {}
     }
+    extra_tail(spec, body, s);
     if has(spec, "FRIENDLY_LURE") {
         for n in &mut body.nodes {
             if n.kind == "HEAD" {
@@ -392,19 +808,11 @@ pub fn refine(spec: &MonsterSpec, body: &mut Body, _seed: u64) {
             }
         }
     }
+    super::hybrid::assemble(spec, body, _seed);
+    skeletal_spurs(spec, body, _seed, s);
+    shade_tendrils(spec, body, s);
     // Recompute the same 2D mass convention used by V1 after shape changes.
-    let mut mass = 0.0;
-    let mut weighted = (0.0, 0.0);
-    for n in &body.nodes {
-        let m = std::f32::consts::PI * n.rx * n.ry * n.density;
-        mass += m;
-        weighted.0 += m * n.x;
-        weighted.1 += m * n.y;
-    }
-    body.mass = mass;
-    if mass > 0.0 {
-        body.com = (weighted.0 / mass, weighted.1 / mass);
-    }
+    recompute_mass(body);
 }
 
 #[cfg(test)]
@@ -547,5 +955,218 @@ mod tests {
         refine(&s, &mut b, 12);
         assert_eq!(b.nodes.iter().filter(|n| n.kind == "FOOT").count(), 4);
         assert_eq!(b.nodes.iter().filter(|n| n.kind == "HEAD").count(), 3);
+    }
+    fn seeded(prompt: &str, seed: u64) -> (MonsterSpec, Body) {
+        let mut spec = crate::parser::parse_vocabulary(prompt);
+        spec.features.push("PROFILE_V2".into());
+        prepare_spec(&mut spec);
+        prepare_seeded(&mut spec, seed);
+        let mut body = crate::anatomy::build(&spec, &mut ChaCha8Rng::seed_from_u64(seed));
+        refine(&spec, &mut body, seed);
+        (spec, body)
+    }
+    #[test]
+    fn topology_novelty_is_occasional_seeded_and_bounded() {
+        let mut arms = 0;
+        let mut tails = 0;
+        for seed in 0..128 {
+            let (spec, body) = seeded("mermaid", seed);
+            let (again, copy) = seeded("mermaid", seed);
+            assert_eq!(spec.arm_count, again.arm_count);
+            assert_eq!(format!("{body:?}"), format!("{copy:?}"));
+            assert_eq!(
+                body.nodes.iter().filter(|n| n.kind == "HAND").count(),
+                spec.arm_count as usize
+            );
+            if has(&spec, "FOUR_ARMED") {
+                arms += 1;
+                assert_eq!(spec.arm_count, 4);
+            }
+            if has(&spec, "EXTRA_TAIL") {
+                tails += 1;
+                assert_eq!(
+                    body.nodes
+                        .iter()
+                        .filter(|n| n.id.starts_with("v2_extra_tail_") && n.kind == "TAIL")
+                        .count(),
+                    5
+                );
+                assert_eq!(
+                    body.nodes
+                        .iter()
+                        .filter(|n| n.id.starts_with("v2_extra_tail_") && n.kind == "FIN")
+                        .count(),
+                    2
+                );
+            }
+            let mut ids = std::collections::HashSet::new();
+            for (i, n) in body.nodes.iter().enumerate() {
+                assert!(ids.insert(&n.id));
+                assert!(n.parent.map(|p| p < i).unwrap_or(i == 0));
+                assert!(n.x.is_finite() && n.y.is_finite() && n.rx > 0.0 && n.ry > 0.0);
+            }
+            assert!(body.nodes.len() < 100);
+        }
+        assert!((4..40).contains(&arms), "four-arm samples: {arms}");
+        assert!((6..48).contains(&tails), "extra-tail samples: {tails}");
+    }
+    #[test]
+    fn explicit_counts_and_legacy_specs_never_receive_random_topology() {
+        for seed in 0..128 {
+            let mut spec = crate::parser::parse_vocabulary("mermaid");
+            let original = format!("{spec:?}");
+            prepare_seeded(&mut spec, seed);
+            assert_eq!(original, format!("{spec:?}"), "V1 changed");
+            spec.features
+                .extend(["PROFILE_V2", "EXPLICIT_ARMS", "EXPLICIT_TAILS"].map(str::to_owned));
+            prepare_seeded(&mut spec, seed);
+            assert_eq!(spec.arm_count, 2);
+            assert!(!has(&spec, "FOUR_ARMED") && !has(&spec, "EXTRA_TAIL"));
+        }
+    }
+    #[test]
+    fn companion_topology_lock_preserves_native_counts_for_all_seeds() {
+        for seed in 0..128 {
+            let mut spec = crate::parser::parse_vocabulary("orc");
+            spec.features
+                .extend(["PROFILE_V2", "TOPOLOGY_LOCKED_INTERNAL"].map(str::to_owned));
+            let original = format!("{spec:?}");
+            prepare_seeded(&mut spec, seed);
+            assert_eq!(original, format!("{spec:?}"));
+        }
+    }
+    #[test]
+    fn humanoid_hybrids_keep_native_landmarks_and_functional_rigs() {
+        for prompt in [
+            "harpy", "siren", "garuda", "satyr", "faun", "minotaur", "anubis", "sobek", "mermaid",
+            "merman", "goblin", "asura",
+        ] {
+            let (spec, body) = seeded(prompt, 19);
+            if spec.limb_count > 0 && spec.affinity != "CENTAUR" {
+                assert!(index(&body, "v2_pelvis").is_some(), "{prompt}");
+            }
+            if matches!(spec.affinity.as_str(), "HARPY" | "SIREN" | "GARUDA") {
+                assert_eq!(body.nodes.iter().filter(|n| n.kind == "WING").count(), 2);
+                assert!(body.nodes[index(&body, "wing_0").unwrap()].z.unwrap() > 0.0);
+                assert!(body.nodes[index(&body, "wing_1").unwrap()].z.unwrap() < 0.0);
+            }
+            let (_, _, _, poses) = crate::animation::make(&spec, &body);
+            for pose in poses {
+                assert_eq!(pose.physical_positions.len(), body.nodes.len());
+                assert!(
+                    pose.physical_positions
+                        .iter()
+                        .all(|(x, y, a)| x.is_finite() && y.is_finite() && a.is_finite()),
+                    "{prompt}"
+                );
+            }
+        }
+    }
+    #[test]
+    fn mutated_merfolk_tails_remain_connected_through_swimming() {
+        let seed = (0..128)
+            .find(|&seed| has(&seeded("mermaid", seed).0, "EXTRA_TAIL"))
+            .unwrap();
+        let (spec, body) = seeded("mermaid", seed);
+        let (_, _, _, poses) = crate::animation::make(&spec, &body);
+        for pose in poses
+            .iter()
+            .filter(|p| matches!(p.clip_id.as_str(), "move" | "fast_move" | "water_hover"))
+        {
+            for (i, n) in body
+                .nodes
+                .iter()
+                .enumerate()
+                .filter(|(_, n)| n.id.starts_with("v2_extra_tail_"))
+            {
+                let parent = n.parent.unwrap();
+                let rest = (n.x - body.nodes[parent].x).hypot(n.y - body.nodes[parent].y);
+                let a = pose.physical_positions[i];
+                let b = pose.physical_positions[parent];
+                assert!(((a.0 - b.0).hypot(a.1 - b.1) - rest).abs() < 0.01);
+            }
+        }
+    }
+    #[test]
+    fn tree_and_named_humanoids_can_mutate_without_losing_identity() {
+        let (spec, tree) = seeded("tree monster", 1);
+        assert!(has(&spec, "FOUR_ARMED"));
+        assert_eq!(tree.nodes.iter().filter(|n| n.kind == "HAND").count(), 4);
+        assert_eq!(
+            tree.nodes
+                .iter()
+                .filter(|n| n.id.starts_with("canopy_"))
+                .count(),
+            5
+        );
+        assert!(!has(&spec, "EXTRA_TAIL"));
+        for prompt in ["anime girl", "hitler"] {
+            assert!(
+                (0..128).any(|seed| has(&seeded(prompt, seed).0, "FOUR_ARMED")),
+                "{prompt}"
+            );
+        }
+    }
+    #[test]
+    fn jumbled_skeleton_bones_are_bounded_attached_and_seeded() {
+        let (_, a) = seeded("skeleton", 13);
+        let (_, b) = seeded("skeleton", 13);
+        assert_eq!(format!("{a:?}"), format!("{b:?}"));
+        let spurs: Vec<_> = a.nodes.iter().filter(|n| n.kind == "BONE_SPUR").collect();
+        assert!((1..=4).contains(&spurs.len()));
+        assert!(spurs
+            .iter()
+            .all(|n| n.parent.is_some() && n.material == "BONE" && n.rx > 0.0));
+        assert_eq!(a.nodes.iter().filter(|n| n.kind == "FOOT").count(), 2);
+    }
+    #[test]
+    fn merfolk_and_bird_humanoids_keep_a_slender_baseline() {
+        for prompt in ["mermaid", "merman", "harpy", "siren"] {
+            let (_, body) = build(prompt);
+            let torso = &body.nodes[index(&body, "torso").unwrap()];
+            assert!(torso.rx / torso.ry < 0.95, "{prompt}: broad baseline");
+        }
+    }
+    #[test]
+    fn shade_has_three_connected_tendrils_for_every_body_family() {
+        for prompt in [
+            "goblin",
+            "wolf",
+            "spider",
+            "snake",
+            "mermaid",
+            "tree monster",
+            "ghost",
+            "slime",
+            "tank",
+        ] {
+            let mut spec = crate::parser::parse_vocabulary(prompt);
+            spec.features.extend(["PROFILE_V2".into(), "SHADE".into()]);
+            prepare_spec(&mut spec);
+            let mut body = crate::anatomy::build(&spec, &mut ChaCha8Rng::seed_from_u64(7));
+            refine(&spec, &mut body, 7);
+            assert_eq!(
+                body.nodes
+                    .iter()
+                    .filter(|n| n.id.starts_with("v2_shade_tendril_"))
+                    .count(),
+                15,
+                "{prompt}"
+            );
+            for chain in 0..3 {
+                for segment in 0..5 {
+                    let i = index(&body, &format!("v2_shade_tendril_{chain}_{segment}")).unwrap();
+                    assert_eq!(
+                        body.nodes[i].parent,
+                        Some(if segment == 0 {
+                            0
+                        } else {
+                            index(&body, &format!("v2_shade_tendril_{chain}_{}", segment - 1))
+                                .unwrap()
+                        })
+                    );
+                }
+            }
+        }
     }
 }

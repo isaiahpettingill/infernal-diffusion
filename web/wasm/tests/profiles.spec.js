@@ -33,3 +33,30 @@ test('actual WASM keeps default V1 and explicitly generates deterministic V2', a
   expect(result.bytes).toBe(result.expectedBytes);
   expect(result.invalid).toContain('Profile must be v1 or v2');
 });
+
+
+test('actual WASM validates and generates structured hybrid recipes', async ({ page }) => {
+  await page.goto('/');
+  const result = await page.evaluate(async () => {
+    const { MonsterGenerator } = await import('./client.js');
+    const generator = new MonsterGenerator();
+    const recipe = { schema_version: 1, upper_body: 'STORMTROOPER', lower_body: 'MERMAID',
+      head: 'STORMTROOPER', lower_limb_count: 0, upper_arm_count: 2 };
+    try {
+      const generated = await generator.generateHybrid(recipe, 42n);
+      const rejected = [];
+      for (const invalid of [{ ...recipe, schema_version: 99 }, { ...recipe, unexpected: true }]) {
+        try { await generator.generateHybrid(invalid, 42n); rejected.push(false); }
+        catch { rejected.push(true); }
+      }
+      const root = generated.packages.at(-1);
+      return { version: root.monster.v2_profile.profile_version,
+        source: JSON.parse(root.monster.generation.prompt),
+        bytes: root.sprites.rgba.length, rejected };
+    } finally { generator.dispose(); }
+  });
+  expect(result.version).toBe(1);
+  expect(result.source.lower_body).toBe('MERMAID');
+  expect(result.bytes).toBeGreaterThan(0);
+  expect(result.rejected).toEqual([true, true]);
+});

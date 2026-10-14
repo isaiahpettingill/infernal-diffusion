@@ -28,6 +28,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     if profile == infernal_diffusion::GenerationProfile::V2 {
         spec = infernal_diffusion::v2::interpret(spec, &args[0]);
         infernal_diffusion::v2::prepare(&mut spec);
+        infernal_diffusion::v2::anatomy::prepare_seeded(&mut spec, seed);
     }
     let mut rng = ChaCha8Rng::seed_from_u64(seed);
     let mut body = anatomy::build(&spec, &mut rng);

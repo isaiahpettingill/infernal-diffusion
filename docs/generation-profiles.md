@@ -82,3 +82,7 @@ the attack, returning to idle or movement displays the friendly appearance again
 This is not a persistent mutation flag or a built-in AI state machine. An engine
 may keep combat active and choose its own clips; persistent hostile idle/movement
 would require additional assets and engine-maintained state.
+
+For explicit cross-species anatomy assembly, see [structured hybrid recipes](hybrid-recipes.md).
+Spectral interactions are specified separately in the [spectral damage and phasing contract](spectral-contract.md).
+Animated hit and emission origins use [posed attack-origin tracks](attack-origin-tracks.md).

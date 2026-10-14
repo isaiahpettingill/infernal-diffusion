@@ -391,6 +391,14 @@ pub struct V2Profile {
     pub attack_patterns: Vec<AttackPatternDescriptor>,
     #[prost(message, optional, tag = "6")]
     pub lure: Option<LureDescriptor>,
+    #[prost(message, optional, tag = "7")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spectral: Option<SpectralDescriptor>,
+    #[prost(message, optional, tag = "8")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hybrid: Option<HybridRecipeDescriptor>,
+    #[prost(message, repeated, tag = "9")]
+    pub body_motion_samples: Vec<BodyMotionSample>,
 }
 
 #[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
@@ -410,6 +418,8 @@ pub struct AttackPatternDescriptor {
     pub spread_deg: f32,
     #[prost(string, tag = "7")]
     pub aim_mode: String,
+    #[prost(message, repeated, tag = "8")]
+    pub motion_samples: Vec<AttackOriginSample>,
 }
 
 #[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
@@ -437,4 +447,108 @@ pub struct LureDescriptor {
     pub revealed_state: String,
     #[prost(string, tag = "11")]
     pub reset_policy: String,
+}
+
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct SpectralDescriptor {
+    #[prost(string, tag = "1")]
+    pub kind: String,
+    #[prost(string, tag = "2")]
+    pub visual_style: String,
+    #[prost(float, tag = "3")]
+    pub opacity: f32,
+    #[prost(string, tag = "4")]
+    pub collision_mode: String,
+    #[prost(message, repeated, tag = "5")]
+    pub damage_rules: Vec<DamageRule>,
+    #[prost(float, tag = "6")]
+    pub default_damage_multiplier: f32,
+    #[prost(bool, tag = "7")]
+    pub default_projectile_pass_through: bool,
+    #[prost(message, repeated, tag = "8")]
+    pub phase_windows: Vec<PhaseWindow>,
+}
+
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct DamageRule {
+    #[prost(uint32, tag = "1")]
+    pub priority: u32,
+    #[prost(string, repeated, tag = "2")]
+    pub elements: Vec<String>,
+    #[prost(string, tag = "3")]
+    pub delivery: String,
+    #[prost(string, tag = "4")]
+    pub required_tag: String,
+    #[prost(float, tag = "5")]
+    pub damage_multiplier: f32,
+    #[prost(bool, tag = "6")]
+    pub projectile_pass_through: bool,
+}
+
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct PhaseWindow {
+    #[prost(string, tag = "1")]
+    pub animation_id: String,
+    #[prost(uint32, tag = "2")]
+    pub start_ms: u32,
+    #[prost(uint32, tag = "3")]
+    pub end_ms: u32,
+    #[prost(bool, tag = "4")]
+    pub solid_pass_through: bool,
+}
+
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct HybridRecipeDescriptor {
+    #[prost(uint32, tag = "1")]
+    pub schema_version: u32,
+    #[prost(string, tag = "2")]
+    pub upper_body: String,
+    #[prost(string, tag = "3")]
+    pub lower_body: String,
+    #[prost(string, tag = "4")]
+    pub head: String,
+    #[prost(uint32, tag = "5")]
+    pub lower_limb_count: u32,
+    #[prost(uint32, tag = "6")]
+    pub upper_arm_count: u32,
+}
+
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct AttackOriginSample {
+    #[prost(uint32, tag = "1")]
+    pub time_ms: u32,
+    #[prost(uint32, tag = "2")]
+    pub sprite_frame_id: u32,
+    #[prost(string, tag = "3")]
+    pub node_id: String,
+    #[prost(message, repeated, tag = "4")]
+    pub views: Vec<ColliderView>,
+    #[prost(bool, tag = "5")]
+    pub active: bool,
+}
+
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct BodyMotionSample {
+    #[prost(string, tag = "1")]
+    pub animation_id: String,
+    #[prost(uint32, tag = "2")]
+    pub time_ms: u32,
+    #[prost(uint32, tag = "3")]
+    pub sprite_frame_id: u32,
+    #[prost(message, repeated, tag = "4")]
+    pub hurtboxes: Vec<PosedHurtbox>,
+}
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct PosedHurtbox {
+    #[prost(string, tag = "1")]
+    pub node_id: String,
+    #[prost(message, repeated, tag = "2")]
+    pub views: Vec<ColliderView>,
 }

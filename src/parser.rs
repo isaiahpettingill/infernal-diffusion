@@ -523,11 +523,14 @@ fn parse_vocabulary_clause(prompt: &str) -> MonsterSpec {
         .iter()
         .filter(|(start, _, _)| *start < boundary)
         .collect::<Vec<_>>();
-    let has_stormtrooper = subject.iter().any(|(_, _, (_, _, affinity))| *affinity == "STORMTROOPER");
+    let has_stormtrooper = subject
+        .iter()
+        .any(|(_, _, (_, _, affinity))| *affinity == "STORMTROOPER");
     let found = subject
         .iter()
-        .find(|(_, _, (_, _, affinity))| !modifier_affinity(affinity)
-            && !(has_stormtrooper && *affinity == "HUMANOID"))
+        .find(|(_, _, (_, _, affinity))| {
+            !modifier_affinity(affinity) && !(has_stormtrooper && *affinity == "HUMANOID")
+        })
         .copied()
         .or_else(|| subject.first().copied())
         .or_else(|| {
@@ -1760,8 +1763,16 @@ mod vocabulary_tests {
 mod destructos_recipe_tests {
     #[test]
     fn stormtrooper_recipe_is_white_armored_biped_with_blaster() {
-        let spec = super::parse_vocabulary("stormtrooper white armored helmeted humanoid wielding a laser blaster");
-        assert_eq!(super::parse_vocabulary("a white armored helmeted humanoid stormtrooper carrying a black blaster").affinity, "STORMTROOPER");
+        let spec = super::parse_vocabulary(
+            "stormtrooper white armored helmeted humanoid wielding a laser blaster",
+        );
+        assert_eq!(
+            super::parse_vocabulary(
+                "a white armored helmeted humanoid stormtrooper carrying a black blaster"
+            )
+            .affinity,
+            "STORMTROOPER"
+        );
         assert_eq!(spec.affinity, "STORMTROOPER");
         assert!(spec.secondary_affinities.is_empty());
         assert_eq!(spec.body_plan, "HUMANOID");
@@ -1772,8 +1783,14 @@ mod destructos_recipe_tests {
         assert_eq!(spec.attack.concept, "LASER");
         use rand::SeedableRng;
         let body = crate::anatomy::build(&spec, &mut rand_chacha::ChaCha8Rng::seed_from_u64(42));
-        assert!(body.nodes.iter().any(|n| n.kind == "HEAD" && n.material == "ARMOR_WHITE"));
-        assert!(body.nodes.iter().any(|n| n.kind == "WEAPON" && n.material == "UNDERSUIT_BLACK"));
+        assert!(body
+            .nodes
+            .iter()
+            .any(|n| n.kind == "HEAD" && n.material == "ARMOR_WHITE"));
+        assert!(body
+            .nodes
+            .iter()
+            .any(|n| n.kind == "WEAPON" && n.material == "UNDERSUIT_BLACK"));
         assert!(!body.nodes.iter().any(|n| n.id.starts_with("hybrid_")));
     }
 }

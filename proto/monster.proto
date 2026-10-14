@@ -171,6 +171,9 @@ message V2Profile {
   repeated string modifiers = 4;
   repeated AttackPatternDescriptor attack_patterns = 5;
   LureDescriptor lure = 6;
+  SpectralDescriptor spectral = 7;
+  HybridRecipeDescriptor hybrid = 8;
+  repeated BodyMotionSample body_motion_samples = 9;
 }
 
 message AttackPatternDescriptor {
@@ -181,6 +184,7 @@ message AttackPatternDescriptor {
   uint32 interval_ms = 5;
   float spread_deg = 6;
   string aim_mode = 7;
+  repeated AttackOriginSample motion_samples = 8;
 }
 
 message LureDescriptor {
@@ -195,4 +199,60 @@ message LureDescriptor {
   string distant_state = 9;
   string revealed_state = 10;
   string reset_policy = 11;
+}
+
+// Damage rules are evaluated by descending priority, first match wins.
+// Every nonempty criterion must match; listed elements are alternatives.
+message SpectralDescriptor {
+  string kind = 1;
+  string visual_style = 2;
+  float opacity = 3;
+  string collision_mode = 4;
+  repeated DamageRule damage_rules = 5;
+  float default_damage_multiplier = 6;
+  bool default_projectile_pass_through = 7;
+  repeated PhaseWindow phase_windows = 8;
+}
+message DamageRule {
+  uint32 priority = 1;
+  repeated string elements = 2;
+  string delivery = 3;
+  string required_tag = 4;
+  float damage_multiplier = 5;
+  bool projectile_pass_through = 6;
+}
+message PhaseWindow {
+  string animation_id = 1;
+  uint32 start_ms = 2;
+  uint32 end_ms = 3;
+  bool solid_pass_through = 4;
+}
+
+message HybridRecipeDescriptor {
+  uint32 schema_version = 1;
+  string upper_body = 2;
+  string lower_body = 3;
+  string head = 4;
+  uint32 lower_limb_count = 5;
+  uint32 upper_arm_count = 6;
+}
+
+// Baked posed hit-origin tracks, not autonomous movement instructions.
+message AttackOriginSample {
+  uint32 time_ms = 1;
+  uint32 sprite_frame_id = 2;
+  string node_id = 3;
+  repeated ColliderView views = 4;
+  bool active = 5;
+}
+
+message BodyMotionSample {
+  string animation_id = 1;
+  uint32 time_ms = 2;
+  uint32 sprite_frame_id = 3;
+  repeated PosedHurtbox hurtboxes = 4;
+}
+message PosedHurtbox {
+  string node_id = 1;
+  repeated ColliderView views = 2;
 }

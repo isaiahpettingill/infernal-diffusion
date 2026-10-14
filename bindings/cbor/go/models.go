@@ -214,6 +214,9 @@ type V2Profile struct {
     Modifiers []string `cbor:"modifiers"`
     AttackPatterns []AttackPatternDescriptor `cbor:"attack_patterns"`
     Lure *LureDescriptor `cbor:"lure"`
+    Spectral *SpectralDescriptor `cbor:"spectral"`
+    Hybrid *HybridRecipeDescriptor `cbor:"hybrid"`
+    BodyMotionSamples []BodyMotionSample `cbor:"body_motion_samples"`
 }
 
 type AttackPatternDescriptor struct {
@@ -224,6 +227,7 @@ type AttackPatternDescriptor struct {
     IntervalMs uint32 `cbor:"interval_ms"`
     SpreadDeg float32 `cbor:"spread_deg"`
     AimMode string `cbor:"aim_mode"`
+    MotionSamples []AttackOriginSample `cbor:"motion_samples"`
 }
 
 type LureDescriptor struct {
@@ -238,4 +242,60 @@ type LureDescriptor struct {
     DistantState string `cbor:"distant_state"`
     RevealedState string `cbor:"revealed_state"`
     ResetPolicy string `cbor:"reset_policy"`
+}
+
+type SpectralDescriptor struct {
+    Kind string `cbor:"kind"`
+    VisualStyle string `cbor:"visual_style"`
+    Opacity float32 `cbor:"opacity"`
+    CollisionMode string `cbor:"collision_mode"`
+    DamageRules []DamageRule `cbor:"damage_rules"`
+    DefaultDamageMultiplier float32 `cbor:"default_damage_multiplier"`
+    DefaultProjectilePassThrough bool `cbor:"default_projectile_pass_through"`
+    PhaseWindows []PhaseWindow `cbor:"phase_windows"`
+}
+
+type DamageRule struct {
+    Priority uint32 `cbor:"priority"`
+    Elements []string `cbor:"elements"`
+    Delivery string `cbor:"delivery"`
+    RequiredTag string `cbor:"required_tag"`
+    DamageMultiplier float32 `cbor:"damage_multiplier"`
+    ProjectilePassThrough bool `cbor:"projectile_pass_through"`
+}
+
+type PhaseWindow struct {
+    AnimationID string `cbor:"animation_id"`
+    StartMs uint32 `cbor:"start_ms"`
+    EndMs uint32 `cbor:"end_ms"`
+    SolidPassThrough bool `cbor:"solid_pass_through"`
+}
+
+type HybridRecipeDescriptor struct {
+    SchemaVersion uint32 `cbor:"schema_version"`
+    UpperBody string `cbor:"upper_body"`
+    LowerBody string `cbor:"lower_body"`
+    Head string `cbor:"head"`
+    LowerLimbCount uint32 `cbor:"lower_limb_count"`
+    UpperArmCount uint32 `cbor:"upper_arm_count"`
+}
+
+type AttackOriginSample struct {
+    TimeMs uint32 `cbor:"time_ms"`
+    SpriteFrameID uint32 `cbor:"sprite_frame_id"`
+    NodeID string `cbor:"node_id"`
+    Views []ColliderView `cbor:"views"`
+    Active bool `cbor:"active"`
+}
+
+type BodyMotionSample struct {
+    AnimationID string `cbor:"animation_id"`
+    TimeMs uint32 `cbor:"time_ms"`
+    SpriteFrameID uint32 `cbor:"sprite_frame_id"`
+    Hurtboxes []PosedHurtbox `cbor:"hurtboxes"`
+}
+
+type PosedHurtbox struct {
+    NodeID string `cbor:"node_id"`
+    Views []ColliderView `cbor:"views"`
 }

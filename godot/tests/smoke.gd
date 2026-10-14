@@ -101,7 +101,19 @@ func _test_v2_profile() -> void:
 	var saved := await _await_result(generator.save_in_memory_async_format(job, path, Infernal.FORMAT_CBOR))
 	assert(saved.ok, str(saved.get("error", "V2 CBOR save failed")))
 	assert(FileAccess.file_exists(path.path_join("monster.cbor")))
-	assert(generator.release_in_memory(job))
+	var recipe := {"schema_version": 1, "upper_body": "HUMANOID", "lower_body": "HORSE",
+		"head": "HUMANOID", "lower_limb_count": 6, "upper_arm_count": 2}
+	var hybrid_job := generator.generate_hybrid_async(recipe, 42)
+	var hybrid := await _await_result(hybrid_job)
+	assert(hybrid.ok, str(hybrid.get("error", "structured hybrid failed")))
+	assert(hybrid.packages.back().monster.v2_profile.profile_version == 1)
+	var invalid_recipe := recipe.duplicate()
+	invalid_recipe.schema_version = 99
+	var invalid := await _await_result(generator.generate_hybrid_async(invalid_recipe, 42))
+	assert(!invalid.ok and !invalid.error.is_empty(), "unknown hybrid schema accepted")
+	assert(generator.release_in_memory(hybrid_job))
+	while !generator.release_in_memory(job):
+		await process_frame
 
 func _run() -> void:
 	generator = Infernal.new()

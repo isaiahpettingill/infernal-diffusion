@@ -388,6 +388,12 @@ public sealed class V2Profile
     public List<AttackPatternDescriptor> AttackPatterns { get; set; } = new();
     [CborProperty(TextName = "lure")]
     public LureDescriptor? Lure { get; set; }
+    [CborProperty(TextName = "spectral")]
+    public SpectralDescriptor? Spectral { get; set; }
+    [CborProperty(TextName = "hybrid")]
+    public HybridRecipeDescriptor? Hybrid { get; set; }
+    [CborProperty(TextName = "body_motion_samples")]
+    public List<BodyMotionSample> BodyMotionSamples { get; set; } = new();
 }
 
 public sealed class AttackPatternDescriptor
@@ -406,6 +412,8 @@ public sealed class AttackPatternDescriptor
     public float SpreadDeg { get; set; }
     [CborProperty(TextName = "aim_mode")]
     public string AimMode { get; set; } = "";
+    [CborProperty(TextName = "motion_samples")]
+    public List<AttackOriginSample> MotionSamples { get; set; } = new();
 }
 
 public sealed class LureDescriptor
@@ -432,4 +440,102 @@ public sealed class LureDescriptor
     public string RevealedState { get; set; } = "";
     [CborProperty(TextName = "reset_policy")]
     public string ResetPolicy { get; set; } = "";
+}
+
+public sealed class SpectralDescriptor
+{
+    [CborProperty(TextName = "kind")]
+    public string Kind { get; set; } = "";
+    [CborProperty(TextName = "visual_style")]
+    public string VisualStyle { get; set; } = "";
+    [CborProperty(TextName = "opacity")]
+    public float Opacity { get; set; }
+    [CborProperty(TextName = "collision_mode")]
+    public string CollisionMode { get; set; } = "";
+    [CborProperty(TextName = "damage_rules")]
+    public List<DamageRule> DamageRules { get; set; } = new();
+    [CborProperty(TextName = "default_damage_multiplier")]
+    public float DefaultDamageMultiplier { get; set; }
+    [CborProperty(TextName = "default_projectile_pass_through")]
+    public bool DefaultProjectilePassThrough { get; set; }
+    [CborProperty(TextName = "phase_windows")]
+    public List<PhaseWindow> PhaseWindows { get; set; } = new();
+}
+
+public sealed class DamageRule
+{
+    [CborProperty(TextName = "priority")]
+    public uint Priority { get; set; }
+    [CborProperty(TextName = "elements")]
+    public List<string> Elements { get; set; } = new();
+    [CborProperty(TextName = "delivery")]
+    public string Delivery { get; set; } = "";
+    [CborProperty(TextName = "required_tag")]
+    public string RequiredTag { get; set; } = "";
+    [CborProperty(TextName = "damage_multiplier")]
+    public float DamageMultiplier { get; set; }
+    [CborProperty(TextName = "projectile_pass_through")]
+    public bool ProjectilePassThrough { get; set; }
+}
+
+public sealed class PhaseWindow
+{
+    [CborProperty(TextName = "animation_id")]
+    public string AnimationID { get; set; } = "";
+    [CborProperty(TextName = "start_ms")]
+    public uint StartMs { get; set; }
+    [CborProperty(TextName = "end_ms")]
+    public uint EndMs { get; set; }
+    [CborProperty(TextName = "solid_pass_through")]
+    public bool SolidPassThrough { get; set; }
+}
+
+public sealed class HybridRecipeDescriptor
+{
+    [CborProperty(TextName = "schema_version")]
+    public uint SchemaVersion { get; set; }
+    [CborProperty(TextName = "upper_body")]
+    public string UpperBody { get; set; } = "";
+    [CborProperty(TextName = "lower_body")]
+    public string LowerBody { get; set; } = "";
+    [CborProperty(TextName = "head")]
+    public string Head { get; set; } = "";
+    [CborProperty(TextName = "lower_limb_count")]
+    public uint LowerLimbCount { get; set; }
+    [CborProperty(TextName = "upper_arm_count")]
+    public uint UpperArmCount { get; set; }
+}
+
+public sealed class AttackOriginSample
+{
+    [CborProperty(TextName = "time_ms")]
+    public uint TimeMs { get; set; }
+    [CborProperty(TextName = "sprite_frame_id")]
+    public uint SpriteFrameID { get; set; }
+    [CborProperty(TextName = "node_id")]
+    public string NodeID { get; set; } = "";
+    [CborProperty(TextName = "views")]
+    public List<ColliderView> Views { get; set; } = new();
+    [CborProperty(TextName = "active")]
+    public bool Active { get; set; }
+}
+
+public sealed class BodyMotionSample
+{
+    [CborProperty(TextName = "animation_id")]
+    public string AnimationID { get; set; } = "";
+    [CborProperty(TextName = "time_ms")]
+    public uint TimeMs { get; set; }
+    [CborProperty(TextName = "sprite_frame_id")]
+    public uint SpriteFrameID { get; set; }
+    [CborProperty(TextName = "hurtboxes")]
+    public List<PosedHurtbox> Hurtboxes { get; set; } = new();
+}
+
+public sealed class PosedHurtbox
+{
+    [CborProperty(TextName = "node_id")]
+    public string NodeID { get; set; } = "";
+    [CborProperty(TextName = "views")]
+    public List<ColliderView> Views { get; set; } = new();
 }

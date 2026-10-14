@@ -32,12 +32,16 @@ for t in range(0,1440,60):
  frames.append(im)
 frames[0].save(out/'water-navigation.gif',save_all=True,append_images=frames[1:],duration=60,loop=0,disposal=2)
 creatures=[('frog',load('frog','v2')),('mermaid',load('mermaid','v2')),('tree',load('tree','v2'))];frames=[];durations=[]
-for stage,clip in [('LURE','v2_lure'),('REVEAL','v2_reveal'),('ATTACK','attack_primary')]:
- duration=max(sum(f['duration_ms'] for f in next(c for c in p[0]['animations'] if c['id']==clip)['frames']) for _,p in creatures)
+for stage,clip in [('LURE','v2_lure'),('REVEAL','v2_reveal'),('ATTACK',None)]:
+ def chosen_clip(package):
+  if clip is not None: return clip
+  m=package[0]; attack_id=m['v2_profile']['lure']['attack_id']
+  return next(a['animation_id'] for a in m['attacks'] if a['id']==attack_id)
+ duration=max(sum(f['duration_ms'] for f in next(c for c in p[0]['animations'] if c['id']==chosen_clip(p))['frames']) for _,p in creatures)
  for t in range(0,duration,60):
   im=Image.new('RGB',(384*3,340),(38,40,45));d=ImageDraw.Draw(im)
   for col,(name,p) in enumerate(creatures):
-   d.text((col*384+6,5),f'{name} / {stage} / 2x nearest',fill='white');paste(im,clip_frame(p,clip,t),col*384,25)
+   d.text((col*384+6,5),f'{name} / {stage} / 2x nearest',fill='white');paste(im,clip_frame(p,chosen_clip(p),t),col*384,25)
   frames.append(im);durations.append(min(60,duration-t))
 frames[0].save(out/'friendly-ambush.gif',save_all=True,append_images=frames[1:],duration=durations,loop=0,disposal=2)
 print(out/'water-navigation.gif');print(out/'friendly-ambush.gif')

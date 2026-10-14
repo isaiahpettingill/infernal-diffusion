@@ -16,6 +16,11 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::sync::OnceLock;
 
+#[path = "v2/face_meshes.rs"]
+mod v2_faces;
+#[path = "v2/skeleton_meshes.rs"]
+mod v2_skeleton;
+
 pub const ANGLES_DEG: [f32; 4] = [0.0, 90.0, 180.0, 270.0];
 pub const PIXELS_PER_UNIT: f32 = 96.0 / 62.0;
 
@@ -260,7 +265,51 @@ pub fn recipe_fingerprint() -> String {
     .clone()
 }
 
+// Follow the existing composite node namespace to its owning specimen.
+fn v2_surface_spec<'a>(spec: &'a MonsterSpec, id: &str) -> &'a MonsterSpec {
+    let mut current = spec;
+    let mut path = id;
+    while let Some(rest) = path.strip_prefix("mount_") {
+        let Some(child) = current.mount.as_ref().and_then(|m| m.spec.as_deref()) else {
+            return current;
+        };
+        current = child;
+        path = rest;
+    }
+    if path.starts_with("rider_") {
+        return current;
+    }
+    while let Some(child) = current.mount.as_ref().and_then(|m| m.spec.as_deref()) {
+        current = child;
+    }
+    current
+}
+fn v2_has_nested_ghost(spec: &MonsterSpec) -> bool {
+    spec.mount
+        .as_ref()
+        .and_then(|m| m.spec.as_deref())
+        .is_some_and(|child| {
+            child.features.iter().any(|f| f == "GHOST") || v2_has_nested_ghost(child)
+        })
+}
+fn v2_local_surface(triangles: &mut [Triangle], spec: &MonsterSpec, node: &Node, seed: u64) {
+    if !visual_v2(spec) || spec.mount.is_none() {
+        return;
+    }
+    let local = v2_surface_spec(spec, &node.id);
+    let gains = v2_gains(local, seed);
+    let friendly = local.features.iter().any(|f| f == "FRIENDLY_LURE");
+    for triangle in triangles {
+        triangle.color = v2_surface_color(local, triangle.color, gains, friendly);
+    }
+}
+
 fn node_identity<'a>(spec: &'a MonsterSpec, id: &str) -> (&'a str, &'a str) {
+    if visual_v2(spec) {
+        if let Some(identity) = crate::v2::hybrid::node_identity(spec, id) {
+            return identity;
+        }
+    }
     let mut current = spec;
     let mut path = id;
     while let Some(rest) = path.strip_prefix("mount_") {
@@ -482,6 +531,13 @@ fn texture_value(kind: TextureKind, local: V3, seed: u32) -> f32 {
 fn role_color(role: &str, material: &str) -> [u8; 4] {
     let (dark, mid, high) = render::colors(material);
     match role {
+        "hair_ridge" => [72, 58, 51, 255],
+        "robot_metal" => [143, 157, 165, 255],
+        "robot_eye" => [89, 177, 202, 255],
+        "face_skin" => mid,
+        "face_tusk" => [238, 234, 215, 255],
+        "helmet_white" => [220, 225, 230, 255],
+        "helmet_black" => [16, 20, 25, 255],
         "skin_soft" => [231, 180, 151, 255],
         "heart" => [242, 79, 127, 255],
         "eye_white" => [238, 234, 215, 255],
@@ -576,9 +632,11 @@ fn depth_for(node: &Node) -> f32 {
 fn resolved_depth(body: &Body, index: usize) -> f32 {
     let node = &body.nodes[index];
     if node.kind == "WEAPON" {
-        node.parent
-            .map(|p| depth_for(&body.nodes[p]) + 0.4)
-            .unwrap_or_else(|| depth_for(node))
+        node.z.unwrap_or_else(|| {
+            node.parent
+                .map(|p| depth_for(&body.nodes[p]) + 0.4)
+                .unwrap_or_else(|| depth_for(node))
+        })
     } else if node.kind == "CLAW" && node.z.is_none() {
         // A claw is attached to its foot/hand, not to the creature centerline.
         node.parent
@@ -873,6 +931,64 @@ fn add_connector(triangles: &mut Vec<Triangle>, a: V3, b: V3, radius: f32, color
             texture: TextureKind::None,
             seed: 0,
         });
+    }
+}
+
+fn v2_shade_tube(triangles: &mut Vec<Triangle>, a: V3, b: V3, start_radius: f32, end_radius: f32) {
+    let axis = (b - a).normalized();
+    let reference = if axis.z.abs() < 0.85 {
+        V3::new(0.0, 0.0, 1.0)
+    } else {
+        V3::new(0.0, 1.0, 0.0)
+    };
+    let side = axis.cross(reference).normalized();
+    let up = axis.cross(side).normalized();
+    for i in 0..12 {
+        let t0 = std::f32::consts::TAU * i as f32 / 12.0;
+        let t1 = std::f32::consts::TAU * (i + 1) as f32 / 12.0;
+        let o0 = side * t0.cos() + up * t0.sin();
+        let o1 = side * t1.cos() + up * t1.sin();
+        for [a, b, c] in [
+            [
+                a + o0 * start_radius,
+                a + o1 * start_radius,
+                b + o0 * end_radius,
+            ],
+            [
+                a + o1 * start_radius,
+                b + o1 * end_radius,
+                b + o0 * end_radius,
+            ],
+        ] {
+            triangles.push(Triangle {
+                a,
+                b,
+                c,
+                color: [0, 0, 0, 255],
+                local: [V3::default(); 3],
+                texture: TextureKind::None,
+                seed: 0,
+            });
+        }
+    }
+    // Joint caps share the tube radius; they close bend seams without bead bulges.
+    let first = triangles.len();
+    add_asset(
+        triangles,
+        sphere(),
+        b,
+        V3::new(end_radius, end_radius, end_radius),
+        0.0,
+        "FLESH",
+        AssetOptions {
+            flip_z: false,
+            seed: 0,
+            irregularity: 0.0,
+        },
+    );
+    for t in &mut triangles[first..] {
+        t.color = [0, 0, 0, 255];
+        t.texture = TextureKind::None;
     }
 }
 
@@ -1184,68 +1300,8 @@ fn v2_mesh(kind: &str) -> &'static MeshAsset {
             V3::new(0.13, 0.09, 0.45),
             "mouth",
         );
-        let mut friendly_face = MeshAsset {
-            vertices: Vec::new(),
-            faces: Vec::new(),
-        };
-        v2_append_blob(
-            &mut friendly_face,
-            V3::new(0.0, 0.0, 0.0),
-            V3::new(0.79, 0.96, 0.72),
-            "skin_soft",
-        );
-        v2_append_blob(
-            &mut friendly_face,
-            V3::new(-0.22, 0.65, 0.0),
-            V3::new(0.75, 0.45, 0.73),
-            "hair",
-        );
-        v2_append_blob(
-            &mut friendly_face,
-            V3::new(0.77, -0.05, 0.0),
-            V3::new(0.13, 0.16, 0.13),
-            "skin_soft",
-        );
-        for side in [-1.0, 1.0] {
-            v2_append_blob(
-                &mut friendly_face,
-                V3::new(0.5, 0.20, side * 0.52),
-                V3::new(0.25, 0.28, 0.14),
-                "eye_white",
-            );
-            v2_append_blob(
-                &mut friendly_face,
-                V3::new(0.61, 0.20, side * 0.63),
-                V3::new(0.12, 0.17, 0.055),
-                "eye_dark",
-            );
-            v2_append_blob(
-                &mut friendly_face,
-                V3::new(0.64, 0.28, side * 0.67),
-                V3::new(0.045, 0.065, 0.025),
-                "eye_white",
-            );
-        }
-        for i in -3..=3 {
-            let z = i as f32 * 0.105;
-            v2_append_blob(
-                &mut friendly_face,
-                V3::new(0.72, -0.40 + z * z * 1.5, z),
-                V3::new(0.055, 0.045, 0.07),
-                "mouth",
-            );
-        }
         vec![
-            muscle,
-            trunk,
-            tail,
-            frog,
-            fan,
-            web,
-            crown,
-            tree_face,
-            barrel,
-            friendly_face,
+            muscle, trunk, tail, frog, fan, web, crown, tree_face, barrel,
         ]
     });
     &meshes[match kind {
@@ -1257,17 +1313,83 @@ fn v2_mesh(kind: &str) -> &'static MeshAsset {
         "crown" => 6,
         "tree_face" => 7,
         "barrel" => 8,
-        "friendly_face" => 9,
         _ => 0,
     }]
+}
+
+fn v2_skeletal_node(spec: &MonsterSpec, node: &Node) -> bool {
+    visual_v2(spec)
+        && (node_identity(spec, &node.id).1 == "SKELETON"
+            || node.material == "BONE"
+            || spec
+                .features
+                .iter()
+                .any(|f| matches!(f.as_str(), "SKELETON" | "SKELETAL")))
+}
+
+fn v2_face_recipe(spec: &MonsterSpec, node: &Node) -> Option<&'static str> {
+    if !visual_v2(spec) || node.kind != "HEAD" {
+        return None;
+    }
+    let (_, primary) = node_identity(spec, &node.id);
+    let affinity = node
+        .id
+        .strip_prefix("hybrid_head_")
+        .and_then(|index| index.parse::<usize>().ok())
+        .and_then(|index| spec.secondary_affinities.get(index))
+        .map(String::as_str)
+        .unwrap_or(primary);
+    match affinity {
+        "SKELETON" => return Some("skeleton"),
+        "JELLYFISH" | "TORNADO" => return None,
+        "MERMAID" => return Some("mermaid"),
+        "CENTAUR" | "SATYR" | "FAUN" | "HARPY" | "SIREN" | "MERMAN" | "FISHMAN" | "SPHINX"
+        | "VALKYRIE" | "NAGA" | "LAMIA" | "ECHIDNA" => return Some("human"),
+        "BIGFOOT" | "YETI" | "GORILLA" | "VANARA" => return Some("ape"),
+        "ROBOT" => return Some("robot"),
+        "ALIEN" => return Some("alien"),
+        _ => {}
+    }
+    match skull_recipe(spec, node) {
+        "skull_stormtrooper" => Some("helmet"),
+        "skull_goblin" => Some("orc"),
+        "skull_cyclops" => Some("cyclops"),
+        "skull_humanoid" | "skull_anime" | "skull_clown" | "skull_hitler" => Some("human"),
+        _ => None,
+    }
 }
 
 fn v2_mesh_override(spec: &MonsterSpec, node: &Node) -> Option<&'static MeshAsset> {
     if !visual_v2(spec) {
         return None;
     }
+    if node.kind == "BONE_SPUR" {
+        return Some(v2_skeleton::mesh("long_bone"));
+    }
+    if v2_skeletal_node(spec, node) {
+        let part = match node.kind.as_str() {
+            "HEAD" => Some("skull"),
+            "TORSO" => Some("ribs"),
+            "HAND" => Some("hand"),
+            "FOOT" => Some("foot"),
+            "LOBE" if node.id.contains("pelvis") => Some("pelvis"),
+            "LIMB" | "ARM" | "SHIN" | "NECK" | "SHOULDER" | "HIP" | "TAIL" => Some("long_bone"),
+            _ => None,
+        };
+        if let Some(part) = part {
+            return Some(v2_skeleton::mesh(part));
+        }
+    }
+    if node.id == "v2_hybrid_chest" {
+        return Some(upright_torso());
+    }
+    if let Some(face) = v2_face_recipe(spec, node) {
+        return Some(v2_faces::mesh(face));
+    }
     let (plan, affinity) = node_identity(spec, &node.id);
     match (affinity, node.kind.as_str()) {
+        ("FISH", "HEAD") => Some(v2_faces::mesh("fish")),
+        ("CENTAUR", "FOOT") => Some(asset("part_hoof")),
         ("FROG" | "TOAD", "HEAD") => Some(v2_mesh("frog")),
         ("FROG" | "TOAD", "FOOT" | "HAND") => Some(v2_mesh("web")),
         ("TREE_MONSTER", "HEAD") => Some(v2_mesh("tree_face")),
@@ -1275,8 +1397,8 @@ fn v2_mesh_override(spec: &MonsterSpec, node: &Node) -> Option<&'static MeshAsse
             Some(v2_mesh("trunk"))
         }
         ("TREE_MONSTER", "LOBE") | (_, "CANOPY") => Some(v2_mesh("crown")),
-        ("MERMAID", "TAIL") => Some(v2_mesh("tail")),
-        ("MERMAID", "FIN" | "FLUKE") => Some(v2_mesh("fan")),
+        ("MERMAID" | "MERMAN", "TAIL") => Some(v2_mesh("tail")),
+        ("MERMAID" | "MERMAN", "FIN" | "FLUKE") => Some(v2_mesh("fan")),
         (_, "TORSO") if matches!(plan, "QUADRUPED" | "THEROPOD" | "INSECT" | "ARACHNID") => {
             Some(v2_mesh("barrel"))
         }
@@ -1326,7 +1448,7 @@ fn v2_friendly_pose(spec: &MonsterSpec, pose: &Pose) -> bool {
     visual_v2(spec)
         && spec.features.iter().any(|f| f == "FRIENDLY_LURE")
         && match pose.state.as_str() {
-            "ATTACK" | "HURT" | "DEATH" => false,
+            "ATTACK" | "PHASE" | "HURT" | "DEATH" => false,
             "REVEAL" => pose.phase < 0.45,
             _ => true,
         }
@@ -1363,7 +1485,7 @@ fn v2_gains(spec: &MonsterSpec, seed: u64) -> [f32; 3] {
     let mut rng = ChaCha8Rng::seed_from_u64(seed ^ 0xe173_a5c8_42bf_900d);
     if matches!(
         spec.affinity.as_str(),
-        "FROG" | "TOAD" | "MERMAID" | "ALIEN" | "SLIME" | "MUSHROOM"
+        "FROG" | "TOAD" | "ALIEN" | "SLIME" | "MUSHROOM"
     ) {
         return [
             rng.random_range(0.82_f32..1.16),
@@ -1389,6 +1511,107 @@ fn v2_tint(color: [u8; 4], gains: [f32; 3], friendly: bool) -> [u8; 4] {
     out
 }
 
+fn v2_surface_color(
+    spec: &MonsterSpec,
+    color: [u8; 4],
+    gains: [f32; 3],
+    friendly: bool,
+) -> [u8; 4] {
+    let mut color = v2_tint(color, gains, friendly);
+    let has = |feature: &str| spec.features.iter().any(|f| f == feature);
+    let ghost = has("GHOST");
+    if has("SHADE") {
+        color = [0, 0, 0, 255];
+    } else if ghost || has("GHOUL") || spec.affinity == "GHOUL" {
+        let luma =
+            (color[0] as f32 * 0.30 + color[1] as f32 * 0.59 + color[2] as f32 * 0.11).min(255.0);
+        if luma < 60.0 {
+            color = [25, 40, 42, 255];
+        } else if ghost {
+            color = [
+                (95.0 + luma * 0.30) as u8,
+                (135.0 + luma * 0.30) as u8,
+                (160.0 + luma * 0.30) as u8,
+                255,
+            ];
+        } else {
+            color = [
+                (65.0 + luma * 0.42) as u8,
+                (87.0 + luma * 0.44) as u8,
+                (78.0 + luma * 0.40) as u8,
+                255,
+            ];
+        }
+    }
+    // Transparency is an actual RGBA value, independent of combat immunity.
+    // A ghoul alone remains opaque; GHOST is the explicit translucent modifier.
+    if ghost && !has("SHADE") {
+        color[3] = 128;
+    }
+    color
+}
+
+fn v2_finish_alpha(spec: &MonsterSpec, pose: &Pose, image: &mut RgbaImage) {
+    if !visual_v2(spec) {
+        return;
+    }
+    let has = |tag: &str| spec.features.iter().any(|f| f == tag);
+    if has("SHADE") {
+        return;
+    }
+    if spec.mount.is_some() && (has("GHOST") || v2_has_nested_ghost(spec)) {
+        for pixel in image.pixels_mut() {
+            if pose.state != "DEATH" && pixel[3] == 128 {
+                pixel[3] = 97;
+            } else if pose.state == "DEATH" && pixel[3] == 64 {
+                pixel[3] = 48;
+            }
+        }
+        return;
+    }
+    let phase = pose.state == "PHASE" && (has("GHOST") || has("GHOUL") || spec.affinity == "GHOUL");
+    let ghost = has("GHOST");
+    if !phase && !ghost {
+        return;
+    }
+    for pixel in image.pixels_mut().filter(|p| p[3] > 0) {
+        pixel[3] = if phase {
+            64
+        } else {
+            ((pixel[3] as u16 * 97) / 128).min(97) as u8
+        };
+    }
+}
+
+fn v2_node_material<'a>(spec: &MonsterSpec, node: &'a Node, seed: u64) -> &'a str {
+    if v2_skeletal_node(spec, node) {
+        return "BONE";
+    }
+    if !visual_v2(spec) || !matches!(node_identity(spec, &node.id).1, "MERMAID" | "MERMAN") {
+        return &node.material;
+    }
+    let ordinary = node.material.starts_with("SCALES")
+        || node.material.starts_with("FLESH")
+        || matches!(node.material.as_str(), "MEMBRANE" | "SKIN_PALE");
+    if !ordinary {
+        return &node.material;
+    }
+    if matches!(
+        node.kind.as_str(),
+        "HEAD" | "NECK" | "TORSO" | "ARM" | "SHOULDER" | "HAND"
+    ) {
+        "SKIN_PALE"
+    } else if matches!(node.kind.as_str(), "TAIL" | "FIN" | "FLUKE") || node.id.contains("pelvis") {
+        if seed.is_multiple_of(2) {
+            "SCALES_BLUE"
+        } else {
+            "SCALES"
+        }
+    } else {
+        &node.material
+    }
+}
+
 fn scene_palette(spec: &MonsterSpec, body: &Body, seed: u64) -> Vec<[u8; 4]> {
     let mut colors = palette(body);
     if visual_v2(spec) {
@@ -1396,6 +1619,24 @@ fn scene_palette(spec: &MonsterSpec, body: &Body, seed: u64) -> Vec<[u8; 4]> {
         // Facial/emote colors precede generic materials in the 48-color budget.
         let original = colors;
         colors = vec![[238, 234, 215, 255], [24, 24, 31, 255]];
+        // Normal humanoid faces also need their own skin and helmet ramps.
+        if body
+            .nodes
+            .iter()
+            .any(|node| v2_face_recipe(spec, node).is_some())
+        {
+            colors.extend([
+                [231, 180, 151, 255],
+                [145, 94, 78, 255],
+                [255, 220, 190, 255],
+                [220, 225, 230, 255],
+                [132, 144, 155, 255],
+                [16, 20, 25, 255],
+                [72, 58, 51, 255],
+                [143, 157, 165, 255],
+                [89, 177, 202, 255],
+            ]);
+        }
         if friendly {
             colors.extend([
                 [231, 180, 151, 255],
@@ -1406,12 +1647,34 @@ fn scene_palette(spec: &MonsterSpec, body: &Body, seed: u64) -> Vec<[u8; 4]> {
                 [255, 146, 179, 255],
             ]);
         }
+        for node in &body.nodes {
+            let material = v2_node_material(spec, node, seed);
+            if material != node.material {
+                let (dark, mid, high) = render::colors(material);
+                for c in [dark, mid, high] {
+                    render::add_palette_color(&mut colors, c);
+                }
+            }
+        }
         for color in original {
             render::add_palette_color(&mut colors, color);
         }
+        let base_colors = colors.clone();
         let gains = v2_gains(spec, seed);
         for color in &mut colors {
-            *color = v2_tint(*color, gains, friendly);
+            *color = v2_surface_color(spec, *color, gains, friendly);
+        }
+        if spec.mount.is_some() {
+            for node in &body.nodes {
+                let local = v2_surface_spec(spec, &node.id);
+                let gains = v2_gains(local, seed);
+                let friendly = local.features.iter().any(|f| f == "FRIENDLY_LURE");
+                colors.extend(
+                    base_colors
+                        .iter()
+                        .map(|c| v2_surface_color(local, *c, gains, friendly)),
+                );
+            }
         }
         colors.sort_unstable();
         colors.dedup();
@@ -1419,6 +1682,9 @@ fn scene_palette(spec: &MonsterSpec, body: &Body, seed: u64) -> Vec<[u8; 4]> {
     }
     colors
 }
+
+#[path = "v2/shade_mesh.rs"]
+mod v2_shade_mesh;
 
 fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangle> {
     let positions: Vec<(V3, f32)> = body
@@ -1429,20 +1695,46 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
         .collect();
     let mut triangles = Vec::with_capacity(body.nodes.len() * 100);
     let mut texture_rng = ChaCha8Rng::seed_from_u64(seed);
+    let mut shade_strands = Vec::new();
     for (i, node) in body.nodes.iter().enumerate() {
+        let connector_start = triangles.len();
         if let Some(parent) = node.parent {
+            if visual_v2(spec) && node.id.starts_with("v2_shade_tendril_") {
+                let start = if body.nodes[parent].id.starts_with("v2_shade_tendril_") {
+                    body.nodes[parent].rx
+                } else {
+                    node.rx * 1.6
+                };
+                let end = node.rx * if node.id.ends_with("_4") { 0.35 } else { 1.0 };
+                v2_shade_tube(
+                    &mut shade_strands,
+                    positions[parent].0,
+                    positions[i].0,
+                    start,
+                    end,
+                );
+                continue;
+            }
             if !(node.kind == "TORSO" && body.nodes[parent].kind == "TORSO")
                 && !["EYE", "MOUTH", "HORN", "FANG", "CLAW", "WEAPON", "WING"]
                     .contains(&node.kind.as_str())
             {
                 let radius = node.rx.min(node.ry).min(body.nodes[parent].rx) * 0.6;
-                if visual_v2(spec) {
+                if v2_skeletal_node(spec, node) {
+                    add_connector(
+                        &mut triangles,
+                        positions[parent].0,
+                        positions[i].0,
+                        (radius * 0.22).max(0.15),
+                        [238, 234, 215, 255],
+                    );
+                } else if visual_v2(spec) {
                     v2_add_connector(
                         &mut triangles,
                         positions[parent].0,
                         positions[i].0,
                         radius.max(0.25),
-                        &node.material,
+                        v2_node_material(spec, node, seed),
                         (seed as u32).wrapping_add(i as u32),
                     );
                 } else {
@@ -1456,9 +1748,16 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
                 }
             }
         }
+        v2_local_surface(&mut triangles[connector_start..], spec, node, seed);
     }
     for (i, node) in body.nodes.iter().enumerate() {
         let node_seed = texture_rng.random::<u32>();
+        if visual_v2(spec)
+            && (node.id.starts_with("v2_shade_tendril_")
+                || (node.kind == "WEAPON" && spec.features.iter().any(|f| f == "SHADE")))
+        {
+            continue;
+        }
         if v2_friendly_pose(spec, pose) && matches!(node.kind.as_str(), "FANG" | "CLAW" | "STINGER")
         {
             continue;
@@ -1609,13 +1908,15 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
                 node.material.as_str(),
             ),
         };
+        let selected_material = v2_node_material(spec, node, seed);
+        let material = if selected_material != node.material {
+            selected_material
+        } else {
+            material
+        };
         let mesh = v2_mesh_override(spec, node).unwrap_or(mesh);
         let friendly_head = if node.kind == "HEAD" && v2_friendly_pose(spec, pose) {
-            Some(v2_friendly_head(if node_plan == "HUMANOID" {
-                v2_mesh("friendly_face")
-            } else {
-                mesh
-            }))
+            Some(v2_friendly_head(mesh))
         } else {
             None
         };
@@ -1630,14 +1931,26 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
             scale.z *= expansion;
             scale.y /= expansion * expansion;
         }
+        if v2_skeletal_node(spec, node)
+            && matches!(
+                node.kind.as_str(),
+                "LIMB" | "ARM" | "SHIN" | "HAND" | "FOOT"
+            )
+        {
+            let bone_shape = 0.86 + hash_lattice(i as i32, 13, 7, seed as u32) * 0.28;
+            scale.x *= bone_shape;
+            scale.z /= bone_shape;
+        }
         if visual_v2(spec) {
             if node.kind == "FIN" || node.kind == "FLUKE" {
                 scale.z = node.rz.unwrap_or(node.rx * 0.25);
             }
             // Modest anatomically local allometry, stable throughout the atlas.
             let variation = 0.94 + hash_lattice(i as i32, 0, 0, seed as u32) * 0.12;
-            scale.x *= variation;
-            scale.z /= variation;
+            if node.kind != "WEAPON" {
+                scale.x *= variation;
+                scale.z /= variation;
+            }
         }
         if pose.state != "DEATH" && spec.is_blob() && matches!(node.kind.as_str(), "TORSO" | "LOBE")
         {
@@ -1677,10 +1990,13 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
                 },
             },
         );
+        v2_local_surface(&mut triangles[triangle_start..], spec, node, seed);
         if visual_v2(spec) {
             for triangle in &mut triangles[triangle_start..] {
                 if triangle.texture != TextureKind::None {
-                    if material == "WOOD" {
+                    if material == "SKIN_PALE" && matches!(node_affinity, "MERMAID" | "MERMAN") {
+                        triangle.texture = TextureKind::None;
+                    } else if material == "WOOD" {
                         triangle.texture = TextureKind::Bark;
                     } else if material.starts_with("SCALES") {
                         triangle.texture = TextureKind::OrganicScales;
@@ -1691,6 +2007,10 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
             }
         }
     }
+    if visual_v2(spec) && spec.features.iter().any(|f| f == "SHADE") {
+        v2_shade_mesh::unwind(&mut triangles, body, pose, &positions);
+    }
+    triangles.extend(shade_strands);
     if visual_v2(spec) {
         let friendly = spec.features.iter().any(|f| f == "FRIENDLY_LURE");
         if friendly && pose.state == "LURE" && pose.phase >= 0.25 {
@@ -1699,7 +2019,9 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
                 let (origin, _) = positions[head];
                 // Canopies and raised waving hands may sit above the head. Keep
                 // the harmless emote outside the complete posed silhouette.
-                let top = triangles.iter().flat_map(|triangle| [triangle.a.y, triangle.b.y, triangle.c.y])
+                let top = triangles
+                    .iter()
+                    .flat_map(|triangle| [triangle.a.y, triangle.b.y, triangle.c.y])
                     .fold(origin.y + body.nodes[head].ry, f32::max);
                 let offset = V3::new(0.0, top - origin.y + 4.2 + rise, 0.0);
                 add_asset(
@@ -1719,7 +2041,19 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
         }
         let gains = v2_gains(spec, seed);
         for triangle in &mut triangles {
-            triangle.color = v2_tint(triangle.color, gains, friendly);
+            if spec.mount.is_none() || spec.features.iter().any(|f| f == "SHADE") {
+                triangle.color = v2_surface_color(spec, triangle.color, gains, friendly);
+            }
+            if pose.state == "PHASE"
+                && !spec.features.iter().any(|f| f == "SHADE")
+                && (spec
+                    .features
+                    .iter()
+                    .any(|f| matches!(f.as_str(), "GHOST" | "GHOUL"))
+                    || spec.affinity == "GHOUL")
+            {
+                triangle.color[3] = 64;
+            }
         }
     }
     triangles
@@ -1817,6 +2151,85 @@ pub fn collider_views(node: &Node, size: u32) -> Vec<proto::ColliderView> {
 /// Neutral collider views use exactly the same attachment depth as mesh baking.
 pub fn collider_views_for_body(body: &Body, index: usize, size: u32) -> Vec<proto::ColliderView> {
     collider_views_at_depth(&body.nodes[index], size, resolved_depth(body, index))
+}
+
+/// Exact per-frame attack origins, including physical joints, global root
+/// translation/rotation and aquatic lateral motion. Legacy rest views are intact.
+pub fn collider_views_for_pose(
+    body: &Body,
+    index: usize,
+    pose: &Pose,
+    size: u32,
+) -> Vec<proto::ColliderView> {
+    let position = node_pose(body, index, pose).0;
+    let node = &body.nodes[index];
+    let radius = (node.rx.min(node.ry) * PIXELS_PER_UNIT).max(0.5);
+    ANGLES_DEG
+        .iter()
+        .enumerate()
+        .map(|(direction_index, angle)| {
+            let p = project(position, angle.to_radians(), size, 1.0);
+            proto::ColliderView {
+                direction_index: direction_index as u32,
+                x: p.x,
+                y: p.y,
+                radius,
+            }
+        })
+        .collect()
+}
+
+/// Approximate dynamic damage-receiver circles for an unwinding shade.
+/// Centers and sampled ellipsoid surfaces use the exact rendering deformation.
+/// Tendril nodes stay on their already animated contact graph.
+pub fn collider_views_for_shade_receiver(
+    body: &Body,
+    index: usize,
+    pose: &Pose,
+    size: u32,
+) -> Vec<proto::ColliderView> {
+    if body.nodes[index].id.starts_with("v2_shade_tendril_") {
+        return collider_views_for_pose(body, index, pose, size);
+    }
+    let positions: Vec<_> = (0..body.nodes.len())
+        .map(|i| node_pose(body, i, pose))
+        .collect();
+    let Some(field) = v2_shade_mesh::Field::new(body, pose, &positions) else {
+        return collider_views_for_pose(body, index, pose, size);
+    };
+    let node = &body.nodes[index];
+    let center = positions[index].0;
+    let mapped = field.map(center);
+    let offsets = [
+        V3::new(node.rx, 0.0, 0.0),
+        V3::new(0.0, node.ry, 0.0),
+        V3::new(0.0, 0.0, node.rz.unwrap_or(node.rx)),
+    ];
+    ANGLES_DEG
+        .iter()
+        .enumerate()
+        .map(|(direction_index, angle)| {
+            let p = project(mapped, angle.to_radians(), size, 1.0);
+            let mut radius = 0.5_f32;
+            for offset in offsets {
+                for sign in [-1.0, 1.0] {
+                    let q = project(
+                        field.map(center + offset * sign),
+                        angle.to_radians(),
+                        size,
+                        1.0,
+                    );
+                    radius = radius.max((q.x - p.x).hypot(q.y - p.y));
+                }
+            }
+            proto::ColliderView {
+                direction_index: direction_index as u32,
+                x: p.x,
+                y: p.y,
+                radius,
+            }
+        })
+        .collect()
 }
 
 fn collider_views_at_depth(node: &Node, size: u32, depth: f32) -> Vec<proto::ColliderView> {
@@ -2077,22 +2490,27 @@ pub(crate) fn downsample(high: &RgbaImage) -> RgbaImage {
     low
 }
 
-fn frame_with_stats(
+fn frame_with_stats_mode(
     triangles: &[Triangle],
     pose: &Pose,
     size: u32,
     angle: f32,
     palette: &[[u8; 4]],
     nearest: &mut std::collections::HashMap<[u8; 3], [u8; 3]>,
+    coherent: bool,
 ) -> (RgbaImage, [std::time::Duration; 3]) {
     let phase_started = Instant::now();
     let high_size = size * 2;
     let mut high = RgbaImage::new(high_size, high_size);
     let mut depths = vec![f32::NEG_INFINITY; (high_size * high_size) as usize];
     let camera = Camera::new(angle, high_size, 2.0);
-    let kernel = rasterizer().0;
-    unsafe {
-        kernel(triangles, &mut high, &mut depths, camera);
+    if coherent {
+        rasterize_mesh(triangles, &mut high, &mut depths, camera);
+    } else {
+        let kernel = rasterizer().0;
+        unsafe {
+            kernel(triangles, &mut high, &mut depths, camera);
+        }
     }
     let raster_time = phase_started.elapsed();
     let phase_started = Instant::now();
@@ -2118,7 +2536,7 @@ fn frame(
     palette: &[[u8; 4]],
     nearest: &mut std::collections::HashMap<[u8; 3], [u8; 3]>,
 ) -> RgbaImage {
-    frame_with_stats(triangles, pose, size, angle, palette, nearest).0
+    frame_with_stats_mode(triangles, pose, size, angle, palette, nearest, false).0
 }
 
 fn palette(body: &Body) -> Vec<[u8; 4]> {
@@ -2199,14 +2617,16 @@ pub fn sheet(
         let make_frame = |(direction, degrees): (usize, &f32)| {
             let phase_started = Instant::now();
             let mut nearest = std::collections::HashMap::new();
-            let (frame, stages) = frame_with_stats(
+            let (mut frame, stages) = frame_with_stats_mode(
                 &triangles,
                 pose,
                 size,
                 degrees.to_radians(),
                 &palette,
                 &mut nearest,
+                visual_v2(spec),
             );
+            v2_finish_alpha(spec, pose, &mut frame);
             (direction, frame, stages, phase_started.elapsed())
         };
         #[cfg(target_arch = "wasm32")]
@@ -2367,6 +2787,431 @@ mod tests {
             }
         }
         assert!(displaced, "fish tail must propel laterally");
+    }
+
+    #[test]
+    fn posed_attack_origin_views_follow_exact_root_and_joint_motion() {
+        let spec = crate::parser::parse_vocabulary("orc with sword");
+        let body = crate::anatomy::build(&spec, &mut ChaCha8Rng::seed_from_u64(42));
+        let (_, _, _, poses) = crate::animation::make(&spec, &body);
+        let mut pose = poses[0].clone();
+        pose.root_x += 12.0;
+        pose.root_y -= 7.0;
+        pose.root_angle = 0.3;
+        for index in 0..body.nodes.len() {
+            for view in collider_views_for_pose(&body, index, &pose, 128) {
+                let exact = project(
+                    node_pose(&body, index, &pose).0,
+                    ANGLES_DEG[view.direction_index as usize].to_radians(),
+                    128,
+                    1.0,
+                );
+                assert!((exact.x - view.x).abs() < 0.0001 && (exact.y - view.y).abs() < 0.0001);
+            }
+        }
+    }
+
+    #[test]
+    fn v2_ghost_lion_keeps_orc_rider_and_huge_axe_opaque() {
+        let mut spec = crate::v2::prompt_normalization::normalize_mount("Ghost lion with orc rider with huge axe").unwrap();
+        crate::v2::prepare(&mut spec);
+        let mut body = crate::anatomy::build(&spec,&mut ChaCha8Rng::seed_from_u64(0));
+        crate::v2::anatomy::refine(&spec,&mut body,0);
+        assert!(body.nodes.iter().any(|n|n.id.starts_with("rider_")&&n.kind=="WEAPON"));
+        for node in &body.nodes {
+            let local = v2_surface_spec(&spec,&node.id);
+            assert_eq!(local.features.iter().any(|f|f=="GHOST"), !node.id.starts_with("rider_"),"{}",node.id);
+        }
+        let (_,_,_,poses) = crate::animation::make(&spec,&body);
+        let triangles = scene(&spec,&body,&poses[0],0);
+        assert!(triangles.iter().any(|t|t.color[3]==128));
+        assert!(triangles.iter().any(|t|t.color[3]==255));
+        let (image,_,colors)=sheet(&spec,&body,&poses[..1],256,0);
+        assert!(image.pixels().any(|p|p[3]==97));
+        assert!(image.pixels().any(|p|p[3]==255));
+        assert!(colors<=255);
+    }
+
+    #[test]
+    fn v2_skeletal_merfolk_override_skin_hair_and_scales() {
+        let mut spec = crate::parser::parse_vocabulary("mermaid");
+        spec.features
+            .extend(["PROFILE_V2".into(), "SKELETAL".into()]);
+        crate::v2::prepare(&mut spec);
+        let mut body = crate::anatomy::build(&spec, &mut ChaCha8Rng::seed_from_u64(0));
+        crate::v2::anatomy::refine(&spec, &mut body, 0);
+        for node in &body.nodes {
+            assert_eq!(v2_node_material(&spec, node, 0), "BONE");
+            if node.kind == "HEAD" {
+                assert!(std::ptr::eq(
+                    v2_mesh_override(&spec, node).unwrap(),
+                    v2_skeleton::mesh("skull")
+                ));
+            }
+            if node.kind == "TORSO" {
+                assert!(std::ptr::eq(
+                    v2_mesh_override(&spec, node).unwrap(),
+                    v2_skeleton::mesh("ribs")
+                ));
+            }
+            if node.kind == "TAIL" {
+                assert!(std::ptr::eq(
+                    v2_mesh_override(&spec, node).unwrap(),
+                    v2_skeleton::mesh("long_bone")
+                ));
+            }
+        }
+    }
+
+    #[test]
+    fn v2_shade_unwinds_the_whole_body_and_restores_exact_endpoint() {
+        for prompt in [
+            "shade humanoid",
+            "shade wolf",
+            "shade tree monster",
+            "shade mermaid",
+        ] {
+            let mut spec = crate::parser::parse_vocabulary(prompt);
+            spec.features.push("SHADE".into());
+            crate::v2::prepare(&mut spec);
+            let mut body = crate::anatomy::build(&spec, &mut ChaCha8Rng::seed_from_u64(0));
+            crate::v2::anatomy::refine(&spec, &mut body, 0);
+            let (_, _, _, poses) = crate::animation::make(&spec, &body);
+            let original = poses[0].clone();
+            let mut start = original.clone();
+            start.state = "SHADE_UNWIND".into();
+            start.phase = 0.0;
+            assert_eq!(
+                visual_signature(&scene(&spec, &body, &original, 0)),
+                visual_signature(&scene(&spec, &body, &start, 0))
+            );
+            let mut peak = start.clone();
+            peak.phase = 1.0;
+            let palette = scene_palette(&spec, &body, 0);
+            let render = |p: &Pose| {
+                frame_with_stats_mode(
+                    &scene(&spec, &body, p, 0),
+                    p,
+                    256,
+                    0.0,
+                    &palette,
+                    &mut std::collections::HashMap::new(),
+                    true,
+                )
+                .0
+            };
+            let before = render(&start);
+            let after = render(&peak);
+            let mut strands = Vec::new();
+            for (i, node) in body
+                .nodes
+                .iter()
+                .enumerate()
+                .filter(|(_, n)| n.id.starts_with("v2_shade_tendril_"))
+            {
+                let parent = node.parent.unwrap();
+                let radius = if body.nodes[parent].id.starts_with("v2_shade_tendril_") {
+                    body.nodes[parent].rx
+                } else {
+                    node.rx * 1.6
+                };
+                v2_shade_tube(
+                    &mut strands,
+                    node_pose(&body, parent, &peak).0,
+                    node_pose(&body, i, &peak).0,
+                    radius,
+                    node.rx * if node.id.ends_with("_4") { 0.35 } else { 1.0 },
+                );
+            }
+            let strand_image = frame_with_stats_mode(
+                &strands,
+                &peak,
+                256,
+                0.0,
+                &palette,
+                &mut std::collections::HashMap::new(),
+                true,
+            )
+            .0;
+            let extra = after
+                .pixels()
+                .zip(strand_image.pixels())
+                .filter(|(a, b)| a[3] > 0 && b[3] == 0)
+                .count();
+            let strand_pixels = strand_image.pixels().filter(|p| p[3] > 0).count();
+            assert!(
+                extra < strand_pixels / 10 + 4,
+                "peak retained a web outside strands: {prompt}, {extra}/{strand_pixels}"
+            );
+
+            let occupied = before.pixels().filter(|p| p[3] > 0).count();
+            let vanished = before
+                .pixels()
+                .zip(after.pixels())
+                .filter(|(a, b)| a[3] > 0 && b[3] == 0)
+                .count();
+            assert!(
+                vanished as f32 / occupied as f32 > 0.65,
+                "unchanged body survived peak: {prompt}, {vanished}/{occupied}"
+            );
+            assert!(after.pixels().all(|p| p[3] == 0 || p.0 == [0, 0, 0, 255]));
+            assert_eq!(
+                before,
+                render(&start),
+                "reverse endpoint must be byte exact"
+            );
+            let head = body.nodes.iter().position(|n| n.kind == "HEAD").unwrap();
+            let old = collider_views_for_pose(&body, head, &peak, 256);
+            let morphed = collider_views_for_shade_receiver(&body, head, &peak, 256);
+            assert!(old
+                .iter()
+                .zip(&morphed)
+                .any(|(a, b)| (a.x - b.x).hypot(a.y - b.y) > 2.0));
+            spec.features.retain(|f| f != "PROFILE_V2");
+            assert_eq!(
+                visual_signature(&scene(&spec, &body, &start, 0)),
+                visual_signature(&scene(&spec, &body, &peak, 0)),
+                "V1 must not morph"
+            );
+        }
+    }
+
+    #[test]
+    fn v2_coherent_raster_is_gated_and_v1_keeps_legacy_pixels() {
+        let mut spec = crate::parser::parse_vocabulary("orc");
+        let body = crate::anatomy::build(&spec, &mut ChaCha8Rng::seed_from_u64(42));
+        let (_, _, _, poses) = crate::animation::make(&spec, &body);
+        for coherent in [false, true] {
+            if coherent {
+                spec.features.push("PROFILE_V2".into());
+            }
+            let triangles = scene(&spec, &body, &poses[0], 42);
+            let palette = scene_palette(&spec, &body, 42);
+            let expected = frame_with_stats_mode(
+                &triangles,
+                &poses[0],
+                128,
+                0.0,
+                &palette,
+                &mut std::collections::HashMap::new(),
+                coherent,
+            )
+            .0;
+            let (atlas, _, _) = sheet(&spec, &body, &poses[..1], 128, 42);
+            assert_eq!(
+                image::imageops::crop_imm(&atlas, 0, 0, 128, 128).to_image(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn v2_spectral_modifiers_preserve_real_alpha_and_opaque_ghouls() {
+        let mut spec = crate::parser::parse_vocabulary("humanoid");
+        let body = crate::anatomy::build(&spec, &mut ChaCha8Rng::seed_from_u64(42));
+        let (_, _, _, poses) = crate::animation::make(&spec, &body);
+        spec.features.extend(["PROFILE_V2".into(), "GHOST".into()]);
+        let ghost = scene(&spec, &body, &poses[0], 42);
+        assert!(ghost.iter().all(|t| t.color[3] == 128));
+        let image = frame(
+            &ghost,
+            &poses[0],
+            128,
+            0.0,
+            &scene_palette(&spec, &body, 42),
+            &mut std::collections::HashMap::new(),
+        );
+        assert!(image.pixels().any(|p| p[3] == 128));
+        assert!(image.pixels().all(|p| p[3] == 0 || p[3] == 128));
+        let (ghost_sheet, _, _) = sheet(&spec, &body, &poses[..1], 128, 42);
+        assert!(ghost_sheet.pixels().any(|p| p[3] == 97));
+        assert!(ghost_sheet.pixels().all(|p| p[3] == 0 || p[3] == 97));
+        assert!(render::color_count(&ghost_sheet) <= 255);
+        spec.features.retain(|f| f != "GHOST");
+        spec.features.push("GHOUL".into());
+        assert!(scene(&spec, &body, &poses[0], 42)
+            .iter()
+            .all(|t| t.color[3] == 255));
+        let (ghoul_sheet, _, _) = sheet(&spec, &body, &poses[..1], 128, 42);
+        assert!(ghoul_sheet
+            .pixels()
+            .filter(|p| p[3] > 0)
+            .all(|p| p[3] == 255));
+        let mut phase = poses[0].clone();
+        phase.state = "PHASE".into();
+        let (phase_sheet, _, _) = sheet(&spec, &body, &[phase], 128, 42);
+        assert!(phase_sheet
+            .pixels()
+            .filter(|p| p[3] > 0)
+            .all(|p| p[3] == 64));
+        spec.features.push("SHADE".into());
+        assert!(scene(&spec, &body, &poses[0], 42)
+            .iter()
+            .all(|t| t.color == [0, 0, 0, 255]));
+        let (shade_sheet, _, _) = sheet(&spec, &body, &poses[..1], 128, 42);
+        assert!(shade_sheet
+            .pixels()
+            .filter(|p| p[3] > 0)
+            .all(|p| p[0] == 0 && p[1] == 0 && p[2] == 0));
+        let mut shade_phase = poses[0].clone();
+        shade_phase.state = "PHASE".into();
+        let (shade_phase_sheet, _, _) = sheet(&spec, &body, &[shade_phase], 128, 42);
+        assert!(shade_phase_sheet
+            .pixels()
+            .filter(|p| p[3] > 0)
+            .all(|p| p.0 == [0, 0, 0, 255]));
+        spec.features.retain(|f| f != "PROFILE_V2");
+        assert!(scene(&spec, &body, &poses[0], 42)
+            .iter()
+            .any(|t| t.color[0] > 0));
+    }
+
+    #[test]
+    fn v2_explicit_hybrid_head_and_upper_identity_are_local() {
+        let mut spec = crate::parser::parse_vocabulary("mermaid");
+        let body = crate::anatomy::build(&spec, &mut ChaCha8Rng::seed_from_u64(42));
+        let head = body.nodes.iter().find(|n| n.kind == "HEAD").unwrap();
+        spec.features.extend(
+            [
+                "HYBRID_VERSION_1",
+                "HYBRID_UPPER_STORMTROOPER",
+                "HYBRID_LOWER_MERMAID",
+                "HYBRID_HEAD_STORMTROOPER",
+                "HYBRID_LEGS_0",
+                "HYBRID_ARMS_2",
+            ]
+            .map(str::to_owned),
+        );
+        assert_ne!(skull_recipe(&spec, head), "skull_stormtrooper");
+        spec.features.push("PROFILE_V2".into());
+        assert_eq!(v2_face_recipe(&spec, head), Some("helmet"));
+        spec.features.retain(|f| f != "HYBRID_HEAD_STORMTROOPER");
+        spec.features.push("HYBRID_HEAD_FISH".into());
+        assert_eq!(v2_face_recipe(&spec, head), None);
+        assert_eq!(skull_recipe(&spec, head), "skull_reptile");
+        let mut tail = head.clone();
+        tail.kind = "TAIL".into();
+        tail.id = "v2_fish_tail_0".into();
+        assert_eq!(node_identity(&spec, &tail.id).1, "MERMAID");
+        spec.features.retain(|f| f != "HYBRID_HEAD_FISH");
+        spec.features.push("HYBRID_HEAD_BIRD".into());
+        assert_eq!(skull_recipe(&spec, head), "skull_avian");
+    }
+
+    #[test]
+    fn v2_humanoid_coverage_manifest_matches_every_enumerated_recipe() {
+        let manifest: serde_json::Value =
+            serde_json::from_str(include_str!("../assets/v2/humanoid_face_coverage.json")).unwrap();
+        let base = crate::parser::parse_vocabulary("humanoid");
+        let body = crate::anatomy::build(&base, &mut ChaCha8Rng::seed_from_u64(42));
+        let head = body.nodes.iter().find(|n| n.kind == "HEAD").unwrap();
+        let entries = manifest["entries"].as_array().unwrap();
+        assert_eq!(entries.len(), 66);
+        for entry in entries {
+            let mut spec = crate::parser::parse_vocabulary(entry["prompt"].as_str().unwrap());
+            assert_eq!(spec.affinity, entry["affinity"].as_str().unwrap());
+            assert_eq!(v2_face_recipe(&spec, head), None);
+            spec.features.push("PROFILE_V2".into());
+            assert_eq!(
+                v2_face_recipe(&spec, head),
+                entry["v2_face"].as_str(),
+                "{}",
+                spec.affinity
+            );
+        }
+    }
+
+    #[test]
+    fn v2_humanoid_faces_are_species_specific_and_never_replace_beaks() {
+        for (prompt, expected) in [
+            ("orc", "orc"),
+            ("stormtrooper", "helmet"),
+            ("mermaid", "mermaid"),
+            ("humanoid", "human"),
+            ("harpy", "human"),
+            ("siren", "human"),
+            ("centaur", "human"),
+            ("satyr", "human"),
+            ("merman", "human"),
+            ("robot", "robot"),
+            ("alien", "alien"),
+            ("gorilla", "ape"),
+        ] {
+            let mut spec = crate::parser::parse_vocabulary(prompt);
+            let body = crate::anatomy::build(&spec, &mut ChaCha8Rng::seed_from_u64(42));
+            let head = body.nodes.iter().find(|node| node.kind == "HEAD").unwrap();
+            assert_eq!(v2_face_recipe(&spec, head), None);
+            spec.features.push("PROFILE_V2".into());
+            assert_eq!(v2_face_recipe(&spec, head), Some(expected), "{prompt}");
+            let mesh = v2_faces::mesh(expected);
+            assert!(mesh
+                .vertices
+                .iter()
+                .flatten()
+                .all(|value| value.is_finite()));
+            assert!(mesh
+                .faces
+                .iter()
+                .all(|(a, b, c, _)| *a < mesh.vertices.len()
+                    && *b < mesh.vertices.len()
+                    && *c < mesh.vertices.len()));
+            assert!(
+                mesh.vertices.iter().all(|v| v[0] < 0.9),
+                "{prompt}: no projecting muzzle"
+            );
+            assert!(mesh.faces.iter().any(|(_, _, _, role)| role
+                == if expected == "helmet" || expected == "robot" {
+                    "helmet_black"
+                } else {
+                    "eye_dark"
+                }));
+        }
+        for prompt in [
+            "falcon",
+            "wolf",
+            "minotaur",
+            "dragon",
+            "jellyfish",
+            "tornado",
+        ] {
+            let mut spec = crate::parser::parse_vocabulary(prompt);
+            let body = crate::anatomy::build(&spec, &mut ChaCha8Rng::seed_from_u64(42));
+            spec.features.push("PROFILE_V2".into());
+            for head in body.nodes.iter().filter(|node| node.kind == "HEAD") {
+                assert_eq!(
+                    v2_face_recipe(&spec, head),
+                    None,
+                    "preserve {prompt} beak/muzzle"
+                );
+            }
+        }
+        let mut hybrid = crate::parser::parse_vocabulary("mermaid");
+        let body = crate::anatomy::build(&hybrid, &mut ChaCha8Rng::seed_from_u64(42));
+        let mut secondary = body
+            .nodes
+            .iter()
+            .find(|n| n.kind == "HEAD")
+            .unwrap()
+            .clone();
+        secondary.id = "hybrid_head_0".into();
+        hybrid.features.push("PROFILE_V2".into());
+        hybrid.secondary_affinities = vec!["FALCON".into()];
+        assert_eq!(v2_face_recipe(&hybrid, &secondary), None);
+        assert!(
+            v2_faces::mesh("mermaid")
+                .vertices
+                .iter()
+                .any(|v| v[1] < -1.5),
+            "flowing hair extends beyond cap"
+        );
+        assert_ne!(
+            v2_faces::mesh("orc").vertices,
+            v2_faces::mesh("human").vertices
+        );
+        assert_ne!(
+            v2_faces::mesh("helmet").vertices,
+            v2_faces::mesh("human").vertices
+        );
     }
 
     #[test]

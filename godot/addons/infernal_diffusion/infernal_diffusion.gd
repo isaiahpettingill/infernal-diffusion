@@ -31,6 +31,11 @@ func generate_async_profile(prompt: String, seed: int, output_dir: String, profi
 func generate_in_memory_async_profile(prompt: String, seed: int, profile: int) -> int:
 	return _generator.generate_in_memory_async_profile(prompt, seed, profile, _library_dir())
 
+## Structured HybridRecipe dictionary; validation happens in the native V2 core.
+## Save/release the returned in-memory object with the existing methods.
+func generate_hybrid_async(recipe: Dictionary, seed: int) -> int:
+	return _generator.generate_hybrid_json_async(JSON.stringify(recipe), seed, _library_dir())
+
 func generate_in_memory_async(prompt: String, seed: int) -> int:
 	return _generator.generate_in_memory_async(prompt, seed, _library_dir())
 

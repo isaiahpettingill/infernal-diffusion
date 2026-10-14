@@ -52,6 +52,20 @@ pub fn generate_monster_with_profile(
         .map_err(|error| js_error(&error.to_string()))?;
     let generated = crate::generate_in_memory_with_profile(prompt, seed, profile)
         .map_err(|error| js_error(&error.to_string()))?;
+    serialize_generated(generated)
+}
+
+/// Structured hybrid JSON bypasses natural-language parsing and always uses V2.
+#[wasm_bindgen]
+pub fn generate_hybrid_json(recipe_json: &str, seed: u64) -> Result<JsValue, JsValue> {
+    let recipe: crate::v2::hybrid::HybridRecipe =
+        serde_json::from_str(recipe_json).map_err(|error| js_error(&error.to_string()))?;
+    let generated = crate::generate_hybrid_in_memory(&recipe, seed)
+        .map_err(|error| js_error(&error.to_string()))?;
+    serialize_generated(generated)
+}
+
+fn serialize_generated(generated: crate::GeneratedMonster) -> Result<JsValue, JsValue> {
     let output = Output {
         packages: generated
             .packages

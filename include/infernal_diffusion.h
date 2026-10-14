@@ -64,6 +64,11 @@ InfernalGeneratedMonster *infernal_generate_object(const char *prompt, uint64_t 
    Optional symbol when loading an older ABI-1 library dynamically. */
 InfernalGeneratedMonster *infernal_generate_in_memory_profile(const char *prompt, uint64_t seed,
                                                               uint32_t profile, char **error_out);
+/* Validated, versioned HybridRecipe JSON. Always V2, no neural parser.
+   Unknown fields/versions and invalid combinations return NULL + error_out.
+   Optional additive ABI-1 symbol; same object ownership and saving APIs. */
+InfernalGeneratedMonster *infernal_generate_hybrid_json(const char *recipe_json, uint64_t seed,
+                                                       char **error_out);
 void infernal_object_free(InfernalGeneratedMonster *handle);
 uint32_t infernal_object_count(const InfernalGeneratedMonster *handle);
 /* Returns an allocated UTF-8 path; free with infernal_free_string. */

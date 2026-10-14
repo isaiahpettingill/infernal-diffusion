@@ -9,7 +9,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 root, output = Path(sys.argv[1]), Path(sys.argv[2])
-names = ['wolf', 'beetle', 'dragon', 'frog', 'mermaid', 'tree']
+names = sys.argv[3:] or ['wolf', 'beetle', 'dragon', 'frog', 'mermaid', 'tree']
 canvas = Image.new('RGB', (1000, 360 * len(names)), (38, 40, 45))
 draw = ImageDraw.Draw(canvas)
 for row, name in enumerate(names):

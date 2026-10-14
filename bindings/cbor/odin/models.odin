@@ -214,6 +214,9 @@ V2Profile :: struct {
     modifiers: []string,
     attack_patterns: []AttackPatternDescriptor,
     lure: Maybe(LureDescriptor),
+    spectral: Maybe(SpectralDescriptor),
+    hybrid: Maybe(HybridRecipeDescriptor),
+    body_motion_samples: []BodyMotionSample,
 }
 
 AttackPatternDescriptor :: struct {
@@ -224,6 +227,7 @@ AttackPatternDescriptor :: struct {
     interval_ms: u32,
     spread_deg: f32,
     aim_mode: string,
+    motion_samples: []AttackOriginSample,
 }
 
 LureDescriptor :: struct {
@@ -238,4 +242,60 @@ LureDescriptor :: struct {
     distant_state: string,
     revealed_state: string,
     reset_policy: string,
+}
+
+SpectralDescriptor :: struct {
+    kind: string,
+    visual_style: string,
+    opacity: f32,
+    collision_mode: string,
+    damage_rules: []DamageRule,
+    default_damage_multiplier: f32,
+    default_projectile_pass_through: bool,
+    phase_windows: []PhaseWindow,
+}
+
+DamageRule :: struct {
+    priority: u32,
+    elements: []string,
+    delivery: string,
+    required_tag: string,
+    damage_multiplier: f32,
+    projectile_pass_through: bool,
+}
+
+PhaseWindow :: struct {
+    animation_id: string,
+    start_ms: u32,
+    end_ms: u32,
+    solid_pass_through: bool,
+}
+
+HybridRecipeDescriptor :: struct {
+    schema_version: u32,
+    upper_body: string,
+    lower_body: string,
+    head: string,
+    lower_limb_count: u32,
+    upper_arm_count: u32,
+}
+
+AttackOriginSample :: struct {
+    time_ms: u32,
+    sprite_frame_id: u32,
+    node_id: string,
+    views: []ColliderView,
+    active: bool,
+}
+
+BodyMotionSample :: struct {
+    animation_id: string,
+    time_ms: u32,
+    sprite_frame_id: u32,
+    hurtboxes: []PosedHurtbox,
+}
+
+PosedHurtbox :: struct {
+    node_id: string,
+    views: []ColliderView,
 }

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Infernal V2 HybridRecipe version 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "upper_body", "lower_body", "head", "lower_limb_count", "upper_arm_count"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "upper_body": {"enum": ["HUMANOID", "STORMTROOPER", "HARPY", "TREE"]},
+    "lower_body": {"enum": ["HUMANOID", "HORSE", "SPIDER", "MERMAID", "TREE", "SERPENT", "WOLF"]},
+    "head": {"enum": ["HUMANOID", "FISH", "WOLF", "BULL", "BIRD", "SPIDER", "STORMTROOPER", "TREE", "CAT"]},
+    "lower_limb_count": {"type": "integer", "minimum": 0, "maximum": 12},
+    "upper_arm_count": {"type": "integer", "minimum": 0, "maximum": 8}
+  },
+  "allOf": [{
+    "if": {"properties": {"lower_body": {"enum": ["MERMAID", "SERPENT"]}}},
+    "then": {"properties": {"lower_limb_count": {"const": 0}}}
+  }]
+}

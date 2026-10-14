@@ -6,6 +6,37 @@ fn main() {
         eprintln!("{error}");
         std::process::exit(2)
     });
+    if args.get(1).is_some_and(|arg| arg == "--hybrid-json") {
+        let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+            if args.len() != 5 {
+                return Err(
+                    "usage: infernal --hybrid-json RECIPE.json SEED OUTPUT_DIR [--profile v2]"
+                        .into(),
+                );
+            }
+            if profile_requested && profile != infernal_diffusion::GenerationProfile::V2 {
+                return Err("structured hybrid generation requires V2".into());
+            }
+            let recipe: infernal_diffusion::v2::hybrid::HybridRecipe =
+                serde_json::from_reader(std::fs::File::open(&args[2])?)?;
+            let seed = args[3]
+                .parse::<u64>()
+                .map_err(|_| "seed must be an unsigned integer")?;
+            let monster = infernal_diffusion::generate_hybrid(
+                &recipe,
+                seed,
+                Path::new(&args[4]),
+                infernal_diffusion::PackageFormat::Protobuf,
+            )?;
+            println!("{}: {}", monster.id, monster.display_name);
+            Ok(())
+        })();
+        if let Err(error) = result {
+            eprintln!("{error}");
+            std::process::exit(2);
+        }
+        return;
+    }
     if profile_requested
         && args.get(1).is_some_and(|command| {
             [
@@ -228,6 +259,7 @@ fn main() {
         eprintln!(
             "Usage: infernal <prompt> <seed> <output-dir> [bert-model-dir] [--profile v1|v2]"
         );
+        eprintln!("       infernal --hybrid-json RECIPE.json SEED OUTPUT_DIR");
         eprintln!("       infernal validate <package-dir>");
         eprintln!("       infernal inspect <package-dir>");
         eprintln!("       infernal parse <prompt> [bert-model-dir]");
