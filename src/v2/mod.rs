@@ -5,6 +5,8 @@ pub mod combat;
 pub mod grip;
 pub mod hybrid;
 pub mod prompt_normalization;
+mod recipe_extensions;
+pub mod spear_throw;
 pub mod spectral;
 use crate::{parser::MonsterSpec, proto, Error};
 
@@ -62,6 +64,16 @@ pub fn interpret(mut spec: MonsterSpec, prompt: &str) -> MonsterSpec {
     let explicit_legs = words
         .windows(2)
         .any(|pair| ["legs", "limbs"].contains(&pair[1]));
+    if has("lobster") {
+        spec.affinity = "LOBSTER".into();
+        spec.body_plan = "ARACHNID".into();
+        if !explicit_legs {
+            spec.limb_count = 8;
+        }
+        spec.arm_count = 0;
+        spec.materials = vec!["CHITIN".into()];
+        spec.confidence = 1.0;
+    }
     if has("frog") || has("toad") {
         spec.affinity = "FROG".into();
         spec.body_plan = "QUADRUPED".into();
@@ -83,9 +95,11 @@ pub fn interpret(mut spec: MonsterSpec, prompt: &str) -> MonsterSpec {
         spec.body_plan = "FUNGUS".into();
         spec.materials = vec!["WOOD".into()];
     }
+    if has("cute") || has("chibi") {
+        spec.features.push("CHIBI".into());
+    }
     if [
         "friendly",
-        "cute",
         "adorable",
         "welcoming",
         "smiling",
@@ -154,7 +168,9 @@ pub fn interpret(mut spec: MonsterSpec, prompt: &str) -> MonsterSpec {
         hybrid::apply_spec(&recipe, &mut spec);
     }
     for (word, feature) in [("shade", "SHADE"), ("ghost", "GHOST")] {
-        if has(word) || has(&format!("{word}s")) {
+        if (has(word) || has(&format!("{word}s")))
+            && !(word == "shade" && !has("shade") && (has("rapper") || has("dancer")))
+        {
             spec.features.push(feature.into());
             if spec.affinity == "UNKNOWN" {
                 spec.affinity = feature.into();
@@ -178,7 +194,7 @@ pub fn interpret(mut spec: MonsterSpec, prompt: &str) -> MonsterSpec {
         spec.arm_count = 2;
         spec.confidence = 1.0;
     }
-    spec
+    recipe_extensions::interpret(spec, prompt)
 }
 
 pub fn prepare(spec: &mut MonsterSpec) {
@@ -241,6 +257,8 @@ fn descriptor_pattern(attack: &proto::Attack, is_projectile: bool) -> String {
         .strip_prefix("v2_pattern_")
         .unwrap_or({
             match attack.id.as_str() {
+                "v2_passive_contact" => "passive_contact",
+                "v2_spear_throw" => "spear_throw",
                 "v2_mermaid_lunge" => "full_body_lunge",
                 "v2_mermaid_tail_whip" => "tail_whip",
                 "v2_tree_bilateral_smash" => "bilateral_extending_smash",
@@ -259,7 +277,8 @@ pub fn describe(
     attacks: &[proto::Attack],
     animations: &[proto::Animation],
 ) -> proto::V2Profile {
-    let friendly = spec.features.iter().any(|f| f == "FRIENDLY_LURE");
+    let friendly = spec.features.iter().any(|f| f == "FRIENDLY_LURE")
+        && !spec.features.iter().any(|f| f == "DANCER");
     let patterns = attacks
         .iter()
         .map(|attack| {
@@ -331,7 +350,19 @@ pub fn describe(
         },
         modifiers: {
             let mut modifiers = vec!["ORGANIC_VARIATION".into(), "SEEDED_PALETTE".into()];
-            for feature in ["FOUR_ARMED", "EXTRA_TAIL", "MUTANT_UNSTABLE"] {
+            for feature in [
+                "FOUR_ARMED",
+                "EXTRA_TAIL",
+                "MUTANT_UNSTABLE",
+                "AI_ANATOMY_ECHO",
+                "ZOMBIFIED",
+                "NINJA",
+                "DANCER",
+                "RARE_DANCER",
+                "FLAMING",
+                "SWIM",
+                "CHIBI",
+            ] {
                 if spec.features.iter().any(|f| f == feature) {
                     modifiers.push(feature.into());
                 }
@@ -426,6 +457,14 @@ pub fn validate_profile(monster: &proto::Monster) -> Result<(), Error> {
                 "BOUNDED_ARM_EXTENSION_MAX_1_8",
                 "BOUNDED_SHADE_TENDRIL_EXTENSION_MAX_1_8",
                 "WHOLE_BODY_UNWIND_REVERSE",
+                "AI_ANATOMY_ECHO",
+                "ZOMBIFIED",
+                "CHIBI",
+                "NINJA",
+                "DANCER",
+                "RARE_DANCER",
+                "FLAMING",
+                "SWIM",
             ]
             .contains(m)
         })
@@ -488,10 +527,31 @@ pub fn validate_profile(monster: &proto::Monster) -> Result<(), Error> {
                 .iter()
                 .filter(|e| e.kind == event_kind && e.reference_id == attack.id)
                 .count();
-            if event_count != usize::from(has(modifier)) {
+            if event_count != usize::from(has(modifier) && attack.id != "v2_passive_contact") {
                 return Err(invalid());
             }
         }
+    }
+    if has("DANCER")
+        && (monster.attacks.len() != 1
+            || monster.attacks[0].id != "v2_passive_contact"
+            || monster.attacks[0].delivery != "CONTACT"
+            || !monster.projectiles.is_empty()
+            || monster.animations.iter().flat_map(|a| &a.events).any(|e| {
+                [
+                    "ATTACK",
+                    "ATTACK_HIT",
+                    "PROJECTILE_SPAWN",
+                    "FIELD_SPAWN",
+                    "MINION_SPAWN",
+                ]
+                .contains(&e.kind.as_str())
+            }))
+    {
+        return Err(invalid());
+    }
+    if has("RARE_DANCER") && !has("DANCER") {
+        return Err(invalid());
     }
     let mut seen = std::collections::BTreeSet::new();
     for pattern in &profile.attack_patterns {

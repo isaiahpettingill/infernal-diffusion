@@ -16,10 +16,16 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::sync::OnceLock;
 
+#[path = "v2/animal_meshes.rs"]
+mod v2_animals;
 #[path = "v2/face_meshes.rs"]
 mod v2_faces;
+#[path = "v2/fantasy_meshes.rs"]
+mod v2_fantasy;
 #[path = "v2/skeleton_meshes.rs"]
 mod v2_skeleton;
+#[path = "v2/weapon_meshes.rs"]
+mod v2_weapons;
 
 pub const ANGLES_DEG: [f32; 4] = [0.0, 90.0, 180.0, 270.0];
 pub const PIXELS_PER_UNIT: f32 = 96.0 / 62.0;
@@ -177,7 +183,10 @@ const MESHES: &[(&str, &str)] = &[
         "skull_tank",
         include_str!("../assets/meshes/skull_tank.json"),
     ),
-    ("skull_stormtrooper", include_str!("../assets/meshes/skull_stormtrooper.json")),
+    (
+        "skull_stormtrooper",
+        include_str!("../assets/meshes/skull_stormtrooper.json"),
+    ),
     ("part_horn", include_str!("../assets/meshes/part_horn.json")),
     ("part_claw", include_str!("../assets/meshes/part_claw.json")),
     ("part_fang", include_str!("../assets/meshes/part_fang.json")),
@@ -418,6 +427,8 @@ pub(crate) enum TextureKind {
     Bark,
     OrganicScales,
     OrganicFur,
+    TigerStripes,
+    OrganicSkin,
 }
 
 pub(crate) fn texture_kind(material: &str, role: &str) -> TextureKind {
@@ -428,11 +439,11 @@ pub(crate) fn texture_kind(material: &str, role: &str) -> TextureKind {
         return TextureKind::None;
     }
     match material {
-        "FLESH" | "FLESH_ASH" | "FLESH_OCHRE" | "FLESH_RUST" | "SKIN_PALE" | "TUMOR" | "ROTTEN"
-        | "ALIEN_SKIN" | "GUNGAN_SKIN" | "MAKEUP" => TextureKind::Flesh,
-        "FUR" | "FUR_GOLD" | "FUR_WHITE" | "FUR_DARK" | "FUR_BROWN" | "HAIR_DARK" => {
-            TextureKind::Fur
-        }
+        "V2_ORC_SKIN" | "V2_TROLL_SKIN" | "V2_HIDE_GRAY" | "FLESH" | "FLESH_ASH"
+        | "FLESH_OCHRE" | "FLESH_RUST" | "SKIN_PALE" | "TUMOR" | "ROTTEN" | "ALIEN_SKIN"
+        | "GUNGAN_SKIN" | "MAKEUP" => TextureKind::Flesh,
+        "V2_WOLF_FUR" | "FUR" | "FUR_GOLD" | "FUR_WHITE" | "FUR_DARK" | "FUR_BROWN"
+        | "HAIR_DARK" => TextureKind::Fur,
         material if material.starts_with("FEATHER") => TextureKind::Fur,
         "SCALES" | "SCALES_RUST" | "SCALES_BLUE" | "SCALES_OCHRE" | "SAND_HIDE" | "SHARK_HIDE"
         | "ORCA_HIDE" | "MEMBRANE" => TextureKind::Scales,
@@ -488,6 +499,13 @@ fn texture_value(kind: TextureKind, local: V3, seed: u32) -> f32 {
     if kind == TextureKind::None {
         return 0.0;
     }
+    if kind == TextureKind::OrganicSkin {
+        return (noise(local * 4.0, seed) - 0.5) * 0.15;
+    }
+    if kind == TextureKind::TigerStripes {
+        let stripe = (local.x * 17.0 + local.y * 3.0 + (local.z * 7.0).sin() * 1.8).sin();
+        return if stripe > 0.35 { -0.68 } else { 0.05 };
+    }
     if kind == TextureKind::OrganicFur {
         let broad = noise(local * 2.4, seed) - 0.5;
         let strands = noise(V3::new(local.x * 15.0, local.y * 3.0, local.z * 15.0), seed) - 0.5;
@@ -531,6 +549,7 @@ fn texture_value(kind: TextureKind, local: V3, seed: u32) -> f32 {
 fn role_color(role: &str, material: &str) -> [u8; 4] {
     let (dark, mid, high) = render::colors(material);
     match role {
+        "gold" => [231, 181, 47, 255],
         "hair_ridge" => [72, 58, 51, 255],
         "robot_metal" => [143, 157, 165, 255],
         "robot_eye" => [89, 177, 202, 255],
@@ -1341,8 +1360,12 @@ fn v2_face_recipe(spec: &MonsterSpec, node: &Node) -> Option<&'static str> {
         .unwrap_or(primary);
     match affinity {
         "SKELETON" => return Some("skeleton"),
-        "JELLYFISH" | "TORNADO" => return None,
+        "JELLYFISH" | "TORNADO" | "POTATO" | "ROUNDLING" | "REAPER" => return None,
+        "CACODAEMON" | "GRENDEL" => return Some("orc"),
         "MERMAID" => return Some("mermaid"),
+        "TROLL" => return Some("troll"),
+        "ANIME_GIRL" => return Some("anime_adult"),
+        "HITLER" => return Some("historical"),
         "CENTAUR" | "SATYR" | "FAUN" | "HARPY" | "SIREN" | "MERMAN" | "FISHMAN" | "SPHINX"
         | "VALKYRIE" | "NAGA" | "LAMIA" | "ECHIDNA" => return Some("human"),
         "BIGFOOT" | "YETI" | "GORILLA" | "VANARA" => return Some("ape"),
@@ -1362,6 +1385,15 @@ fn v2_face_recipe(spec: &MonsterSpec, node: &Node) -> Option<&'static str> {
 fn v2_mesh_override(spec: &MonsterSpec, node: &Node) -> Option<&'static MeshAsset> {
     if !visual_v2(spec) {
         return None;
+    }
+    if node.id == "hand_0" && spec.features.iter().any(|f| f == "AI_ANATOMY_ECHO") {
+        return v2_fantasy::mesh("", "AI_HAND_ECHO");
+    }
+    if node.kind == "WEAPON" {
+        let local = v2_surface_spec(spec, &node.id);
+        if let Some(mesh) = v2_weapons::mesh(local.attack.concept.as_str()) {
+            return Some(mesh);
+        }
     }
     if node.kind == "BONE_SPUR" {
         return Some(v2_skeleton::mesh("long_bone"));
@@ -1386,7 +1418,20 @@ fn v2_mesh_override(spec: &MonsterSpec, node: &Node) -> Option<&'static MeshAsse
     if let Some(face) = v2_face_recipe(spec, node) {
         return Some(v2_faces::mesh(face));
     }
-    let (plan, affinity) = node_identity(spec, &node.id);
+    let (plan, local) = node_identity(spec, &node.id);
+    let affinity = node
+        .id
+        .strip_prefix("hybrid_head_")
+        .and_then(|i| i.parse::<usize>().ok())
+        .and_then(|i| spec.secondary_affinities.get(i))
+        .map(String::as_str)
+        .unwrap_or(local);
+    if let Some(mesh) = v2_fantasy::mesh(affinity, node.kind.as_str()) {
+        return Some(mesh);
+    }
+    if let Some(mesh) = v2_animals::mesh(affinity, node.kind.as_str(), &node.id) {
+        return Some(mesh);
+    }
     match (affinity, node.kind.as_str()) {
         ("FISH", "HEAD") => Some(v2_faces::mesh("fish")),
         ("CENTAUR", "FOOT") => Some(asset("part_hoof")),
@@ -1522,6 +1567,9 @@ fn v2_surface_color(
     let ghost = has("GHOST");
     if has("SHADE") {
         color = [0, 0, 0, 255];
+    } else if has("ZOMBIFIED") {
+        let gray = (color[0] as f32 * 0.3 + color[1] as f32 * 0.59 + color[2] as f32 * 0.11) as u8;
+        color = [gray, gray, gray, color[3]];
     } else if ghost || has("GHOUL") || spec.affinity == "GHOUL" {
         let luma =
             (color[0] as f32 * 0.30 + color[1] as f32 * 0.59 + color[2] as f32 * 0.11).min(255.0);
@@ -1619,6 +1667,9 @@ fn scene_palette(spec: &MonsterSpec, body: &Body, seed: u64) -> Vec<[u8; 4]> {
         // Facial/emote colors precede generic materials in the 48-color budget.
         let original = colors;
         colors = vec![[238, 234, 215, 255], [24, 24, 31, 255]];
+        if spec.features.iter().any(|f| f == "DANCER") {
+            colors.extend([[231, 181, 47, 255], [151, 108, 23, 255]]);
+        }
         // Normal humanoid faces also need their own skin and helmet ramps.
         if body
             .nodes
@@ -1752,6 +1803,13 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
     }
     for (i, node) in body.nodes.iter().enumerate() {
         let node_seed = texture_rng.random::<u32>();
+        if visual_v2(spec)
+            && node.kind == "WEAPON"
+            && v2_surface_spec(spec, &node.id).attack.concept == "SPEAR"
+            && crate::v2::spear_throw::released(pose)
+        {
+            continue;
+        }
         if visual_v2(spec)
             && (node.id.starts_with("v2_shade_tendril_")
                 || (node.kind == "WEAPON" && spec.features.iter().any(|f| f == "SHADE")))
@@ -1978,7 +2036,11 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
             AssetOptions {
                 flip_z: node.kind == "WING" && depth_for(node) < 0.0,
                 seed: node_seed,
-                irregularity: if matches!(
+                irregularity: if visual_v2(spec) {
+                    // Deliberate rest-rig anomalies carry V2 variation, rather than
+                    // high-frequency per-vertex crumpling of recognizable anatomy.
+                    0.015
+                } else if matches!(
                     node.kind.as_str(),
                     "TORSO" | "LOBE" | "TAIL" | "SHELL" | "ABDOMEN" | "BODY_SEGMENT"
                 ) {
@@ -1994,7 +2056,13 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
         if visual_v2(spec) {
             for triangle in &mut triangles[triangle_start..] {
                 if triangle.texture != TextureKind::None {
-                    if material == "SKIN_PALE" && matches!(node_affinity, "MERMAID" | "MERMAN") {
+                    if node_affinity == "TIGER" {
+                        triangle.texture = TextureKind::TigerStripes;
+                    } else if triangle.texture == TextureKind::Flesh {
+                        triangle.texture = TextureKind::OrganicSkin;
+                    } else if material == "SKIN_PALE"
+                        && matches!(node_affinity, "MERMAID" | "MERMAN")
+                    {
                         triangle.texture = TextureKind::None;
                     } else if material == "WOOD" {
                         triangle.texture = TextureKind::Bark;
@@ -2813,23 +2881,34 @@ mod tests {
 
     #[test]
     fn v2_ghost_lion_keeps_orc_rider_and_huge_axe_opaque() {
-        let mut spec = crate::v2::prompt_normalization::normalize_mount("Ghost lion with orc rider with huge axe").unwrap();
+        let mut spec = crate::v2::prompt_normalization::normalize_mount(
+            "Ghost lion with orc rider with huge axe",
+        )
+        .unwrap();
         crate::v2::prepare(&mut spec);
-        let mut body = crate::anatomy::build(&spec,&mut ChaCha8Rng::seed_from_u64(0));
-        crate::v2::anatomy::refine(&spec,&mut body,0);
-        assert!(body.nodes.iter().any(|n|n.id.starts_with("rider_")&&n.kind=="WEAPON"));
+        let mut body = crate::anatomy::build(&spec, &mut ChaCha8Rng::seed_from_u64(0));
+        crate::v2::anatomy::refine(&spec, &mut body, 0);
+        assert!(body
+            .nodes
+            .iter()
+            .any(|n| n.id.starts_with("rider_") && n.kind == "WEAPON"));
         for node in &body.nodes {
-            let local = v2_surface_spec(&spec,&node.id);
-            assert_eq!(local.features.iter().any(|f|f=="GHOST"), !node.id.starts_with("rider_"),"{}",node.id);
+            let local = v2_surface_spec(&spec, &node.id);
+            assert_eq!(
+                local.features.iter().any(|f| f == "GHOST"),
+                !node.id.starts_with("rider_"),
+                "{}",
+                node.id
+            );
         }
-        let (_,_,_,poses) = crate::animation::make(&spec,&body);
-        let triangles = scene(&spec,&body,&poses[0],0);
-        assert!(triangles.iter().any(|t|t.color[3]==128));
-        assert!(triangles.iter().any(|t|t.color[3]==255));
-        let (image,_,colors)=sheet(&spec,&body,&poses[..1],256,0);
-        assert!(image.pixels().any(|p|p[3]==97));
-        assert!(image.pixels().any(|p|p[3]==255));
-        assert!(colors<=255);
+        let (_, _, _, poses) = crate::animation::make(&spec, &body);
+        let triangles = scene(&spec, &body, &poses[0], 0);
+        assert!(triangles.iter().any(|t| t.color[3] == 128));
+        assert!(triangles.iter().any(|t| t.color[3] == 255));
+        let (image, _, colors) = sheet(&spec, &body, &poses[..1], 256, 0);
+        assert!(image.pixels().any(|p| p[3] == 97));
+        assert!(image.pixels().any(|p| p[3] == 255));
+        assert!(colors <= 255);
     }
 
     #[test]

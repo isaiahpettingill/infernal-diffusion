@@ -339,6 +339,7 @@ function minionAttack(minion, monster, distance) {
   for (let offset = 0; offset < attacks.length; offset++) {
     const index = (minion.attackCursor + offset) % attacks.length;
     const attack = attacks[index];
+    if (attack.delivery === 'CONTACT') continue;
     if (motionStep(attack)?.kind === 'TELEPORT') {
       minion.teleportAttempts = (minion.teleportAttempts || 0) + 1;
       if (minion.teleportAttempts % 12 !== 0) continue;
@@ -604,6 +605,7 @@ function chooseAttack(distance) {
   for (let offset = 0; offset < attacks.length; offset++) {
     const index = (foe.attackCursor + offset) % attacks.length;
     const attack = attacks[index];
+    if (attack.delivery === 'CONTACT') continue;
     if (motionStep(attack)?.kind === 'TELEPORT') {
       foe.teleportAttempts = (foe.teleportAttempts || 0) + 1;
       if (foe.teleportAttempts % 12 !== 0) continue;
@@ -679,6 +681,13 @@ function updateFight(dt) {
   for (const id of Object.keys(foe.cooldowns)) foe.cooldowns[id] = Math.max(0, foe.cooldowns[id] - dt);
   if (foe.hp > 0 && hero.hp > 0) {
     const distance = Math.abs(hero.x - foe.x);
+    for (const contact of state.monster.attacks.filter(a => a.delivery === 'CONTACT')) {
+      if ((foe.cooldowns[contact.id] || 0) === 0 && hitsHurtbox(state.monster, foe.x, foe.y,
+          hero.x < foe.x, hero.x, hero.y - 47, 16)) {
+        damageHero(contact.damage, foe.x);
+        foe.cooldowns[contact.id] = Math.max(.3, contact.cooldown / 1000);
+      }
+    }
     if (foe.action) {
       updateMotion(dt);
     } else if (foe.windup > 0) {
@@ -712,7 +721,8 @@ function updateFight(dt) {
     if (!isAnchored(state.monster) && !foe.action && foe.windup === 0 && foe.attackCooldown === 0) {
       const toward = Math.sign(hero.x - foe.x);
       const flying = canFly(state.monster);
-      const preferred = flying ? 225 : state.monster.attacks.some(a => a.delivery === 'PROJECTILE') ? 250 : 95;
+      const preferred = state.monster.attacks.every(a => a.delivery === 'CONTACT') ? 0
+        : flying ? 225 : state.monster.attacks.some(a => a.delivery === 'PROJECTILE') ? 250 : 95;
       const speed = clamp(state.monster.movementModes[0]?.speed || 70, 38, flying ? 145 : 125);
       if (distance > preferred + 25) {
         foe.x = clamp(foe.x + toward * speed * dt, 30, W - 30);

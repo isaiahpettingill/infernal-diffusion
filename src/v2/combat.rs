@@ -1012,6 +1012,237 @@ fn shade_attacks(
     *poses = used;
 }
 
+/// Speed and clip cadence change together; per-cycle root travel stays fixed.
+fn ninja_movement(spec: &MonsterSpec, clips: &mut [Animation], modes: &mut [MovementMode]) {
+    if !enabled(spec, "NINJA") {
+        return;
+    }
+    let moving: std::collections::BTreeSet<_> = modes
+        .iter()
+        .filter(|m| m.speed > 0.0)
+        .map(|m| m.animation_id.clone())
+        .collect();
+    let mut factors = std::collections::BTreeMap::new();
+    for clip in clips.iter_mut().filter(|c| moving.contains(&c.id)) {
+        let old: u32 = clip.frames.iter().map(|f| f.duration_ms).sum();
+        for frame in &mut clip.frames {
+            frame.duration_ms = ((frame.duration_ms as f32 / 1.55).round() as u32).max(1);
+        }
+        let now: u32 = clip.frames.iter().map(|f| f.duration_ms).sum();
+        if old == 0 || now == 0 {
+            continue;
+        }
+        for event in &mut clip.events {
+            event.time_ms = (event.time_ms as f32 * now as f32 / old as f32).round() as u32;
+        }
+        factors.insert(clip.id.clone(), old as f32 / now as f32);
+    }
+    for mode in modes {
+        if let Some(factor) = factors.get(&mode.animation_id) {
+            mode.speed *= factor;
+            if !mode.modifiers.iter().any(|m| m == "NINJA_AGILITY") {
+                mode.modifiers.push("NINJA_AGILITY".into());
+            }
+        }
+    }
+}
+
+/// A dance is a coordinated rigid-joint loop, not random node jitter. Hands,
+/// props, facial details and planted appendages inherit their actual parents.
+fn dance_pose(body: &Body, pose: &mut Pose) {
+    let phase = pose.phase * std::f32::consts::TAU;
+    let beat = (phase * 2.0).sin();
+    let hip_count = body.nodes.iter().filter(|n| n.kind == "HIP").count();
+    pose.root_x = if hip_count >= 4 { 2.0 } else { 3.0 } * phase.sin();
+    pose.root_y = -if hip_count >= 4 { 1.25 } else { 2.1 } * beat.abs();
+    pose.root_angle = if hip_count == 0 {
+        0.24
+    } else if hip_count >= 4 {
+        0.10
+    } else {
+        0.13
+    } * phase.sin();
+    let shoulders: Vec<_> = body
+        .nodes
+        .iter()
+        .enumerate()
+        .filter(|(_, n)| n.kind == "SHOULDER")
+        .map(|(i, _)| i)
+        .collect();
+    for (rank, shoulder) in shoulders.iter().enumerate() {
+        // Alternate full overhead reaches with a bent-elbow chest accent.
+        // A half-cycle offset makes the left/right silhouettes clearly unequal.
+        let accent = (phase + rank as f32 * std::f32::consts::PI).sin().max(0.0);
+        transform_subtree(body, pose, *shoulder, -0.35 - 2.0 * accent, 1.0);
+        if let Some(elbow) = body
+            .nodes
+            .iter()
+            .position(|n| n.parent == Some(*shoulder) && n.kind == "ARM")
+        {
+            transform_subtree(body, pose, elbow, 0.40 - 0.85 * accent, 1.0);
+        }
+    }
+    let hips: Vec<_> = body
+        .nodes
+        .iter()
+        .enumerate()
+        .filter(|(_, n)| n.kind == "HIP")
+        .map(|(i, _)| i)
+        .collect();
+    for (rank, hip) in hips.iter().enumerate() {
+        let offset = if rank % 2 == 0 {
+            0.0
+        } else {
+            std::f32::consts::PI
+        };
+        let angle = if hip_count >= 4 { 0.43 } else { 0.38 } * (phase * 2.0 + offset).sin();
+        transform_subtree(body, pose, *hip, angle, 1.0);
+        if hip_count >= 4 {
+            if let Some(upper) = body
+                .nodes
+                .iter()
+                .position(|n| n.parent == Some(*hip) && n.kind == "LIMB")
+            {
+                transform_subtree(
+                    body,
+                    pose,
+                    upper,
+                    -0.40 * (phase * 2.0 + offset).sin().max(0.0),
+                    1.0,
+                );
+            }
+        }
+    }
+    for (i, node) in body.nodes.iter().enumerate() {
+        if node.kind == "NECK" {
+            transform_subtree(body, pose, i, 0.30 * (phase * 2.0 + 0.4).sin(), 1.0);
+        } else if ["TAIL", "BODY_SEGMENT", "TENTACLE", "BRANCH", "ROOT"]
+            .contains(&node.kind.as_str())
+        {
+            let amplitude = if shoulders.is_empty() && hips.is_empty() {
+                0.17
+            } else {
+                0.07
+            };
+            transform_subtree(
+                body,
+                pose,
+                i,
+                amplitude * (phase * 2.0 + i as f32 * 0.45).sin(),
+                1.0,
+            );
+        } else if node.kind == "WING" {
+            transform_subtree(body, pose, i, 0.16 * (phase * 2.0 + i as f32).sin(), 1.0);
+        }
+    }
+}
+
+fn dancer_behavior(
+    spec: &MonsterSpec,
+    body: &Body,
+    clips: &mut Vec<Animation>,
+    modes: &mut Vec<MovementMode>,
+    attacks: &mut Vec<Attack>,
+    poses: &mut Vec<Pose>,
+) {
+    if !enabled(spec, "DANCER") {
+        return;
+    }
+    let action_clips: std::collections::BTreeSet<_> =
+        attacks.iter().map(|a| a.animation_id.clone()).collect();
+    clips.retain(|c| !action_clips.contains(&c.id));
+    modes.retain(|m| clips.iter().any(|c| c.id == m.animation_id));
+    let neutral = poses[0].clone();
+    for clip in clips.iter_mut().filter(|c| c.looped || c.id == LURE_CLIP) {
+        let travel_x: f32 = clip.frames.iter().map(|f| f.root_dx).sum();
+        let travel_y: f32 = clip.frames.iter().map(|f| f.root_dy).sum();
+        clip.frames.clear();
+        clip.events.clear();
+        for frame in 0..16 {
+            let mut pose = neutral.clone();
+            pose.clip_id = clip.id.clone();
+            pose.state = clip.semantic_state.clone();
+            pose.phase = frame as f32 / 16.0;
+            pose.physical_positions = body.nodes.iter().map(|n| (n.x, n.y, n.angle)).collect();
+            dance_pose(body, &mut pose);
+            clip.frames.push(AnimationFrame {
+                sprite_frame_id: poses.len() as u32,
+                duration_ms: 80,
+                root_dx: travel_x / 16.0,
+                root_dy: travel_y / 16.0,
+            });
+            poses.push(pose);
+        }
+        for time_ms in [0, 320, 640, 960] {
+            clip.events.push(AnimationEvent {
+                time_ms,
+                kind: "DANCE_BEAT".into(),
+                reference_id: "dance".into(),
+            });
+        }
+        // The groove has its own fixed cadence. Retain each mode's original
+        // stride, but derive speed from the rewritten clip rather than keeping
+        // its old cadence's speed. Ninja retiming then scales both consistently.
+        let duration_ms: u32 = clip.frames.iter().map(|f| f.duration_ms).sum();
+        let distance: f32 = clip.frames.iter().map(|f| f.root_dx.hypot(f.root_dy)).sum();
+        for mode in modes.iter_mut().filter(|m| m.animation_id == clip.id) {
+            mode.speed = distance * 1000.0 / duration_ms.max(1) as f32;
+        }
+    }
+    for mode in modes.iter_mut() {
+        if !mode.modifiers.iter().any(|m| m == "DANCING") {
+            mode.modifiers.push("DANCING".into());
+        }
+    }
+    let origin = body
+        .nodes
+        .iter()
+        .find(|n| n.kind == "TORSO")
+        .unwrap_or(&body.nodes[0]);
+    let idle = clips
+        .iter()
+        .find(|c| c.id == "idle")
+        .expect("base anatomy has an idle loop");
+    let duration = idle.frames.iter().map(|f| f.duration_ms).sum();
+    attacks.clear();
+    attacks.push(Attack {
+        id: "v2_passive_contact".into(),
+        delivery: "CONTACT".into(),
+        element: "PHYSICAL".into(),
+        origin_node: origin.id.clone(),
+        damage: 6,
+        telegraph_ms: 0,
+        cooldown_ms: 500,
+        range: origin.rx.min(origin.ry).max(1.0),
+        animation_id: "idle".into(),
+        steps: vec![AttackStep {
+            primitive: "CONTACT".into(),
+            at_ms: 0,
+            value: 1.0,
+            target: "OVERLAPPING_ACTOR".into(),
+            count: 0,
+            radius: origin.rx.min(origin.ry).max(1.0),
+            duration_ms: duration,
+            ..Default::default()
+        }],
+        ..Default::default()
+    });
+    // Removed attack clips must not leave unused fighting frames in the atlas.
+    let mut remap = std::collections::BTreeMap::new();
+    let mut kept = Vec::new();
+    for clip in clips {
+        for frame in &mut clip.frames {
+            let old = frame.sprite_frame_id;
+            frame.sprite_frame_id = *remap.entry(old).or_insert_with(|| {
+                let new = kept.len() as u32;
+                kept.push(poses[old as usize].clone());
+                new
+            });
+        }
+    }
+    *poses = kept;
+}
+
 pub fn animate(
     spec: &MonsterSpec,
     body: &Body,
@@ -1184,6 +1415,7 @@ pub fn animate(
     expressive_attacks(spec, body, &mut clips, &mut attacks, &mut poses);
     spectral_attacks(spec, body, &mut clips, &mut modes, &mut attacks, &mut poses);
     shade_attacks(spec, body, seed, &mut clips, &mut attacks, &mut poses);
+    super::spear_throw::apply(spec, body, seed, &mut clips, &mut attacks, &mut poses);
     if enabled(spec, "MUTANT_UNSTABLE") {
         awkward_coordination(body, seed, &mut clips, &mut attacks, &mut poses);
     }
@@ -1194,11 +1426,51 @@ pub fn animate(
         splay_extra_tails(body, &mut poses);
     }
     super::grip::apply(spec, body, &mut poses);
+    dancer_behavior(spec, body, &mut clips, &mut modes, &mut attacks, &mut poses);
+    ninja_movement(spec, &mut clips, &mut modes);
     (clips, modes, attacks, poses)
 }
 
 /// Guards the V2 extension without imposing new rules on legacy attacks.
 pub fn validate_patterns(animations: &[Animation], attacks: &[Attack]) -> Result<(), String> {
+    for contact in attacks
+        .iter()
+        .filter(|a| a.id == "v2_passive_contact" || a.delivery == "CONTACT")
+    {
+        let clip = animations
+            .iter()
+            .find(|c| c.id == contact.animation_id)
+            .ok_or("missing passive-contact dance loop")?;
+        if contact.id != "v2_passive_contact"
+            || contact.delivery != "CONTACT"
+            || contact.element != "PHYSICAL"
+            || contact.telegraph_ms != 0
+            || contact.cooldown_ms < 300
+            || contact.steps.len() != 1
+            || contact.steps[0].primitive != "CONTACT"
+            || contact.steps[0].target != "OVERLAPPING_ACTOR"
+            || contact.steps[0].at_ms != 0
+            || contact.steps[0].count != 0
+            || contact.steps[0].speed != 0.0
+            || contact.spawn.is_some()
+            || !contact.projectile_id.is_empty()
+            || !clip.looped
+            || clip.events.iter().any(|e| {
+                [
+                    "ATTACK",
+                    "ATTACK_HIT",
+                    "TELEGRAPH",
+                    "PROJECTILE_SPAWN",
+                    "FIELD_SPAWN",
+                    "MINION_SPAWN",
+                ]
+                .contains(&e.kind.as_str())
+            })
+        {
+            return Err("invalid passive-contact dance contract".into());
+        }
+    }
+
     for clip in animations {
         let begin: Vec<_> = clip
             .events
@@ -2394,5 +2666,122 @@ mod tests {
         assert_eq!(old.1, new.1);
         assert_eq!(old.2, new.2);
         assert_eq!(format!("{:?}", old.3), format!("{:?}", new.3));
+    }
+    #[test]
+    fn dancer_suppresses_active_attacks_and_preserves_every_anatomical_edge() {
+        use rand::SeedableRng;
+        for prompt in [
+            "orc with shotgun",
+            "wolf",
+            "cobra",
+            "jellyfish",
+            "robot",
+            "shade",
+            "ghoul",
+            "friendly mermaid",
+        ] {
+            let mut spec = crate::v2::interpret(crate::parser::parse_vocabulary(prompt), prompt);
+            crate::v2::prepare(&mut spec);
+            spec.features.push("DANCER".into());
+            let mut body =
+                crate::anatomy::build(&spec, &mut rand_chacha::ChaCha8Rng::seed_from_u64(42));
+            crate::v2::anatomy::refine(&spec, &mut body, 42);
+            crate::v2::grip::prepare_body(&spec, &mut body);
+            let (clips, _, attacks, poses) = animate(&spec, &body, 42);
+            validate_patterns(&clips, &attacks).unwrap();
+            assert_eq!(attacks.len(), 1, "{prompt}");
+            assert_eq!(attacks[0].delivery, "CONTACT", "{prompt}");
+            assert!(
+                clips.iter().all(|c| c.events.iter().all(|e| ![
+                    "ATTACK",
+                    "ATTACK_HIT",
+                    "PROJECTILE_SPAWN",
+                    "FIELD_SPAWN",
+                    "MINION_SPAWN"
+                ]
+                .contains(&e.kind.as_str()))),
+                "{prompt}"
+            );
+            let idle = clips.iter().find(|c| c.id == "idle").unwrap();
+            assert_eq!(idle.frames.len(), 16);
+            assert!(
+                poses[idle.frames[0].sprite_frame_id as usize].physical_positions
+                    != poses[idle.frames[4].sprite_frame_id as usize].physical_positions
+                    || poses[idle.frames[0].sprite_frame_id as usize].root_x
+                        != poses[idle.frames[4].sprite_frame_id as usize].root_x
+            );
+            for frame in &idle.frames {
+                let p = &poses[frame.sprite_frame_id as usize];
+                for (i, n) in body.nodes.iter().enumerate() {
+                    if let Some(parent) = n.parent {
+                        let rest = (n.x - body.nodes[parent].x).hypot(n.y - body.nodes[parent].y);
+                        let now = (p.physical_positions[i].0 - p.physical_positions[parent].0)
+                            .hypot(p.physical_positions[i].1 - p.physical_positions[parent].1);
+                        assert!((rest - now).abs() < 0.01, "{prompt} {}", n.id);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn dancer_movement_speed_matches_every_frame_with_and_without_ninja() {
+        for prompt in ["orc", "wolf", "cobra", "jellyfish"] {
+            for ninja in [false, true] {
+                let mut spec =
+                    crate::v2::interpret(crate::parser::parse_vocabulary(prompt), prompt);
+                crate::v2::prepare(&mut spec);
+                spec.features.push("DANCER".into());
+                if ninja {
+                    spec.features.push("NINJA".into());
+                }
+                let mut body =
+                    crate::anatomy::build(&spec, &mut rand_chacha::ChaCha8Rng::seed_from_u64(42));
+                crate::v2::anatomy::refine(&spec, &mut body, 42);
+                let (clips, modes, _, _) = animate(&spec, &body, 42);
+                for mode in &modes {
+                    let clip = clips.iter().find(|c| c.id == mode.animation_id).unwrap();
+                    if !clip.looped {
+                        continue;
+                    }
+                    for frame in &clip.frames {
+                        let expected = mode.speed * frame.duration_ms as f32 / 1000.0;
+                        let actual = frame.root_dx.hypot(frame.root_dy);
+                        assert!(
+                            (actual - expected).abs() < 0.0001,
+                            "{prompt} ninja={ninja} {}: root {actual} speed-derived {expected}",
+                            mode.id
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn ninja_speed_matches_animation_cadence_without_changing_root_stride() {
+        use rand::SeedableRng;
+        let mut spec = crate::parser::parse_vocabulary("humanoid");
+        crate::v2::prepare(&mut spec);
+        let body = crate::anatomy::build(&spec, &mut rand_chacha::ChaCha8Rng::seed_from_u64(42));
+        let (base_clips, base_modes, _, _) = animate(&spec, &body, 42);
+        spec.features.push("NINJA".into());
+        let (clips, modes, _, _) = animate(&spec, &body, 42);
+        for old in base_modes.iter().filter(|m| m.speed > 0.0) {
+            let mode = modes.iter().find(|m| m.id == old.id).unwrap();
+            let a = base_clips
+                .iter()
+                .find(|c| c.id == old.animation_id)
+                .unwrap();
+            let b = clips.iter().find(|c| c.id == mode.animation_id).unwrap();
+            let da: f32 = a.frames.iter().map(|f| f.duration_ms as f32).sum();
+            let db: f32 = b.frames.iter().map(|f| f.duration_ms as f32).sum();
+            assert!((mode.speed / old.speed - da / db).abs() < 0.0001);
+            assert!(mode.speed > old.speed * 1.5);
+            assert_eq!(
+                a.frames.iter().map(|f| f.root_dx).sum::<f32>(),
+                b.frames.iter().map(|f| f.root_dx).sum::<f32>()
+            );
+        }
     }
 }

@@ -218,7 +218,12 @@ pub fn validate(monster: &Monster) -> Result<(), String> {
             );
         }
     }
+    let dancing = monster.tags.iter().any(|t| t == "DANCER")
+        && monster.attacks.len() == 1
+        && monster.attacks[0].id == "v2_passive_contact"
+        && monster.attacks[0].delivery == "CONTACT";
     if spectral.kind == "SHADE"
+        && !dancing
         && (monster.attacks.len() != 2
             || monster.attacks.iter().any(|attack| {
                 !["v2_shade_tendril_lash", "v2_shade_tendril_thrust"].contains(&attack.id.as_str())
@@ -228,7 +233,9 @@ pub fn validate(monster: &Monster) -> Result<(), String> {
     }
     let mut expected = base(&spectral.kind);
     expected.phase_windows = windows(&monster.animations);
-    if spectral.kind != "GHOST" && expected.phase_windows.is_empty() {
+    // A passive dancer keeps spectral opacity and damage interactions; without
+    // a combat lunge it has no transient phase window. Ghosts remain intangible.
+    if spectral.kind != "GHOST" && expected.phase_windows.is_empty() && !dancing {
         return Err("bounded spectral phasing requires an actual phase interval".into());
     }
     if *spectral != expected {
