@@ -21,6 +21,27 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --locked --release ${{ matrix.features }}
+      - name: Exercise local playground profiles over HTTP
+        run: |
+          cargo build --locked --release ${{ matrix.features }} --bin infernal
+          python3 tools/smoke_playground.py --expect-parser ${{ matrix.features == '' && 'embedded-bert' || 'vocabulary' }}
+          node --test web/combat.test.cjs web/wasm/tests/profiles.node.mjs
+      - name: Install local Arena browser checks
+        if: matrix.features == ''
+        working-directory: web/wasm
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Test actual BERT server and selected animation playback
+        if: matrix.features == ''
+        working-directory: web/wasm
+        run: npx playwright test --config arena.config.js
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.features == ''
+        with:
+          name: local-bert-playground-evidence
+          path: web/wasm/test-results/
+          if-no-files-found: ignore
       - if: matrix.features == '--no-default-features'
         run: cargo clippy --locked --no-default-features --all-targets -- -D warnings
 

@@ -7,7 +7,7 @@
     :root { color-scheme: dark; font: 16px system-ui, sans-serif; background: #14131b; color: #eae6f2 }
     body { max-width: 1100px; margin: 3rem auto; padding: 0 1.5rem }
     h1 { color: #edb5ff } label { display: block; margin: 1rem 0 }
-    input, button { font: inherit; padding: .65rem; border: 1px solid #62516e; border-radius: .4rem }
+    input, select, button { font: inherit; padding: .65rem; border: 1px solid #62516e; border-radius: .4rem }
     #prompt { width: min(90%, 650px) } button { cursor: pointer } button:disabled { cursor: default; opacity: .5 }
     canvas { max-width: 100%; height: auto; image-rendering: pixelated; background: #252331 }
     pre { overflow: auto; max-height: 28rem; font-size: .8rem; background: #201e2b; padding: 1rem }
@@ -20,10 +20,16 @@
   <p class="heartbeat">Main-thread heartbeat: <output id="heartbeat">0</output></p>
   <form id="form">
     <label>Prompt <input id="prompt" value="stormtrooper with a laser blaster" required></label>
+    <label>Profile <select id="profile"><option value="v1">V1 · classic (default)</option><option value="v2">V2 · refined</option></select></label>
     <label>Seed <input id="seed" value="42" inputmode="numeric" pattern="[0-9]+" required></label>
     <button id="generate" type="submit" disabled>Generate</button>
     <button id="cancel" type="button" disabled>Cancel</button>
   </form>
+  <div aria-label="Example prompts">
+    <button type="button" data-prompt="friendly frog that sprays acid">Acid frog</button>
+    <button type="button" data-prompt="inky shade with tendrils">Inky shade</button>
+    <button type="button" data-prompt="jumbled skeleton">Jumbled skeleton</button>
+  </div>
   <p id="status" role="status">Loading WebAssembly…</p>
   <main id="results"></main>
   <script type="module" src="./demo.js"></script>

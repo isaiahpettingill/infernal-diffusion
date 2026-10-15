@@ -13,10 +13,11 @@
       <p>Describe a creature. Watch it move. Then see if your stickman can survive.</p>
     </header>
     <section class="workbench">
+      <p id="parser-status" role="status">Checking server parser…</p>
       <form id="generator" class="generator">
         <label for="prompt">Monster prompt</label>
         <div class="prompt-row"><input id="prompt" name="prompt" value="giant spider that shoots fire" maxlength="4096" autocomplete="off" required><button type="submit" id="generate">Generate monster</button></div>
-        <div class="options"><label for="seed">Seed <input id="seed" type="number" min="0" step="1" value="7"></label><label for="package-format">Save as <select id="package-format"><option value="protobuf">Protobuf</option><option value="cbor">CBOR</option></select></label><span>3D bake · shared pixel scale · seeded surface noise</span></div>
+        <div class="options"><label for="profile">Profile <select id="profile"><option value="v1">V1 · classic</option><option value="v2">V2 · refined</option></select></label><label for="seed">Seed <input id="seed" type="number" min="0" step="1" value="7"></label><label for="package-format">Save as <select id="package-format"><option value="protobuf">Protobuf</option><option value="cbor">CBOR</option></select></label><span>3D bake · shared pixel scale · seeded surface noise</span></div>
         <p class="status" id="status" role="status">Ready. Generation can take a little while.</p>
       </form>
       <div class="preset-row" aria-label="Example prompts">
@@ -24,12 +25,14 @@
         <button type="button" data-prompt="six armed cyclops with swords">Six armed cyclops</button>
         <button type="button" data-prompt="spectral dragon that shoots fire">Spectral dragon</button>
         <button type="button" data-prompt="sharknado">Sharknado</button>
+        <button type="button" data-prompt="friendly frog that sprays acid">Acid frog</button>
+        <button type="button" data-prompt="inky shade with tendrils">Inky shade</button>
       </div>
     </section>
     <section class="arena-panel">
       <div class="arena-top"><div><p class="eyebrow">THE ARENA</p><h2 id="monster-name">Awaiting specimen</h2></div><div class="arena-actions"><button id="viewer-mode" class="active" type="button">Animation viewer</button><button id="fight-mode" type="button">Fight</button><button id="reset-fight" type="button" hidden>Restart</button></div></div>
       <canvas id="arena" width="960" height="520" tabindex="0" aria-label="Animated monster and stickman arena"></canvas>
-      <div class="arena-bottom"><label id="clip-control">Animation <select id="clip"></select></label><label id="direction-control">Angle <select id="direction"></select></label><span id="controls" hidden>Move A/D or ←/→ · jump Space/Z · strike or block shots X/left click · fire C/right click</span><span id="arena-message">Generate a monster to begin.</span></div>
+      <div class="arena-bottom"><label id="clip-control">Animation <select id="clip"></select></label><label id="direction-control">Angle <select id="direction"></select></label><span id="playback-controls"><button id="play-pause" type="button" disabled>Pause</button> <button id="restart-animation" type="button" disabled>Restart</button> <label>Speed <select id="playback-speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label> <output id="playback-status" aria-live="off">No animation</output></span><span id="controls" hidden>Move A/D or ←/→ · jump Space/Z · strike or block shots X/left click · fire C/right click</span><span id="arena-message">Generate a monster to begin.</span></div>
     </section>
     <section class="details" id="details" hidden>
       <div class="detail-heading"><div><p class="eyebrow">SPECIMEN RECORD</p><h2 id="detail-name"></h2><p id="description"></p></div><div class="size-badge" id="size-badge"></div></div>

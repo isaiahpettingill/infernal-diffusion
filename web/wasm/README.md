@@ -8,7 +8,7 @@ This standalone static-site example runs Rust generation and vocabulary parsing 
 2. From `web/wasm`, run `python3 server.py`.
 3. Open <http://127.0.0.1:8080/>. Do not use `file://`; module workers and WASM fetches require HTTP(S). Production servers must use HTTPS, serve `.wasm` as `application/wasm`, and send `Cross-Origin-Opener-Policy: same-origin` plus `Cross-Origin-Embedder-Policy: require-corp`. The supplied local server sets these headers on every response, including worker scripts, and serves localhost as a secure context. A plain `python -m http.server` is insufficient for this threaded build. Keep the generated `pkg/snippets/` directory; it contains Rayon worker modules.
 
-Enter a prompt and unsigned 64-bit decimal seed, then Generate. The live heartbeat shows the main thread remains responsive while Rust runs. Sprite, emission, and optional projectile atlases render to canvases, followed by expandable full metadata. Large atlases can briefly cost main-thread time while being painted; generation itself stays in the worker.
+Enter a prompt and unsigned 64-bit decimal seed, select V1 (default) or V2, then Generate. Example buttons fill the prompt without changing the selected profile. The live heartbeat shows the main thread remains responsive while Rust runs. Sprite, emission, and optional projectile atlases render to canvases, followed by expandable full metadata. Large atlases can briefly cost main-thread time while being painted; generation itself stays in the worker.
 
 ## Integrate
 

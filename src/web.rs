@@ -89,6 +89,7 @@ fn monster_json(monster: &Monster, asset_base: &str) -> Value {
     let size = monster.size.as_ref();
     json!({
         "id": monster.id,
+        "parser": monster.generation.as_ref().map(|info| info.parser.as_str()),
         "name": monster.display_name,
         "description": monster.description,
         "tags": monster.tags,
@@ -217,8 +218,32 @@ fn package_dir(
     prompt: &str,
     seed: u64,
     format: crate::PackageFormat,
+    profile: crate::GenerationProfile,
+) -> (String, PathBuf) {
+    package_dir_with_parser(root, prompt, seed, format, profile, parser_id())
+}
+
+fn parser_id() -> &'static str {
+    if cfg!(feature = "bert") {
+        "embedded-bert"
+    } else {
+        "vocabulary"
+    }
+}
+
+fn package_dir_with_parser(
+    root: &Path,
+    prompt: &str,
+    seed: u64,
+    format: crate::PackageFormat,
+    profile: crate::GenerationProfile,
+    parser: &str,
 ) -> (String, PathBuf) {
     let mut digest = Sha256::new();
+    // Never reuse vocabulary packages in a BERT-enabled server, or vice versa.
+    digest.update(b"arena-parser-cache-v1:");
+    digest.update(parser.as_bytes());
+    digest.update([0]);
     digest.update(env!("CARGO_PKG_VERSION").as_bytes());
     digest.update(crate::render3d::recipe_fingerprint().as_bytes());
     digest.update(b"morphology.seeded_mystery@1");
@@ -229,6 +254,10 @@ fn package_dir(
     {
         digest.update(recipe.as_bytes());
         digest.update([0]);
+    }
+    // Keep the generation profiles separate as well as the parser builds.
+    if profile == crate::GenerationProfile::V2 {
+        digest.update(b"generation-profile:v2");
     }
     digest.update(prompt.as_bytes());
     digest.update(seed.to_le_bytes());
@@ -241,12 +270,29 @@ fn package_dir(
     (key, path)
 }
 
+fn request_profile(input: &Value) -> Result<crate::GenerationProfile, &'static str> {
+    match input.get("profile") {
+        None => Ok(crate::GenerationProfile::V1),
+        Some(Value::String(value)) if value == "v1" => Ok(crate::GenerationProfile::V1),
+        Some(Value::String(value)) if value == "v2" => Ok(crate::GenerationProfile::V2),
+        _ => Err("profile must be v1 or v2"),
+    }
+}
+
 fn handle(mut stream: TcpStream, root: Arc<PathBuf>, generation_lock: Arc<Mutex<()>>) {
     let (method, path, body) = match read_request(&mut stream) {
         Ok(request) => request,
         Err(message) => return error(&mut stream, "400 Bad Request", &message),
     };
     match (method.as_str(), path.as_str()) {
+        ("GET", "/api/info") => response(
+            &mut stream,
+            "200 OK",
+            "application/json; charset=utf-8",
+            json!({"parser": parser_id(), "bert": cfg!(feature = "bert")})
+                .to_string()
+                .as_bytes(),
+        ),
         ("GET", "/") => response(
             &mut stream,
             "200 OK",
@@ -303,7 +349,11 @@ fn handle(mut stream: TcpStream, root: Arc<PathBuf>, generation_lock: Arc<Mutex<
                     )
                 }
             };
-            let (key, directory) = package_dir(&root, prompt, seed, format);
+            let profile = match request_profile(&input) {
+                Ok(profile) => profile,
+                Err(message) => return error(&mut stream, "400 Bad Request", message),
+            };
+            let (key, directory) = package_dir(&root, prompt, seed, format, profile);
             let monster = {
                 let _guard = generation_lock
                     .lock()
@@ -311,7 +361,7 @@ fn handle(mut stream: TcpStream, root: Arc<PathBuf>, generation_lock: Arc<Mutex<
                 if directory.join(format.filename()).exists() {
                     crate::load_package_with_format(&directory, format)
                 } else {
-                    crate::generate_with_format(prompt, seed, &directory, None, format)
+                    crate::generate_with_profile(prompt, seed, &directory, None, format, profile)
                 }
             };
             match monster.and_then(|monster| package_json(&monster, &key, &directory)) {
@@ -379,4 +429,74 @@ pub fn serve(port: u16, output_root: &Path) -> std::io::Result<()> {
         std::thread::spawn(move || handle(stream, root, generation_lock));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{GenerationProfile, PackageFormat};
+
+    #[test]
+    fn web_profile_defaults_to_v1_and_rejects_invalid_values() {
+        assert_eq!(request_profile(&json!({})).unwrap(), GenerationProfile::V1);
+        assert_eq!(
+            request_profile(&json!({"profile": "v1"})).unwrap(),
+            GenerationProfile::V1
+        );
+        assert_eq!(
+            request_profile(&json!({"profile": "v2"})).unwrap(),
+            GenerationProfile::V2
+        );
+        for value in [json!(null), json!(2), json!("V2"), json!("v3")] {
+            assert!(request_profile(&json!({"profile": value})).is_err());
+        }
+    }
+
+    #[test]
+    fn web_cache_separates_profiles_and_formats() {
+        let root = Path::new("generated");
+        let v1 = package_dir(
+            root,
+            "small green slime",
+            42,
+            PackageFormat::Protobuf,
+            GenerationProfile::V1,
+        );
+        let v2 = package_dir(
+            root,
+            "small green slime",
+            42,
+            PackageFormat::Protobuf,
+            GenerationProfile::V2,
+        );
+        let cbor = package_dir(
+            root,
+            "small green slime",
+            42,
+            PackageFormat::Cbor,
+            GenerationProfile::V2,
+        );
+        assert_ne!(v1, v2);
+        assert_ne!(v2, cbor);
+        let bert = package_dir_with_parser(
+            root,
+            "small green slime",
+            42,
+            PackageFormat::Protobuf,
+            GenerationProfile::V1,
+            "embedded-bert",
+        );
+        let vocabulary = package_dir_with_parser(
+            root,
+            "small green slime",
+            42,
+            PackageFormat::Protobuf,
+            GenerationProfile::V1,
+            "vocabulary",
+        );
+        assert_ne!(
+            bert, vocabulary,
+            "Parser changes must never reuse stale packages"
+        );
+    }
 }
