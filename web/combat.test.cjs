@@ -293,3 +293,21 @@ test('one-shot viewer preserves authored shade reversal and holds the final deat
   context.advanceAnimation(1000);
   assert.equal(state.clipClock, 100);
 });
+
+test('passive contact dancers never enter active windup or launch attacks', () => {
+  const { context, state } = arena();
+  state.monster.attacks = [{ id: 'v2_passive_contact', delivery: 'CONTACT', damage: 9,
+    range: 18, cooldown: 500, telegraph: 0, animation: 'idle', steps: [{ kind: 'CONTACT' }] }];
+  assert.equal(context.chooseAttack(0), null);
+  state.hero.x = state.foe.x;
+  state.hero.y = state.foe.y;
+  const before = state.hero.hp;
+  context.updateFight(.01);
+  assert.ok(state.hero.hp < before);
+  assert.equal(state.foe.windup, 0);
+  assert.equal(state.foe.attack, null);
+  assert.equal(state.shots.length, 0);
+  const after = state.hero.hp;
+  context.updateFight(.01);
+  assert.equal(state.hero.hp, after);
+});

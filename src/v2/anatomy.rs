@@ -2,6 +2,8 @@
 //! animation/IK builds its fixed-length constraints; no frame-dependent scaling.
 use crate::anatomy::{Body, Node};
 use crate::parser::MonsterSpec;
+#[path = "species_anatomy.rs"]
+mod species_anatomy;
 
 fn has(spec: &MonsterSpec, feature: &str) -> bool {
     spec.features.iter().any(|f| f == feature)
@@ -33,7 +35,7 @@ pub fn prepare_spec(spec: &mut MonsterSpec) {
 /// and rig solvers agree on their count. An independent integer stream means
 /// adding a material draw can never change whether a specimen is a mutant.
 pub fn prepare_seeded(spec: &mut MonsterSpec, seed: u64) {
-    if !has(spec, "PROFILE_V2") || spec.mount.is_some() || has(spec, "TOPOLOGY_LOCKED_INTERNAL") {
+    if !has(spec, "PROFILE_V2") {
         return;
     }
     let mut bits = seed ^ 0x9e3779b97f4a7c15;
@@ -43,6 +45,20 @@ pub fn prepare_seeded(spec: &mut MonsterSpec, seed: u64) {
     bits ^= bits >> 30;
     bits = bits.wrapping_mul(0xbf58476d1ce4e5b9);
     bits ^= bits >> 27;
+    if bits.is_multiple_of(1000) && !has(spec, "DANCER") {
+        spec.features
+            .extend(["DANCER".into(), "RARE_DANCER".into()]);
+    }
+    if spec.mount.is_some() || has(spec, "TOPOLOGY_LOCKED_INTERNAL") {
+        return;
+    }
+    if has(spec, "ZOMBIFIED") {
+        if spec.arm_count > 0 && !has(spec, "EXPLICIT_ARMS") {
+            spec.arm_count -= 1;
+        } else if spec.limb_count > 0 && !has(spec, "EXPLICIT_LEGS") {
+            spec.limb_count -= 1;
+        }
+    }
     let humanoid = spec.body_plan == "HUMANOID"
         || matches!(
             spec.affinity.as_str(),
@@ -56,7 +72,8 @@ pub fn prepare_seeded(spec: &mut MonsterSpec, seed: u64) {
                 | "LAMIA"
                 | "ECHIDNA"
         );
-    let organic = !matches!(spec.affinity.as_str(), "ROBOT" | "STORMTROOPER");
+    let organic =
+        !matches!(spec.affinity.as_str(), "ROBOT" | "STORMTROOPER") && !has(spec, "ZOMBIFIED");
     if humanoid
         && organic
         && spec.arm_count == 2
@@ -69,6 +86,9 @@ pub fn prepare_seeded(spec: &mut MonsterSpec, seed: u64) {
                 spec.features.push(tag.into());
             }
         }
+    }
+    if matches!(spec.affinity.as_str(), "ORC" | "TROLL") && (bits >> 16).is_multiple_of(4) {
+        spec.features.push("AI_ANATOMY_ECHO".into());
     }
     let merfolk = matches!(spec.affinity.as_str(), "MERMAID" | "MERMAN");
     let tail_family = merfolk
@@ -696,6 +716,7 @@ pub fn refine(spec: &MonsterSpec, body: &mut Body, _seed: u64) {
     // Composite mounts retain their separately built anatomy and attachment graph.
     // Do not reshape the mount as though it were the rider's species.
     if spec.mount.is_some() {
+        species_anatomy::mounted_modifiers(spec, body, crate::anatomy::morphology_scale(spec.size));
         shade_tendrils(spec, body, crate::anatomy::morphology_scale(spec.size));
         recompute_mass(body);
         return;
@@ -795,6 +816,7 @@ pub fn refine(spec: &MonsterSpec, body: &mut Body, _seed: u64) {
         "TREE_MONSTER" => tree(body, s),
         _ => {}
     }
+    species_anatomy::refine(spec, body, _seed, s);
     extra_tail(spec, body, s);
     if has(spec, "FRIENDLY_LURE") {
         for n in &mut body.nodes {

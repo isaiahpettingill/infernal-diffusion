@@ -13,6 +13,7 @@ fn active_duration(step: &AttackStep) -> u32 {
 
 fn damaging(step: &AttackStep) -> bool {
     [
+        "CONTACT",
         "SWIPE",
         "BITE",
         "THRUST",

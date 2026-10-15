@@ -719,7 +719,8 @@ fn generate_spec_internal(
         }
         v2::prepare(&mut spec);
         v2::anatomy::prepare_seeded(&mut spec, seed);
-        spec.features.retain(|feature| feature != "TOPOLOGY_LOCKED_INTERNAL");
+        spec.features
+            .retain(|feature| feature != "TOPOLOGY_LOCKED_INTERNAL");
         v2::spectral::validate_spec(&spec).map_err(Error::InvalidMonster)?;
     }
     if options.profile == GenerationProfile::V1 && spec.features.iter().any(|f| f == "PROFILE_V2") {
@@ -906,7 +907,9 @@ fn generate_spec_internal(
         v2::combat::validate_rig_extensions(&body, &animations, &poses)
             .map_err(Error::InvalidMonster)?;
     }
-    if movement_modes.len() < 2 || attacks.len() < 2 || poses.is_empty() {
+    let dancer =
+        options.profile == GenerationProfile::V2 && spec.features.iter().any(|f| f == "DANCER");
+    if movement_modes.len() < 2 || attacks.len() < if dancer { 1 } else { 2 } || poses.is_empty() {
         return Err(Error::InvalidMonster(
             "animation stage omitted required movement, attacks, or poses".into(),
         ));
@@ -1691,6 +1694,14 @@ pub fn validate(monster: &proto::Monster, sheet: &image::RgbaImage) -> Result<()
         "DEATH",
     ];
     for state in required {
+        if state == "ATTACK"
+            && monster
+                .v2_profile
+                .as_ref()
+                .is_some_and(|p| p.modifiers.iter().any(|m| m == "DANCER"))
+        {
+            continue;
+        }
         if !monster.animations.iter().any(|a| a.semantic_state == state) {
             return Err(Error::InvalidMonster(format!("missing {state}")));
         }
@@ -1833,6 +1844,54 @@ pub fn validate(monster: &proto::Monster, sheet: &image::RgbaImage) -> Result<()
                 "invalid attack origin {}",
                 a.origin_node
             )));
+        }
+        if a.id == "v2_passive_contact"
+            && monster
+                .v2_profile
+                .as_ref()
+                .is_some_and(|p| p.modifiers.iter().any(|m| m == "DANCER"))
+        {
+            let valid = a.delivery == "CONTACT"
+                && a.telegraph_ms == 0
+                && (300..=30000).contains(&a.cooldown_ms)
+                && (1..=500).contains(&a.damage)
+                && a.range.is_finite()
+                && a.range > 0.0
+                && a.range <= 100.0
+                && a.projectile_id.is_empty()
+                && a.spawn.is_none()
+                && a.steps.len() == 1
+                && a.steps.iter().all(|step| {
+                    step.primitive == "CONTACT"
+                        && step.target == "OVERLAPPING_ACTOR"
+                        && step.at_ms == 0
+                        && step.radius.is_finite()
+                        && step.radius > 0.0
+                        && step.radius <= 100.0
+                        && step.speed == 0.0
+                        && step.count == 0
+                        && step.value.is_finite()
+                })
+                && monster.animations.iter().any(|clip| {
+                    clip.id == a.animation_id
+                        && clip.looped
+                        && clip.events.iter().all(|e| {
+                            ![
+                                "ATTACK",
+                                "ATTACK_HIT",
+                                "PROJECTILE_SPAWN",
+                                "FIELD_SPAWN",
+                                "MINION_SPAWN",
+                            ]
+                            .contains(&e.kind.as_str())
+                        })
+                });
+            if !valid {
+                return Err(Error::InvalidMonster(
+                    "invalid passive contact contract".into(),
+                ));
+            }
+            continue;
         }
         let clip = monster
             .animations

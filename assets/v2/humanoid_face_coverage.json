@@ -14,7 +14,7 @@
       "affinity": "ANIME_GIRL",
       "prompt": "anime girl",
       "body_plan": "HUMANOID",
-      "v2_face": "human",
+      "v2_face": "anime_adult",
       "status": "covered",
       "reason": "V2 shallow humanoid face geometry"
     },
@@ -230,7 +230,7 @@
       "affinity": "HITLER",
       "prompt": "adolph hitler",
       "body_plan": "HUMANOID",
-      "v2_face": "human",
+      "v2_face": "historical",
       "status": "covered",
       "reason": "V2 shallow humanoid face geometry"
     },
@@ -446,7 +446,7 @@
       "affinity": "TROLL",
       "prompt": "troll",
       "body_plan": "HUMANOID",
-      "v2_face": "orc",
+      "v2_face": "troll",
       "status": "covered",
       "reason": "V2 shallow humanoid face geometry"
     },

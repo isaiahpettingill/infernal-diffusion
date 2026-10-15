@@ -13,6 +13,16 @@ const SIZE: u32 = 24;
 const FRAMES: u32 = 4;
 
 pub fn recipe_kind(spec: &MonsterSpec, attack: &Attack) -> &'static str {
+    if spec.features.iter().any(|f| f == "PROFILE_V2") && attack.element == "PHYSICAL" {
+        if spec.features.iter().any(|f| f == "PROFILE_V2") && attack.id == "v2_spear_throw" {
+            return "SPEAR";
+        }
+        match spec.attack.concept.as_str() {
+            "POTATO" => return "POTATO",
+            "ROUND" => return "ROUND",
+            _ => {}
+        }
+    }
     // V2 patterns own their visual element. A friendly acid spray must not inherit
     // an unrelated equipment concept (e.g. BOW) from the base recipe.
     if spec.features.iter().any(|f| f == "PROFILE_V2") && attack.id.starts_with("v2_pattern_") {
@@ -71,6 +81,63 @@ fn frame(
     let mut image = RgbaImage::new(SIZE, SIZE);
     let flicker = phase as i32 % 3;
     match kind {
+        "POTATO" | "ROUND" => {
+            let color = if kind == "POTATO" {
+                [166, 115, 63, 255]
+            } else {
+                [151, 179, 195, 255]
+            };
+            for y in 4i32..20 {
+                for x in 3i32..21 {
+                    let dx = (x - 12) as f32 / 8.5;
+                    let dy = (y - 12) as f32 / if kind == "POTATO" { 6.5 } else { 8.5 };
+                    if dx * dx + dy * dy <= 1.0 {
+                        paint(&mut image, x, y, color);
+                    }
+                }
+            }
+            if kind == "POTATO" {
+                for (x, y) in [(7, 10), (13, 7), (16, 14), (10, 16)] {
+                    disc(&mut image, x, y, 1, [99, 69, 39, 255]);
+                }
+            }
+            disc(
+                &mut image,
+                9,
+                8,
+                2,
+                if kind == "POTATO" {
+                    [196, 148, 88, 255]
+                } else {
+                    [205, 222, 229, 255]
+                },
+            );
+        }
+        "SPEAR" => {
+            for x in 1..18 {
+                paint(&mut image, x, 11, [119, 79, 43, 255]);
+                paint(&mut image, x, 12, [171, 123, 65, 255]);
+            }
+            for x in 14..23 {
+                for y in 8i32..16 {
+                    if (y - 12).abs() <= ((x - 14).min(23 - x) + 1) / 2 {
+                        paint(
+                            &mut image,
+                            x,
+                            y,
+                            if y < 12 {
+                                [225, 230, 229, 255]
+                            } else {
+                                [127, 150, 161, 255]
+                            },
+                        );
+                    }
+                }
+            }
+            for x in [7, 9, 11] {
+                paint(&mut image, x, 11, [48, 43, 40, 255]);
+            }
+        }
         "ARROW" => {
             for x in 3..17 {
                 for y in 11..13 {
@@ -298,14 +365,14 @@ pub fn bake(
             first_frame: row as u32 * FRAMES,
             frame_count: FRAMES,
             frame_duration_ms: 80,
-            collision_radius: if matches!(kind, "ARROW" | "BULLET" | "BEAM") {
+            collision_radius: if matches!(kind, "ARROW" | "SPEAR" | "BULLET" | "BEAM") {
                 2.5
             } else {
                 5.0
             },
             orientation_mode: if matches!(
                 kind,
-                "ARROW" | "BULLET" | "ROCKET" | "ICE_SHARD" | "STONE_SHARD" | "BEAM"
+                "ARROW" | "SPEAR" | "BULLET" | "ROCKET" | "ICE_SHARD" | "STONE_SHARD" | "BEAM"
             ) {
                 "ALIGN_VELOCITY"
             } else {
