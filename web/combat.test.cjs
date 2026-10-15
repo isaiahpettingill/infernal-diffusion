@@ -246,3 +246,50 @@ test('a charge covers its range before the impact frame', () => {
   assert.ok(Math.abs(state.foe.x - state.hero.x) < 68);
   assert.equal(state.hero.hp, 84);
 });
+
+test('viewer follows per-frame timing, speed, pause and restart independently of combat', () => {
+  const { context, state } = arena();
+  state.mode = 'viewer';
+  state.monster.animations.push({ id: 'timed', state: 'MOVE', loop: true,
+    frames: [{ id: 2, duration: 100 }, { id: 3, duration: 200 }] });
+  context.selectViewerClip('timed');
+  assert.equal(context.currentFrame(), 2);
+  context.advanceAnimation(99);
+  assert.equal(context.currentFrame(), 2);
+  context.advanceAnimation(1);
+  assert.equal(context.currentFrame(), 3);
+  context.setViewerPlaying(false);
+  context.advanceAnimation(1000);
+  assert.equal(state.clipClock, 100);
+  state.playbackSpeed = 2;
+  context.setViewerPlaying(true);
+  context.advanceAnimation(100);
+  assert.equal(context.currentFrame(), 2);
+  context.selectViewerClip('timed');
+  assert.equal(state.clipClock, 0);
+  assert.equal(state.viewerPlaying, true);
+  state.mode = 'fight';
+  context.setViewerPlaying(false);
+  context.advanceAnimation(100);
+  assert.equal(state.clipClock, 100, 'combat ignores viewer pause and speed');
+});
+
+test('one-shot viewer preserves authored shade reversal and holds the final death frame', () => {
+  const { context, state } = arena();
+  state.mode = 'viewer';
+  state.monster.animations.push({ id: 'shade', state: 'ATTACK', loop: false,
+    frames: [5, 6, 7, 6, 5].map(id => ({ id, duration: 100 })) });
+  context.selectViewerClip('shade');
+  const frames = [context.currentFrame()];
+  for (let i = 0; i < 4; i++) { context.advanceAnimation(100); frames.push(context.currentFrame()); }
+  assert.deepEqual(frames, [5, 6, 7, 6, 5]);
+  context.advanceAnimation(1000);
+  assert.equal(context.currentFrame(), 5);
+  assert.equal(state.viewerPlaying, false);
+  context.selectViewerClip('death');
+  context.advanceAnimation(1000);
+  assert.equal(context.currentFrame(), 1);
+  assert.equal(state.viewerPlaying, false);
+  context.advanceAnimation(1000);
+  assert.equal(state.clipClock, 100);
+});

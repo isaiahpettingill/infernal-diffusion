@@ -14,6 +14,7 @@ from urllib.request import Request, urlopen
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', default='target/release/infernal')
+    parser.add_argument('--expect-parser', choices=['embedded-bert', 'vocabulary'], required=True)
     args = parser.parse_args()
     binary = str(Path(args.binary).resolve())
     with socket.socket() as sock:
@@ -34,6 +35,10 @@ def main():
                     time.sleep(0.1)
             else:
                 raise RuntimeError('Arena server did not start')
+            with urlopen(base + '/api/info') as response:
+                info = json.load(response)
+            assert info['parser'] == args.expect_parser, info
+            assert info['bert'] == (args.expect_parser == 'embedded-bert')
             assert 'id="profile"' in html and 'value="v2"' in html
 
             def generate(**extra):
@@ -52,6 +57,7 @@ def main():
             assert v2 == replay, 'V2 cached result must be stable'
             assert len({v1['sprites']['url'], v2['sprites']['url'], cbor['sprites']['url']}) == 3
             for monster in (v1, v2, cbor):
+                assert monster['parser'].startswith('candle-bert' if info['bert'] else 'vocabulary'), monster['parser']
                 assert monster['animations'] and monster['sprites']['angles']
                 with urlopen(base + monster['sprites']['url']) as response:
                     assert response.read().startswith(b'\x89PNG\r\n\x1a\n')

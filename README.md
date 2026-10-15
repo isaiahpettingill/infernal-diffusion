@@ -28,16 +28,25 @@ and inky shades that attack through coherent deforming tendrils. See the
 From the repository root, with Rust stable and your platform's native build tools installed:
 
 ```sh
-cargo run --locked --release --no-default-features -- serve
+cargo run --locked --release -- serve
 ```
 
 Open <http://localhost:8799/>. Enter a prompt and seed, select **V1** (the default)
 or **V2**, then generate. The Arena includes example prompts, a directional animation
 viewer, a fight sandbox, and protobuf/CBOR packages saved in `web/generated/`.
-No Node, Python, BERT model, or generation service is required for this local Arena.
+The default build uses the included **embedded BERT model** on your CPU, alongside
+explicit vocabulary rules; model errors are reported instead of silently falling back.
+The UI shows the server parser and each generated package's actual parser provenance.
+No external model download, Node, Python, or generation service is required.
+For an explicitly vocabulary-only build, add `--no-default-features` before `-- serve`.
+The two parser builds use separate output caches.
+
+Choose an animation and direction to play it immediately. Pause/resume, restart, and
+0.25×–2× speed controls are available. Loops repeat; one-shot attacks (including shade
+recovery) and death clips play their baked frames once and hold the last frame.
 The development server listens on all interfaces; use it only on a trusted network.
 There is no hosted playground URL configured in this repository.
-After building, `python3 tools/smoke_playground.py` checks both profiles over HTTP
+After building, `python3 tools/smoke_playground.py --expect-parser embedded-bert` checks both profiles over HTTP
 using an isolated temporary output directory.
 
 ## Browser / Web Worker build

@@ -19,7 +19,7 @@ const canFly = (monster) => monster?.animations?.some(clip => clip.state === 'FL
 const isAnchored = (monster) => monster?.tags?.includes('ANCHORED');
 const state = {
   monster: null, sheet: null, projectileSheet: null, original: null, companions: {}, mode: 'viewer',
-  clip: null, clipClock: 0, direction: 0, viewerMirror: false, lastTime: 0,
+  clip: null, clipClock: 0, direction: 0, viewerMirror: false, lastTime: 0, viewerPlaying: true, playbackSpeed: 1,
   hero: { x: 245, y: FLOOR, vy: 0, knockbackVX: 0, knockbackClock: 0, hp: 100, attackClock: 0, attackCooldown: 0, shotCooldown: 0, facing: 1, hurtClock: 0 },
   foe: { x: 720, y: FLOOR, hp: 0, attackCooldown: 0, windup: 0, attack: null, action: null, cooldowns: {}, attackCursor: 0, teleportAttempts: 0, dodgeCooldown: 0, hurtClock: 0 },
   keys: new Set(), jumpQueued: false, strikeQueued: false, fireQueued: false, shots: [], heroShots: [], sparks: [], fields: [], minions: [],
@@ -69,6 +69,26 @@ function swingHits(monster, x, ground) {
   const mirror = state.hero.x < x;
   return [35, 55, 75].some(offset => hitsHurtbox(monster, x, ground, mirror,
     state.hero.x + facing * offset, state.hero.y - 61, 14));
+}
+function setViewerPlaying(playing) {
+  state.viewerPlaying = playing;
+  $('play-pause').textContent = playing ? 'Pause' : 'Play';
+}
+function selectViewerClip(id) {
+  playClip(id, true);
+  setViewerPlaying(true);
+}
+function advanceAnimation(milliseconds) {
+  if (state.mode === 'fight') {
+    state.clipClock += milliseconds;
+    return;
+  }
+  if (!state.clip || !state.viewerPlaying) return;
+  state.clipClock += milliseconds * state.playbackSpeed;
+  if (!state.clip.loop && state.clipClock >= clipLength(state.clip)) {
+    state.clipClock = clipLength(state.clip);
+    setViewerPlaying(false);
+  }
 }
 function currentFrame() {
   if (!state.clip?.frames.length) return 0;
@@ -135,6 +155,9 @@ function setupMonster(monster, sheet, projectileSheet) {
   playClip('IDLE', true);
   clipSelect.value = state.clip?.id || clipSelect.options[0]?.value;
   $('arena-message').textContent = 'Select an animation or enter the arena.';
+  $('play-pause').disabled = false;
+  $('restart-animation').disabled = false;
+  setViewerPlaying(true);
   resetFight();
 }
 
@@ -179,7 +202,7 @@ async function generate(event) {
     state.companions = await loadCompanions(monster);
     setupMonster(monster, sheet, projectileSheet);
     setMode('viewer');
-    setStatus(`Generated ${monster.name}. ${monster.animations.length} animations are ready.`);
+    setStatus(`Generated ${monster.name} with ${monster.parser || 'unknown parser'}. ${monster.animations.length} animations are ready.`);
   } catch (error) {
     setStatus(`Generation failed: ${error.message}`);
   } finally {
@@ -193,13 +216,15 @@ function setMode(mode) {
   $('fight-mode').classList.toggle('active', mode === 'fight');
   $('clip-control').hidden = mode === 'fight';
   $('direction-control').hidden = mode === 'fight';
+  $('playback-controls').hidden = mode === 'fight';
   $('controls').hidden = mode !== 'fight';
   $('reset-fight').hidden = mode !== 'fight';
   $('arena-message').hidden = mode === 'fight';
   if (mode === 'fight' && state.monster) resetFight();
   if (mode === 'viewer' && state.monster) {
-    playClip($('clip').value || 'IDLE', true);
-    state.direction = Number($('direction').value);
+    selectViewerClip($('clip').value || 'IDLE');
+    state.viewerMirror = $('direction').value === 'mirror0';
+    state.direction = state.viewerMirror ? 0 : Number($('direction').value);
   }
 }
 
@@ -955,10 +980,14 @@ function draw(time) {
 }
 
 function tick(timestamp) {
-  const dt = Math.min(.05, Math.max(0, (timestamp - state.lastTime) / 1000));
+  const elapsed = state.lastTime ? Math.max(0, (timestamp - state.lastTime) / 1000) : 0;
+  const dt = Math.min(.05, elapsed);
   state.lastTime = timestamp;
-  state.clipClock += dt * 1000;
+  advanceAnimation((state.mode === 'fight' ? dt : elapsed) * 1000);
   if (state.mode === 'fight') updateFight(dt);
+  if (state.mode === 'viewer' && state.clip) {
+    $('playback-status').textContent = `${state.viewerPlaying ? 'Playing' : 'Paused'} · frame ${currentFrame()} · ${state.clip.loop ? 'loop' : 'play once'}`;
+  }
   draw(timestamp / 1000);
   requestAnimationFrame(tick);
 }
@@ -970,7 +999,22 @@ for (const button of document.querySelectorAll('[data-prompt]')) {
 $('viewer-mode').addEventListener('click', () => setMode('viewer'));
 $('fight-mode').addEventListener('click', () => setMode('fight'));
 $('reset-fight').addEventListener('click', resetFight);
-$('clip').addEventListener('change', (event) => playClip(event.target.value, true));
+$('clip').addEventListener('change', (event) => selectViewerClip(event.target.value));
+$('play-pause').addEventListener('click', () => {
+  if (!state.clip) return;
+  if (!state.viewerPlaying && !state.clip.loop && state.clipClock >= clipLength(state.clip)) state.clipClock = 0;
+  setViewerPlaying(!state.viewerPlaying);
+});
+$('restart-animation').addEventListener('click', () => { if (state.clip) selectViewerClip(state.clip.id); });
+$('playback-speed').addEventListener('change', (event) => { state.playbackSpeed = Number(event.target.value); });
+fetch('/api/info').then(response => {
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}).then(info => {
+  $('parser-status').textContent = info.bert
+    ? 'Parser: embedded BERT + vocabulary rules · runs locally on your CPU'
+    : 'Parser: vocabulary only · restart with cargo run --release -- serve for embedded BERT';
+}).catch(error => { $('parser-status').textContent = `Could not verify server parser: ${error.message}`; });
 $('direction').addEventListener('change', (event) => {
   state.viewerMirror = event.target.value === 'mirror0';
   if (!state.viewerMirror) state.direction = Number(event.target.value);

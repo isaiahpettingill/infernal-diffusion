@@ -89,6 +89,7 @@ fn monster_json(monster: &Monster, asset_base: &str) -> Value {
     let size = monster.size.as_ref();
     json!({
         "id": monster.id,
+        "parser": monster.generation.as_ref().map(|info| info.parser.as_str()),
         "name": monster.display_name,
         "description": monster.description,
         "tags": monster.tags,
@@ -219,7 +220,30 @@ fn package_dir(
     format: crate::PackageFormat,
     profile: crate::GenerationProfile,
 ) -> (String, PathBuf) {
+    package_dir_with_parser(root, prompt, seed, format, profile, parser_id())
+}
+
+fn parser_id() -> &'static str {
+    if cfg!(feature = "bert") {
+        "embedded-bert"
+    } else {
+        "vocabulary"
+    }
+}
+
+fn package_dir_with_parser(
+    root: &Path,
+    prompt: &str,
+    seed: u64,
+    format: crate::PackageFormat,
+    profile: crate::GenerationProfile,
+    parser: &str,
+) -> (String, PathBuf) {
     let mut digest = Sha256::new();
+    // Never reuse vocabulary packages in a BERT-enabled server, or vice versa.
+    digest.update(b"arena-parser-cache-v1:");
+    digest.update(parser.as_bytes());
+    digest.update([0]);
     digest.update(env!("CARGO_PKG_VERSION").as_bytes());
     digest.update(crate::render3d::recipe_fingerprint().as_bytes());
     digest.update(b"morphology.seeded_mystery@1");
@@ -231,7 +255,7 @@ fn package_dir(
         digest.update(recipe.as_bytes());
         digest.update([0]);
     }
-    // Keep V1 cache keys stable while separating all V2 packages.
+    // Keep the generation profiles separate as well as the parser builds.
     if profile == crate::GenerationProfile::V2 {
         digest.update(b"generation-profile:v2");
     }
@@ -261,6 +285,14 @@ fn handle(mut stream: TcpStream, root: Arc<PathBuf>, generation_lock: Arc<Mutex<
         Err(message) => return error(&mut stream, "400 Bad Request", &message),
     };
     match (method.as_str(), path.as_str()) {
+        ("GET", "/api/info") => response(
+            &mut stream,
+            "200 OK",
+            "application/json; charset=utf-8",
+            json!({"parser": parser_id(), "bert": cfg!(feature = "bert")})
+                .to_string()
+                .as_bytes(),
+        ),
         ("GET", "/") => response(
             &mut stream,
             "200 OK",
@@ -446,6 +478,25 @@ mod tests {
         );
         assert_ne!(v1, v2);
         assert_ne!(v2, cbor);
-        assert_eq!(v1.0, "10b0d47ad4448961beaf"); // Existing V1 cache stays valid.
+        let bert = package_dir_with_parser(
+            root,
+            "small green slime",
+            42,
+            PackageFormat::Protobuf,
+            GenerationProfile::V1,
+            "embedded-bert",
+        );
+        let vocabulary = package_dir_with_parser(
+            root,
+            "small green slime",
+            42,
+            PackageFormat::Protobuf,
+            GenerationProfile::V1,
+            "vocabulary",
+        );
+        assert_ne!(
+            bert, vocabulary,
+            "Parser changes must never reuse stale packages"
+        );
     }
 }
