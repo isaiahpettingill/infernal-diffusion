@@ -33,8 +33,10 @@ pub(super) fn interpret(mut spec: MonsterSpec, prompt: &str) -> MonsterSpec {
     }
     if has("grendel") {
         // Grendel's missing arm is recipe identity, not random damage.
-        spec.arm_count = 1;
-        spec.features.push("EXPLICIT_ARMS".into());
+        if !explicit_arms {
+            spec.arm_count = 1;
+            spec.features.push("EXPLICIT_ARMS".into());
+        }
         spec.bulk = 0.85;
         spec.size = 0.8;
     }
@@ -146,7 +148,9 @@ pub(super) fn interpret(mut spec: MonsterSpec, prompt: &str) -> MonsterSpec {
                 if !explicit_arms {
                     spec.arm_count = base.arm_count;
                 }
-                spec.heads = base.heads;
+                if !spec.features.iter().any(|f| f == "EXPLICIT_HEADS") {
+                    spec.heads = base.heads;
+                }
             }
         }
         spec.features.push("ZOMBIFIED".into());

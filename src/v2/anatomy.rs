@@ -2,6 +2,8 @@
 //! animation/IK builds its fixed-length constraints; no frame-dependent scaling.
 use crate::anatomy::{Body, Node};
 use crate::parser::MonsterSpec;
+#[path = "explicit_appendages.rs"]
+mod explicit_appendages;
 #[path = "species_anatomy.rs"]
 mod species_anatomy;
 
@@ -121,6 +123,39 @@ fn remove_where(body: &mut Body, predicate: impl Fn(&Node) -> bool) {
         }
     }
     body.nodes = kept;
+}
+
+/// A mounted graph is assembled by the legacy builder before V2 refinement.
+/// Its unprefixed nodes belong to the deepest mount; rider_, mount_rider_, etc.
+/// belong to successive rider clauses. Apply the ordinary no-invented-hybrids
+/// rule to each owner, preserving a mount's explicitly requested secondary parts.
+fn remove_unrequested_mounted_hybrids(spec: &MonsterSpec, body: &mut Body) {
+    let mut explicit_hybrids = vec![!spec.secondary_affinities.is_empty()];
+    let mut owner = spec;
+    while let Some(mount) = &owner.mount {
+        if let Some(lower) = mount.spec.as_deref() {
+            explicit_hybrids.push(!lower.secondary_affinities.is_empty());
+            owner = lower;
+        } else {
+            // The legacy fallback mount spec has no requested secondary parts.
+            explicit_hybrids.push(false);
+            break;
+        }
+    }
+    remove_where(body, |node| {
+        let mut id = node.id.as_str();
+        let mut depth = 0;
+        while let Some(remainder) = id.strip_prefix("mount_") {
+            depth += 1;
+            id = remainder;
+        }
+        if let Some(remainder) = id.strip_prefix("rider_") {
+            id = remainder;
+        } else {
+            depth = explicit_hybrids.len() - 1;
+        }
+        id.starts_with("hybrid_") && explicit_hybrids.get(depth) == Some(&false)
+    });
 }
 
 /// Move an attachment with all of its details, so eyes and equipment stay seated.
@@ -716,6 +751,7 @@ pub fn refine(spec: &MonsterSpec, body: &mut Body, _seed: u64) {
     // Composite mounts retain their separately built anatomy and attachment graph.
     // Do not reshape the mount as though it were the rider's species.
     if spec.mount.is_some() {
+        remove_unrequested_mounted_hybrids(spec, body);
         species_anatomy::mounted_modifiers(spec, body, crate::anatomy::morphology_scale(spec.size));
         shade_tendrils(spec, body, crate::anatomy::morphology_scale(spec.size));
         recompute_mass(body);
@@ -831,6 +867,7 @@ pub fn refine(spec: &MonsterSpec, body: &mut Body, _seed: u64) {
         }
     }
     super::hybrid::assemble(spec, body, _seed);
+    explicit_appendages::refine(spec, body, s);
     skeletal_spurs(spec, body, _seed, s);
     shade_tendrils(spec, body, s);
     // Recompute the same 2D mass convention used by V1 after shape changes.
@@ -855,6 +892,88 @@ mod tests {
         refine(&spec, &mut body, 42);
         (spec, body)
     }
+    #[test]
+    fn mounted_identity_keeps_exact_requested_heads_across_seeds() {
+        let mut witnessed_legacy_hybrid = false;
+        for (prompt, heads, hands) in [
+            ("orc riding lion", 2, 2),
+            (
+                "three-headed eight-armed orc riding three-headed eight-armed dinosaur",
+                6,
+                16,
+            ),
+            ("orc riding wolf riding lion", 3, 2),
+            ("orc riding pig riding wolf riding lion", 4, 2),
+        ] {
+            let mut spec = crate::v2::interpret(crate::parser::parse_vocabulary(prompt), prompt);
+            crate::v2::prepare(&mut spec);
+            for seed in 0..128 {
+                let mut body = crate::anatomy::build(&spec, &mut ChaCha8Rng::seed_from_u64(seed));
+                witnessed_legacy_hybrid |= body.nodes.iter().any(|n| n.id.contains("hybrid_"));
+                refine(&spec, &mut body, seed);
+                assert!(
+                    !body.nodes.iter().any(|n| n.id.contains("hybrid_")),
+                    "{prompt}, seed {seed}"
+                );
+                assert_eq!(
+                    body.nodes.iter().filter(|n| n.kind == "HEAD").count(),
+                    heads,
+                    "{prompt}, seed {seed}"
+                );
+                assert_eq!(
+                    body.nodes.iter().filter(|n| n.kind == "HAND").count(),
+                    hands,
+                    "{prompt}, seed {seed}"
+                );
+                assert!(body
+                    .nodes
+                    .iter()
+                    .enumerate()
+                    .all(|(i, n)| n.parent.is_none_or(|parent| parent < i)));
+            }
+        }
+        assert!(
+            witnessed_legacy_hybrid,
+            "seed sweep must exercise the legacy random hybrid path"
+        );
+    }
+
+    #[test]
+    fn mounted_identity_preserves_explicit_hybrid_parts_on_their_owner() {
+        for prompt in [
+            "orc riding lion with goat",
+            "orc riding wolf riding lion with goat",
+        ] {
+            let mut spec = crate::v2::interpret(crate::parser::parse_vocabulary(prompt), prompt);
+            crate::v2::prepare(&mut spec);
+            for seed in 0..128 {
+                let mut body = crate::anatomy::build(&spec, &mut ChaCha8Rng::seed_from_u64(seed));
+                refine(&spec, &mut body, seed);
+                assert!(
+                    body.nodes.iter().any(|n| n.id == "hybrid_head_0"),
+                    "{prompt}, seed {seed}"
+                );
+                assert_eq!(
+                    body.nodes
+                        .iter()
+                        .filter(|n| n.id.contains("hybrid_head_"))
+                        .count(),
+                    1,
+                    "{prompt}, seed {seed}"
+                );
+                assert!(
+                    body.nodes.iter().any(|n| n.id == "hybrid_horn_0"),
+                    "{prompt}, seed {seed}"
+                );
+                assert!(body
+                    .nodes
+                    .iter()
+                    .enumerate()
+                    .all(|(i, n)| n.parent.is_none_or(|parent| parent < i)));
+            }
+        }
+    }
+
     #[test]
     fn all_families_are_deterministic_finite_connected() {
         for prompt in [

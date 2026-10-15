@@ -241,7 +241,7 @@ fn package_dir_with_parser(
 ) -> (String, PathBuf) {
     let mut digest = Sha256::new();
     // Never reuse vocabulary packages in a BERT-enabled server, or vice versa.
-    digest.update(b"arena-parser-cache-v1:");
+    digest.update(b"arena-parser-cache-v2:");
     digest.update(parser.as_bytes());
     digest.update([0]);
     digest.update(env!("CARGO_PKG_VERSION").as_bytes());
@@ -257,7 +257,7 @@ fn package_dir_with_parser(
     }
     // Keep the generation profiles separate as well as the parser builds.
     if profile == crate::GenerationProfile::V2 {
-        digest.update(b"generation-profile:v2");
+        digest.update(b"generation-profile:v2-recipes@3");
     }
     digest.update(prompt.as_bytes());
     digest.update(seed.to_le_bytes());

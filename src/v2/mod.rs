@@ -43,11 +43,29 @@ impl std::str::FromStr for GenerationProfile {
     }
 }
 
-/// V2-only vocabulary extensions leave both legacy parsers untouched.
+/// V2 semantic extensions share the exact count intent from both parser paths.
 pub fn interpret(mut spec: MonsterSpec, prompt: &str) -> MonsterSpec {
     if let Some(normalized) = prompt_normalization::normalize_mount(prompt) {
         return normalized;
     }
+    // Keep every modifier on its owning clause in ordinary riding grammar as
+    // well as mount-first requests. The legacy parser already supplies the tree.
+    let lower = prompt.to_lowercase();
+    if spec.mount.is_some() {
+        if let Some((rider_clause, mount_clause)) = lower.split_once(" riding ") {
+            let mut mount = spec.mount.take().unwrap();
+            let lower = crate::parser::mount_spec(&spec, &mount);
+            let lower = interpret(lower, mount_clause);
+            mount.body_plan = lower.body_plan.clone();
+            mount.affinity = lower.affinity.clone();
+            mount.spec = Some(Box::new(lower));
+            let mut rider = interpret(spec, rider_clause);
+            rider.mount = Some(mount);
+            return rider;
+        }
+    }
+    let counts = crate::parser::ExplicitCounts::from_prompt(prompt);
+    counts.apply_v2(&mut spec);
     let lower = prompt.to_lowercase();
     let words: Vec<_> = lower
         .split(|c: char| !c.is_alphanumeric())
@@ -61,9 +79,7 @@ pub fn interpret(mut spec: MonsterSpec, prompt: &str) -> MonsterSpec {
         spec.arm_count = 2;
         spec.confidence = 1.0;
     }
-    let explicit_legs = words
-        .windows(2)
-        .any(|pair| ["legs", "limbs"].contains(&pair[1]));
+    let explicit_legs = counts.legs.is_some();
     if has("lobster") {
         spec.affinity = "LOBSTER".into();
         spec.body_plan = "ARACHNID".into();
@@ -110,33 +126,6 @@ pub fn interpret(mut spec: MonsterSpec, prompt: &str) -> MonsterSpec {
     .any(|w| has(w))
     {
         spec.features.push("FRIENDLY_LURE".into());
-    }
-    if words.windows(2).any(|pair| {
-        ["legs", "limbs"].contains(&pair[1])
-            && (pair[0].parse::<u8>().is_ok()
-                || [
-                    "zero", "one", "two", "three", "four", "five", "six", "eight", "ten", "twelve",
-                    "no",
-                ]
-                .contains(&pair[0]))
-    }) {
-        spec.features.push("EXPLICIT_LEGS".into());
-    }
-    for (nouns, feature) in [
-        (&["arm", "arms"][..], "EXPLICIT_ARMS"),
-        (&["tail", "tails"][..], "EXPLICIT_TAILS"),
-    ] {
-        if words.windows(2).any(|pair| {
-            nouns.contains(&pair[1])
-                && (pair[0].parse::<u8>().is_ok()
-                    || [
-                        "zero", "one", "two", "three", "four", "five", "six", "eight", "ten",
-                        "twelve", "no",
-                    ]
-                    .contains(&pair[0]))
-        }) {
-            spec.features.push(feature.into());
-        }
     }
     if [
         "shoots",
@@ -194,7 +183,11 @@ pub fn interpret(mut spec: MonsterSpec, prompt: &str) -> MonsterSpec {
         spec.arm_count = 2;
         spec.confidence = 1.0;
     }
-    recipe_extensions::interpret(spec, prompt)
+    let mut spec = recipe_extensions::interpret(spec, prompt);
+    // Explicit user counts win over species, hybrid and modifier defaults.
+    // Reapplying also protects intent if a future recipe changes a count.
+    counts.apply_v2(&mut spec);
+    spec
 }
 
 pub fn prepare(spec: &mut MonsterSpec) {

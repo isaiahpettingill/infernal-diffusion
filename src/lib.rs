@@ -817,7 +817,7 @@ fn generate_spec_internal(
         recipe_ids.push("motion.aquatic_navigation@1".into());
     }
     if options.profile == GenerationProfile::V2 {
-        recipe_ids.push("profile.v2@2".into());
+        recipe_ids.push("profile.v2@3".into());
     }
     if spec.affinity == "STORMTROOPER"
         || (options.profile == GenerationProfile::V2

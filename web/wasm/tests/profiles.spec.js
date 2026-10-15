@@ -81,3 +81,37 @@ test('playground defaults to V1 and generates V2 from its selector', async ({ pa
   const legacy = JSON.parse(await page.locator('#results pre').last().textContent());
   expect(legacy.v2_profile ?? null).toBeNull();
 });
+
+// Exercise the real WebAssembly parser, anatomy, baker and package exporter.
+test('actual WASM preserves explicit head and arm counts through V2 rendering', async ({ page }) => {
+  await page.goto('/');
+  const results = await page.evaluate(async () => {
+    const { MonsterGenerator } = await import('./client.js');
+    const generator = new MonsterGenerator();
+    try {
+      const cases = [
+        ['three-headed dinosaur with eight arms', 3, 8],
+        ['3-headed t rex with 8 arms', 3, 8],
+        ['skeleton mermaid with eight arms', 1, 8],
+      ];
+      const results = [];
+      for (const [prompt, heads, arms] of cases) {
+        const result = await generator.generate(prompt, 42n, { profile: 'v2' });
+        const root = result.packages.at(-1);
+        results.push({ prompt, heads, arms,
+          actualHeads: root.monster.colliders.filter(c => /^head_\d+$/.test(c.node_id)).length,
+          actualArms: root.monster.colliders.filter(c => /^hand_\d+$/.test(c.node_id)).length,
+          rendered: root.sprites.rgba.some((value, i) => i % 4 === 3 && value > 0),
+          animated: root.monster.animations.some(a => a.semantic_state === 'ATTACK'),
+        });
+      }
+      return results;
+    } finally { generator.dispose(); }
+  });
+  for (const result of results) {
+    expect(result.actualHeads, result.prompt).toBe(result.heads);
+    expect(result.actualArms, result.prompt).toBe(result.arms);
+    expect(result.rendered, result.prompt).toBe(true);
+    expect(result.animated, result.prompt).toBe(true);
+  }
+});

@@ -1825,6 +1825,15 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
         }
         let (position, angle) = positions[i];
         let (node_plan, node_affinity) = node_identity(spec, &node.id);
+        // Theropod foot meshes own their three toes and sickle claws. Keep the
+        // native collision node, but do not render a second oversized claw.
+        if visual_v2(spec)
+            && matches!(node_affinity, "TREX" | "RAPTOR")
+            && node.kind == "CLAW"
+            && node.id.starts_with("claw_")
+        {
+            continue;
+        }
         let radius_z = node.rz.unwrap_or_else(|| {
             if node.kind == "TORSO" {
                 if node_plan == "HUMANOID"
@@ -1980,6 +1989,22 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
         };
         let mesh = friendly_head.as_ref().unwrap_or(mesh);
         let mut scale = scale;
+        // Dinosaur recipes author real transverse frill, armor and foot widths.
+        // Legacy primitive defaults must not flatten these dedicated surfaces.
+        if visual_v2(spec)
+            && matches!(
+                node_affinity,
+                "TREX" | "RAPTOR" | "LONGNECK_DINO" | "STEGO" | "TRICERATOPS" | "ANKYLOSAUR"
+            )
+            && matches!(
+                node.kind.as_str(),
+                "SHELL" | "FOOT" | "HAND" | "HORN" | "TUSK"
+            )
+        {
+            if let Some(radius) = node.rz {
+                scale.z = radius;
+            }
+        }
         if pose.motion_archetype == "AQUATIC_JELLY"
             && aquatic_render_power(pose) > 0.0
             && matches!(node.kind.as_str(), "HEAD" | "TORSO" | "LOBE")
