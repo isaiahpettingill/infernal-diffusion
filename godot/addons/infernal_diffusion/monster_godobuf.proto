@@ -175,6 +175,8 @@ message V2Profile {
   SpectralDescriptor spectral = 7;
   HybridRecipeDescriptor hybrid = 8;
   repeated BodyMotionSample body_motion_samples = 9;
+  EncounterDescriptor encounter = 10;
+  repeated string damage_traits = 11; // Engine-tunable defense categories, not numeric balance.
 }
 
 message AttackPatternDescriptor {
@@ -256,4 +258,60 @@ message BodyMotionSample {
 message PosedHurtbox {
   string node_id = 1;
   repeated ColliderView views = 2;
+}
+
+// Declarative capabilities; the engine owns state transitions and physics.
+message EncounterDescriptor {
+  uint32 contract_version = 1;
+  string archetype = 2;
+  SplitDescriptor split = 3;
+  MimicDescriptor mimic = 4;
+  ShieldDescriptor shield = 5;
+  PushedPropDescriptor pushed_prop = 6;
+}
+
+// Declarative capabilities; the engine owns state transitions and physics.
+message SplitDescriptor {
+  uint32 count = 1;
+  uint32 max_generations = 2;
+  uint32 max_offspring = 3;
+  float child_scale = 4;
+  float child_health_fraction = 5;
+  float child_speed_multiplier = 6;
+  uint32 emergence_ms = 7;
+  float separation_px = 8;
+  string emergence_animation_id = 9;
+  string burst_animation_id = 10;
+}
+
+// Declarative capabilities; the engine owns state transitions and physics.
+message MimicDescriptor {
+  string disguise = 1;
+  float trigger_radius = 2;
+  uint32 reveal_ms = 3;
+}
+
+// Declarative capabilities; the engine owns state transitions and physics.
+message ShieldDescriptor {
+  float front_arc_degrees = 1;
+  uint32 bash_windup_ms = 2;
+  uint32 bash_recovery_ms = 3;
+  string guard_animation_id = 4;
+  string bash_animation_id = 5;
+  string recovery_animation_id = 6;
+}
+
+// Declarative capabilities; the engine owns state transitions and physics.
+message PushedPropDescriptor {
+  string kind = 1;
+  string id_suffix = 2;
+  float radius = 3;
+  float health = 4;
+  float push_speed = 5;
+  string coordinate_space = 6;
+  float anchor_x = 7;
+  float anchor_y = 8;
+  string push_animation_id = 9;
+  string recovery_animation_id = 10;
+  string release_event = 11;
 }

@@ -217,6 +217,8 @@ V2Profile :: struct {
     spectral: Maybe(SpectralDescriptor),
     hybrid: Maybe(HybridRecipeDescriptor),
     body_motion_samples: []BodyMotionSample,
+    encounter: Maybe(EncounterDescriptor),
+    damage_traits: []string,
 }
 
 AttackPatternDescriptor :: struct {
@@ -298,4 +300,55 @@ BodyMotionSample :: struct {
 PosedHurtbox :: struct {
     node_id: string,
     views: []ColliderView,
+}
+
+EncounterDescriptor :: struct {
+    contract_version: u32,
+    archetype: string,
+    split: Maybe(SplitDescriptor),
+    mimic: Maybe(MimicDescriptor),
+    shield: Maybe(ShieldDescriptor),
+    pushed_prop: Maybe(PushedPropDescriptor),
+}
+
+SplitDescriptor :: struct {
+    count: u32,
+    max_generations: u32,
+    max_offspring: u32,
+    child_scale: f32,
+    child_health_fraction: f32,
+    child_speed_multiplier: f32,
+    emergence_ms: u32,
+    separation_px: f32,
+    emergence_animation_id: string,
+    burst_animation_id: string,
+}
+
+MimicDescriptor :: struct {
+    disguise: string,
+    trigger_radius: f32,
+    reveal_ms: u32,
+}
+
+ShieldDescriptor :: struct {
+    front_arc_degrees: f32,
+    bash_windup_ms: u32,
+    bash_recovery_ms: u32,
+    guard_animation_id: string,
+    bash_animation_id: string,
+    recovery_animation_id: string,
+}
+
+PushedPropDescriptor :: struct {
+    kind: string,
+    id_suffix: string,
+    radius: f32,
+    health: f32,
+    push_speed: f32,
+    coordinate_space: string,
+    anchor_x: f32,
+    anchor_y: f32,
+    push_animation_id: string,
+    recovery_animation_id: string,
+    release_event: string,
 }

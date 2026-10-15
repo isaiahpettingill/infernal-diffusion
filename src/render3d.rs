@@ -16,6 +16,8 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::sync::OnceLock;
 
+#[path = "v2/encounter_meshes.rs"]
+mod v2_encounters;
 #[path = "v2/animal_meshes.rs"]
 mod v2_animals;
 #[path = "v2/face_meshes.rs"]
@@ -1661,6 +1663,9 @@ fn v2_node_material<'a>(spec: &MonsterSpec, node: &'a Node, seed: u64) -> &'a st
 }
 
 fn scene_palette(spec: &MonsterSpec, body: &Body, seed: u64) -> Vec<[u8; 4]> {
+    if let Some(colors) = v2_encounters::palette(spec) {
+        return colors;
+    }
     let mut colors = palette(body);
     if visual_v2(spec) {
         let friendly = spec.features.iter().any(|f| f == "FRIENDLY_LURE");
@@ -1738,6 +1743,9 @@ fn scene_palette(spec: &MonsterSpec, body: &Body, seed: u64) -> Vec<[u8; 4]> {
 mod v2_shade_mesh;
 
 fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangle> {
+    if let Some(triangles) = v2_encounters::scene(spec, body, pose, seed) {
+        return triangles;
+    }
     let positions: Vec<(V3, f32)> = body
         .nodes
         .iter()

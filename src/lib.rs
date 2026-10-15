@@ -722,6 +722,7 @@ fn generate_spec_internal(
         spec.features
             .retain(|feature| feature != "TOPOLOGY_LOCKED_INTERNAL");
         v2::spectral::validate_spec(&spec).map_err(Error::InvalidMonster)?;
+        v2::encounters::validate_spec(&spec).map_err(Error::InvalidMonster)?;
     }
     if options.profile == GenerationProfile::V1 && spec.features.iter().any(|f| f == "PROFILE_V2") {
         return Err(Error::InvalidMonster(
@@ -817,7 +818,7 @@ fn generate_spec_internal(
         recipe_ids.push("motion.aquatic_navigation@1".into());
     }
     if options.profile == GenerationProfile::V2 {
-        recipe_ids.push("profile.v2@3".into());
+        recipe_ids.push("profile.v2@4".into());
     }
     if spec.affinity == "STORMTROOPER"
         || (options.profile == GenerationProfile::V2
