@@ -40,6 +40,11 @@ pub fn prepare_seeded(spec: &mut MonsterSpec, seed: u64) {
     if !has(spec, "PROFILE_V2") {
         return;
     }
+    // Encounter silhouettes are authored; random dancer/mutant rolls must not
+    // silently replace their engine-facing interaction contracts.
+    if super::encounter_visuals::enabled(spec) {
+        return;
+    }
     let mut bits = seed ^ 0x9e3779b97f4a7c15;
     for byte in spec.affinity.bytes() {
         bits = (bits ^ byte as u64).wrapping_mul(0x100000001b3);
@@ -746,6 +751,11 @@ fn recompute_mass(body: &mut Body) {
 /// species landmarks. Explicit modifiers and counts remain on the same graph.
 pub fn refine(spec: &MonsterSpec, body: &mut Body, _seed: u64) {
     if body.nodes.is_empty() {
+        return;
+    }
+    if super::encounter_visuals::refine(spec, body) {
+        super::encounter_visuals::vary_rest_shape(body, _seed);
+        recompute_mass(body);
         return;
     }
     // Composite mounts retain their separately built anatomy and attachment graph.

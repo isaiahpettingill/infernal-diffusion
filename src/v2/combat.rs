@@ -1329,6 +1329,17 @@ pub fn animate(
     if !enabled(spec, "PROFILE_V2") {
         return (clips, modes, attacks, poses);
     }
+    if super::encounter_visuals::enabled(spec) {
+        super::encounter_visuals::animate(
+            spec,
+            body,
+            &mut clips,
+            &mut modes,
+            &mut attacks,
+            &mut poses,
+        );
+        return (clips, modes, attacks, poses);
+    }
     let lure = enabled(spec, "FRIENDLY_LURE");
     let explicit = enabled(spec, "EXPLICIT_ATTACK");
     let ranged = spec.attack.delivery == "PROJECTILE" || (lure && !explicit);

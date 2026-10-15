@@ -2,6 +2,9 @@
 pub mod anatomy;
 pub mod attack_tracks;
 pub mod combat;
+pub mod encounter_visuals;
+pub mod encounters;
+pub mod damage_traits;
 pub mod grip;
 pub mod hybrid;
 pub mod prompt_normalization;
@@ -183,7 +186,8 @@ pub fn interpret(mut spec: MonsterSpec, prompt: &str) -> MonsterSpec {
         spec.arm_count = 2;
         spec.confidence = 1.0;
     }
-    let mut spec = recipe_extensions::interpret(spec, prompt);
+    let spec = recipe_extensions::interpret(spec, prompt);
+    let mut spec = encounters::interpret(spec, prompt);
     // Explicit user counts win over species, hybrid and modifier defaults.
     // Reapplying also protects intent if a future recipe changes a count.
     counts.apply_v2(&mut spec);
@@ -321,6 +325,8 @@ pub fn describe(
         spectral: spectral::describe(spec, animations),
         hybrid: describe_hybrid(spec),
         body_motion_samples: vec![],
+        encounter: encounters::describe(spec),
+        damage_traits: damage_traits::describe(spec),
         categories: vec![
             spec.body_plan.clone(),
             if friendly {
@@ -384,14 +390,28 @@ pub fn describe(
                 lure_animation_id: combat::LURE_CLIP.into(),
                 reveal_animation_id: combat::REVEAL_CLIP.into(),
                 trigger: "TARGET_WITHIN_RADIUS".into(),
-                trigger_radius: combat::LURE_RADIUS,
+                trigger_radius: if spec.features.iter().any(|f| f == "OBJECT_MIMIC") {
+                    110.0
+                } else {
+                    combat::LURE_RADIUS
+                },
                 attack_id: primary.map_or_else(String::new, |a| a.id.clone()),
-                effect: "HEARTS".into(),
+                effect: if spec.features.iter().any(|f| f == "OBJECT_MIMIC") {
+                    "OBJECT_DISGUISE"
+                } else {
+                    "HEARTS"
+                }
+                .into(),
                 harmless: true,
                 telegraph_ms: combat::REVEAL_DURATION_MS,
                 distant_state: "LURE".into(),
                 revealed_state: "ATTACK".into(),
-                reset_policy: "RETURN_TO_LURE".into(),
+                reset_policy: if spec.features.iter().any(|f| f == "OBJECT_MIMIC") {
+                    "STAY_REVEALED"
+                } else {
+                    "RETURN_TO_LURE"
+                }
+                .into(),
             })
         } else {
             None
@@ -598,6 +618,8 @@ pub fn validate_profile(monster: &proto::Monster) -> Result<(), Error> {
             return Err(invalid());
         }
     }
+    encounters::validate(monster).map_err(|_| invalid())?;
+    damage_traits::validate(&profile.damage_traits).map_err(|_| invalid())?;
     spectral::validate(monster).map_err(|_| invalid())?;
     validate_hybrid(monster, profile).map_err(|_| invalid())?;
     attack_tracks::validate(monster).map_err(|_| invalid())?;
@@ -624,6 +646,16 @@ pub fn validate_profile(monster: &proto::Monster) -> Result<(), Error> {
         return Err(invalid());
     }
     if let Some(lure) = &profile.lure {
+        let mimic = profile
+            .encounter
+            .as_ref()
+            .is_some_and(|e| e.archetype == "OBJECT_MIMIC");
+        let lure_event = if mimic {
+            "OBJECT_DISGUISE"
+        } else {
+            "LURE_HEARTS"
+        };
+        let lure_event_time = if mimic { 0 } else { 240 };
         let lure_clip = monster
             .animations
             .iter()
@@ -643,10 +675,15 @@ pub fn validate_profile(monster: &proto::Monster) -> Result<(), Error> {
             || lure.trigger != "TARGET_WITHIN_RADIUS"
             || !lure.trigger_radius.is_finite()
             || !(1.0..=1000.0).contains(&lure.trigger_radius)
-            || lure.effect != "HEARTS"
+            || lure.effect != if mimic { "OBJECT_DISGUISE" } else { "HEARTS" }
             || lure.distant_state != "LURE"
             || lure.revealed_state != "ATTACK"
-            || lure.reset_policy != "RETURN_TO_LURE"
+            || lure.reset_policy
+                != if mimic {
+                    "STAY_REVEALED"
+                } else {
+                    "RETURN_TO_LURE"
+                }
             || !(120..=5000).contains(&lure.telegraph_ms)
             || reveal_duration != lure.telegraph_ms
             || !monster.attacks.iter().any(|a| a.id == lure.attack_id)
@@ -660,7 +697,7 @@ pub fn validate_profile(monster: &proto::Monster) -> Result<(), Error> {
             || !lure_clip
                 .events
                 .iter()
-                .any(|e| e.kind == "LURE_HEARTS" && e.reference_id == lure_clip.id)
+                .any(|e| e.kind == lure_event && e.reference_id == lure_clip.id)
             || !reveal
                 .events
                 .iter()
@@ -678,7 +715,7 @@ pub fn validate_profile(monster: &proto::Monster) -> Result<(), Error> {
                 clip.events.iter().any(|e| {
                     e.reference_id != clip.id
                         || match (clip.semantic_state.as_str(), e.kind.as_str()) {
-                            ("LURE", "LURE_HEARTS") => e.time_ms != 240,
+                            ("LURE", kind) if kind == lure_event => e.time_ms != lure_event_time,
                             ("REVEAL", "REVEAL") => e.time_ms != 0,
                             ("REVEAL", "REVEAL_COMPLETE") => e.time_ms != lure.telegraph_ms,
                             _ => true,
