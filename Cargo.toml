@@ -14,7 +14,8 @@ path = "src/main.rs"
 
 [features]
 default = ["bert"]
-wasm = ["dep:wasm-bindgen", "dep:serde-wasm-bindgen", "dep:serde_bytes", "dep:wasm-bindgen-rayon"]
+wasm = ["dep:wasm-bindgen", "dep:serde-wasm-bindgen", "dep:serde_bytes", "dep:js-sys"]
+wasm-threads = ["wasm", "dep:wasm-bindgen-rayon"]
 bert = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers"]
 
 [dependencies]
@@ -32,12 +33,18 @@ rapier2d = { version = "0.35", features = ["enhanced-determinism"] }
 candle-core = { version = "0.9", optional = true }
 candle-nn = { version = "0.9", optional = true }
 candle-transformers = { version = "0.9", optional = true }
-tokenizers = { version = "0.21", optional = true, default-features = false, features = ["onig"] }
 
 [dev-dependencies]
 tempfile = "3"
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokenizers = { version = "0.21", optional = true, default-features = false, features = ["onig"] }
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+tokenizers = { version = "0.21", optional = true, default-features = false, features = ["unstable_wasm"] }
+# Candle and tokenizers share the browser Web Crypto entropy backend.
+getrandom = { version = "0.3", features = ["wasm_js"] }
+js-sys = { version = "0.3", optional = true }
 wasm-bindgen = { version = "0.2.104", optional = true }
 serde-wasm-bindgen = { version = "0.6", optional = true }
 serde_bytes = { version = "0.11", optional = true }

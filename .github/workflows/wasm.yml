@@ -1,7 +1,7 @@
-name: WASM threaded browser generator
+name: WASM bundled BERT browser generator
 on:
   push:
-    paths: ["src/**", "assets/**", "Cargo.toml", "Cargo.lock", "tools/build_wasm.sh", "web/wasm/**", ".github/workflows/wasm.yml"]
+    paths: ["src/**", "assets/**", "models/**", "Cargo.toml", "Cargo.lock", "tools/build_wasm.sh", "web/wasm/**", ".github/workflows/wasm.yml"]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -10,12 +10,20 @@ jobs:
   wasm:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        threaded: [0, 1]
+    env:
+      WASM_THREADED: ${{ matrix.threaded }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: nightly-2026-10-12
-          components: rust-src
+          targets: wasm32-unknown-unknown
+      - name: Install optional threaded toolchain
+        if: matrix.threaded == 1
+        run: rustup toolchain install nightly-2026-10-12 --profile minimal --component rust-src --target wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-node@v4
         with:
@@ -31,21 +39,25 @@ jobs:
           echo "$PWD/binaryen-version_130/bin" >> "$GITHUB_PATH"
       - name: Test deterministic parser and preserved recipes
         run: cargo test --locked --no-default-features --lib parser
-      - name: Build full optimized threaded WASM
+      - name: Build full optimized BERT WASM
         run: tools/build_wasm.sh
+      - name: Test actual portable WASM worker with offline Node host adapters
+        if: matrix.threaded == 0
+        run: node web/wasm/tests/worker.actual-wasm.node.mjs
       - name: Install browser tests
         working-directory: web/wasm
         run: |
           npm ci
           npx playwright install --with-deps chromium
-      - name: Test real browser worker, threads, responsiveness and cancellation
+      - name: Test real BERT browser worker, responsiveness and cancellation
         working-directory: web/wasm
         run: npm test
       - uses: actions/upload-artifact@v4
         with:
-          name: infernal-wasm32-threaded
+          name: infernal-wasm32-bert-threads-${{ matrix.threaded }}
           path: |
             web/wasm/pkg/
+            web/wasm/bundle-manifest.json
             web/wasm/client.js
             web/wasm/worker.js
             web/wasm/index.html
@@ -57,11 +69,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: wasm-browser-failure
+          name: wasm-browser-failure-threads-${{ matrix.threaded }}
           path: web/wasm/test-results/
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playground-browser-evidence
+          name: playground-browser-evidence-threads-${{ matrix.threaded }}
           path: web/wasm/test-results/**/playground-v2.png
           if-no-files-found: ignore

@@ -3,7 +3,6 @@ import { test, expect } from '@playwright/test';
 test('actual WASM worker generates deterministic RGBA and complete stormtrooper metadata without blocking UI', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('#status')).toHaveText('Ready');
-  expect(await page.evaluate(() => crossOriginIsolated && typeof SharedArrayBuffer !== 'undefined')).toBe(true);
   const result = await page.evaluate(async () => {
     const { MonsterGenerator } = await import('./client.js');
     const g = new MonsterGenerator();
@@ -34,6 +33,10 @@ test('actual WASM worker generates deterministic RGBA and complete stormtrooper 
     expect(atlas.bytes).toBe(atlas.width * atlas.height * 4);
   }
   expect(result.monster.generation.prompt).toContain('stormtrooper');
+  expect(result.monster.generation.parser).toBe('candle-bert-prototypes-v2');
+  expect(result.monster.generation.parser_confidence).toBeGreaterThan(0);
+  expect(result.monster.generation.confidences.length).toBeGreaterThan(0);
+  expect(Array.isArray(result.monster.generation.token_evidence)).toBe(true);
   for (const key of ['physics', 'gameplay', 'size', 'animations', 'attacks', 'movement_modes', 'colliders', 'projectiles']) expect(result.monster).toHaveProperty(key);
   expect(JSON.stringify(result.monster)).toContain('RANDOM_DIRECTION');
   expect(result.monster.attacks.length).toBeGreaterThan(0);
@@ -108,12 +111,118 @@ test('worker correlates protocol errors and remains usable', async ({ page }) =>
   expect(replies[0]).toMatchObject({ id: 1, type: 'error', error: { code: 'INVALID_REQUEST' } });
   expect(replies[1]).toMatchObject({ id: 2, type: 'error', error: { code: 'GENERATION_FAILED' } });
   expect(replies[2]).toMatchObject({ id: 3, type: 'ready' });
-  expect(replies[2].threadCount).toBeGreaterThanOrEqual(2);
-  expect(replies[2].threadCount).toBeLessThanOrEqual(4);
+  expect(replies[2]).toMatchObject({
+    model: 'google/bert_uncased_L-2_H-128_A-2',
+    parser: 'candle-bert-prototypes-v2', bundledModel: true,
+  });
+  if (replies[2].threaded) {
+    expect(replies[2].threadCount).toBeGreaterThanOrEqual(2);
+    expect(replies[2].threadCount).toBeLessThanOrEqual(4);
+  } else expect(replies[2].threadCount).toBe(1);
 });
 
-test('missing isolation headers produces an actionable threading error', async ({ page }) => {
-  await page.route('**/*', async route => {
+test('portable browser loads bundled BERT and generates offline without isolation or shared memory', async ({ page, context, baseURL }) => {
+  test.skip(process.env.WASM_THREADED === '1', 'The optional threaded build intentionally requires isolation');
+  const seen = [], blocked = [];
+  const origin = new URL(baseURL).origin;
+  context.on('request', request => seen.push(request.url()));
+  // Enforce local-only loading. Removing response headers also covers worker and
+  // WASM responses, instead of merely overriding the window's isolation flag.
+  await context.route('**/*', async route => {
+    if (new URL(route.request().url()).origin !== origin) {
+      blocked.push(route.request().url());
+      await route.abort('blockedbyclient');
+      return;
+    }
+    const response = await route.fetch();
+    const headers = { ...response.headers() };
+    delete headers['cross-origin-opener-policy'];
+    delete headers['cross-origin-embedder-policy'];
+    await route.fulfill({ response, headers });
+  });
+  await page.goto('/tests/browser-check.html');
+  expect(await page.evaluate(() => crossOriginIsolated)).toBe(false);
+  expect(await page.evaluate(() => typeof SharedArrayBuffer)).toBe('undefined');
+  const readiness = await page.evaluate(async () => {
+    const { MonsterGenerator } = await import('../client.js');
+    window.offlineGenerator = new MonsterGenerator();
+    const progress = [];
+    const first = await window.offlineGenerator.ready({ onProgress: update => progress.push(update) });
+    const second = await window.offlineGenerator.ready();
+    return { first, second, progress };
+  });
+  expect(readiness.first).toMatchObject({
+    threadCount: 1, model: 'google/bert_uncased_L-2_H-128_A-2',
+    parser: 'candle-bert-prototypes-v2', bundledModel: true, threaded: false,
+  });
+  expect(readiness.second).toEqual(readiness.first);
+  expect(readiness.progress.map(update => update.phase)).toEqual(expect.arrayContaining(['loading-wasm', 'initializing-model']));
+  expect(seen.some(url => url.endsWith('.wasm'))).toBe(true);
+  expect(seen.filter(url => /\/(models|api)\/|\.(safetensors|onnx)(\?|$)|tokenizer\.json|vocab\.txt/.test(url))).toEqual([]);
+  const requestsAfterReady = seen.length;
+  await context.setOffline(true);
+  try {
+    const result = await page.evaluate(async () => {
+      const progress = [];
+      const output = await window.offlineGenerator.generate('small green slime', '18446744073709551615', {
+        profile: 'v2', onProgress: update => progress.push(update),
+      });
+      const root = output.packages.at(-1);
+      window.offlineGenerator.dispose();
+      return {
+        parser: root.monster.generation.parser,
+        seed: String(root.monster.generation.seed),
+        width: root.sprites.width, height: root.sprites.height, bytes: root.sprites.rgba.length,
+        progress,
+      };
+    });
+    expect(result.parser).toBe('candle-bert-prototypes-v2');
+    expect(result.seed).toBe('18446744073709551615');
+    expect(result.width).toBeGreaterThan(0);
+    expect(result.bytes).toBe(result.width * result.height * 4);
+    expect(result.progress.map(update => update.phase)).toEqual(expect.arrayContaining([
+      'parsing', 'building', 'rendering', 'packaging', 'complete',
+    ]));
+    expect(result.progress.at(-1).phase).toBe('complete');
+    expect(result.progress.some(update => update.phase === 'rendering' && update.total > 0)).toBe(true);
+    expect(seen.length).toBe(requestsAfterReady);
+    expect(blocked).toEqual([]);
+    expect(seen.every(url => new URL(url).origin === origin)).toBe(true);
+  } finally { await context.setOffline(false); }
+});
+
+test('model-loading cancellation rejects the queue and reinitializes a fresh worker', async ({ page }) => {
+  await page.goto('/tests/browser-check.html');
+  const result = await page.evaluate(async () => {
+    const { MonsterGenerator } = await import('../client.js');
+    const g = new MonsterGenerator();
+    const controller = new AbortController();
+    const caught = promise => promise.then(() => 'unexpected success', error => error.name);
+    let cancelledPhase;
+    try {
+      const first = caught(g.ready({ signal: controller.signal, onProgress: update => {
+        if (update.phase === 'initializing-model') {
+          cancelledPhase = update.phase;
+          controller.abort();
+        }
+      } }));
+      const queued = caught(g.generate('slime', 42n));
+      const rejected = await Promise.all([first, queued]);
+      const restarted = await g.ready();
+      const output = await g.generate('small ice slime', 9n);
+      return { rejected, cancelledPhase, restarted, parser: output.packages.at(-1).monster.generation.parser };
+    } finally { g.dispose(); }
+  });
+  expect(result.cancelledPhase).toBe('initializing-model');
+  expect(result.rejected).toEqual(['AbortError', 'AbortError']);
+  expect(result.restarted.parser).toBe('candle-bert-prototypes-v2');
+  expect(result.parser).toBe('candle-bert-prototypes-v2');
+});
+
+// Optional threaded distribution retains its explicit deployment requirements.
+test('threaded build reports missing isolation as an actionable error', async ({ page, context }) => {
+  test.skip(process.env.WASM_THREADED !== '1', 'Only the opt-in threaded distribution needs COOP/COEP');
+  await context.route('**/*', async route => {
     const response = await route.fetch();
     const headers = { ...response.headers() };
     delete headers['cross-origin-opener-policy'];

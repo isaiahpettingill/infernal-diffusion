@@ -1344,7 +1344,15 @@ impl BertRuntime {
         use tokenizers::Tokenizer;
         let device = Device::Cpu;
         let config: Config = serde_json::from_slice(config_json)?;
-        let tokenizer = Tokenizer::from_bytes(tokenizer_json)?;
+        let mut tokenizer = Tokenizer::from_bytes(tokenizer_json)?;
+        // A 4096-byte prompt can exceed BERT's 512 positional embeddings.
+        // Truncate at the model limit rather than failing inside Candle.
+        tokenizer.with_truncation(Some(tokenizers::TruncationParams {
+            max_length: config.max_position_embeddings,
+            ..Default::default()
+        }))?;
+        #[cfg(target_arch = "wasm32")]
+        tokenizers::utils::parallelism::set_parallelism(false);
         let vb = VarBuilder::from_buffered_safetensors(weights, DType::F32, &device)?;
         let model = BertModel::load(vb, &config)?;
         Ok(Self {
@@ -1608,6 +1616,13 @@ mod bundled_model_tests {
         for (index, token) in words.lines().enumerate() {
             assert_eq!(vocab[token].as_u64(), Some(index as u64));
         }
+    }
+
+    #[test]
+    fn long_prompt_is_truncated_to_model_positions() {
+        let spec = parse_with_embedded_bert(&format!("slime {}", "green ".repeat(600))).unwrap();
+        assert_eq!(spec.affinity, "SLIME");
+        assert_eq!(spec.parser, "candle-bert-prototypes-v2");
     }
 
     #[test]

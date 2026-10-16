@@ -11,6 +11,7 @@ use crate::{
 use image::{Rgba, RgbaImage};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -2759,6 +2760,7 @@ pub fn sheet(
     let palette = scene_palette(spec, body, seed);
     let mut output = RgbaImage::new(columns * size, rows * size);
     for (index, pose) in poses.iter().enumerate() {
+        crate::report_progress("rendering", index, poses.len());
         let phase_started = Instant::now();
         let triangles = scene(spec, body, pose, seed);
         scene_time += phase_started.elapsed();
@@ -2777,8 +2779,10 @@ pub fn sheet(
             v2_finish_alpha(spec, pose, &mut frame);
             (direction, frame, stages, phase_started.elapsed())
         };
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(all(target_arch = "wasm32", feature = "wasm-threads"))]
         let frames: Vec<_> = ANGLES_DEG.par_iter().enumerate().map(make_frame).collect();
+        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+        let frames: Vec<_> = ANGLES_DEG.iter().enumerate().map(make_frame).collect();
         #[cfg(not(target_arch = "wasm32"))]
         let frames: Vec<_> = if let Some(pool) = render_pool() {
             pool.install(|| ANGLES_DEG.par_iter().enumerate().map(make_frame).collect())
@@ -2804,6 +2808,7 @@ pub fn sheet(
             }
         }
     }
+    crate::report_progress("rendering", poses.len(), poses.len());
     let color_count = render::color_count(&output) as u32;
     if profile {
         eprintln!("infernal profile: sprite_size={size} poses={} scene={:.1}ms raster={:.1}ms downsample={:.1}ms quantize={:.1}ms frame={:.1}ms sheet_total={:.1}ms", poses.len(), scene_time.as_secs_f64() * 1000.0, stage_times[0].as_secs_f64() * 1000.0, stage_times[1].as_secs_f64() * 1000.0, stage_times[2].as_secs_f64() * 1000.0, frame_time.as_secs_f64() * 1000.0, started.elapsed().as_secs_f64() * 1000.0);

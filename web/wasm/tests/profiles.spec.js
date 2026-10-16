@@ -1,39 +1,55 @@
 import { test, expect } from '@playwright/test';
 
-test('actual WASM keeps default V1 and explicitly generates deterministic V2', async ({ page }) => {
-  await page.goto('/');
+test('actual Candle BERT preserves exact u64 seeds, world sizing, metadata and every V1/V2 RGBA atlas on replay', async ({ page }) => {
+  await page.goto('/tests/browser-check.html');
   const result = await page.evaluate(async () => {
-    const { MonsterGenerator } = await import('./client.js');
+    const { MonsterGenerator } = await import('../client.js');
     const generator = new MonsterGenerator();
-    const digest = async bytes => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))).join(',');
+    const digest = async bytes => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)))
+      .map(byte => byte.toString(16).padStart(2, '0')).join('');
+    const summarize = async output => Promise.all(output.packages.map(async pkg => ({
+      path: pkg.path,
+      metadata: JSON.parse(JSON.stringify(pkg.monster, (_, value) => typeof value === 'bigint' ? value.toString() : value)),
+      atlases: await Promise.all([pkg.sprites, pkg.emission, pkg.projectiles].map(async atlas => atlas && ({
+        width: atlas.width, height: atlas.height, bytes: atlas.rgba.length,
+        typed: atlas.rgba instanceof Uint8Array, hash: await digest(atlas.rgba),
+      }))),
+    })));
     try {
-      const legacy = await generator.generate('wolf', 42n);
-      const first = await generator.generate('wolf', 42n, { profile: 'v2' });
-      const replay = await generator.generate('wolf', 42n, { profile: 'v2' });
-      const root = first.packages.at(-1);
+      const seed = '18446744073709551615';
+      const legacy = await summarize(await generator.generate('small wolf', seed));
+      const legacyReplay = await summarize(await generator.generate('small wolf', BigInt(seed), { profile: 'v1' }));
+      const first = await summarize(await generator.generate('small wolf', seed, { profile: 'v2' }));
+      const replay = await summarize(await generator.generate('small wolf', BigInt(seed), { profile: 'v2' }));
       let invalid = '';
       try { await generator.generate('wolf', 42n, { profile: 'v3' }); }
       catch (error) { invalid = error.message; }
-      return {
-        legacyProfile: legacy.packages.at(-1).monster.v2_profile ?? null,
-        version: root.monster.v2_profile.profile_version,
-        hash: await digest(root.sprites.rgba),
-        replayHash: await digest(replay.packages.at(-1).sprites.rgba),
-        width: root.sprites.width,
-        bytes: root.sprites.rgba.length,
-        expectedBytes: root.sprites.width * root.sprites.height * 4,
-        invalid,
-      };
+      return { legacy, legacyReplay, first, replay, invalid };
     } finally { generator.dispose(); }
   });
-  expect(result.legacyProfile).toBeNull();
-  expect(result.version).toBe(1);
-  expect(result.hash).toEqual(result.replayHash);
-  expect(result.width).toBeGreaterThan(0);
-  expect(result.bytes).toBe(result.expectedBytes);
+  expect(result.legacy).toEqual(result.legacyReplay);
+  expect(result.first).toEqual(result.replay);
+  expect(result.legacy.at(-1).metadata.v2_profile ?? null).toBeNull();
+  expect(result.first.at(-1).metadata.v2_profile.profile_version).toBe(1);
+  for (const packages of [result.legacy, result.first]) {
+    expect(packages.length).toBeGreaterThan(0);
+    const root = packages.at(-1).metadata;
+    expect(root.generation.seed).toBe('18446744073709551615');
+    expect(root.generation.parser).toBe('candle-bert-prototypes-v2');
+    for (const key of ['world_scale', 'pixels_per_unit', 'reference_height_px', 'target_height_px', 'reference_player_height_px']) {
+      expect(Number.isFinite(root.size[key]), key).toBe(true);
+      expect(root.size[key], key).toBeGreaterThan(0);
+    }
+    for (const pkg of packages) for (const atlas of pkg.atlases.filter(Boolean)) {
+      expect(atlas.typed).toBe(true);
+      expect(atlas.width).toBeGreaterThan(0);
+      expect(atlas.height).toBeGreaterThan(0);
+      expect(atlas.bytes).toBe(atlas.width * atlas.height * 4);
+      expect(atlas.hash).toMatch(/^[a-f0-9]{64}$/);
+    }
+  }
   expect(result.invalid).toContain('Profile must be v1 or v2');
 });
-
 
 test('actual WASM validates and generates structured hybrid recipes', async ({ page }) => {
   await page.goto('/');

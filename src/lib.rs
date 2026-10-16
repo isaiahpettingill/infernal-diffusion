@@ -20,10 +20,13 @@ mod wasm;
 pub mod web;
 pub mod world_scale;
 
-#[cfg(all(target_arch = "wasm32", feature = "bert"))]
-compile_error!(
-    "Browser builds must use --no-default-features --features wasm; native BERT is unchanged"
-);
+// Progress is observational only and never participates in seeded generation.
+fn report_progress(phase: &str, completed: usize, total: usize) {
+    #[cfg(all(target_arch = "wasm32", feature = "wasm"))]
+    wasm::report_progress(phase, completed, total);
+    #[cfg(not(all(target_arch = "wasm32", feature = "wasm")))]
+    let _ = (phase, completed, total);
+}
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
@@ -473,6 +476,7 @@ fn generate_prompt_profile(
     if prompt.trim().is_empty() || prompt.len() > 4096 {
         return Err(Error::InvalidPrompt);
     }
+    report_progress("parsing", 0, 1);
     let spec = if let Some(dir) = model_dir {
         #[cfg(feature = "bert")]
         {
@@ -501,6 +505,7 @@ fn generate_prompt_profile(
     } else {
         spec
     };
+    report_progress("parsing", 1, 1);
     let parsing_ms = started.elapsed().as_secs_f64() * 1000.0;
     let recipe_version = if let Some(dir) = model_dir {
         let mut digest = Sha256::new();
@@ -549,6 +554,7 @@ fn generate_prompt_profile(
             "recipe-v1".into()
         }
     };
+    report_progress("building", 0, 1);
     let result = generate_spec_internal(
         spec,
         prompt,

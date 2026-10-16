@@ -33,7 +33,8 @@ async function runWorker(profile, supportsV2, type = 'generate', supportsHybrid 
   const messages = [];
   const api = {
     default: async () => {},
-    initThreadPool: async () => {},
+    initialize_model: () => 'candle-bert-prototypes-v2',
+    generator_info: () => ({ model: 'google/bert_uncased_L-2_H-128_A-2', parser: 'candle-bert-prototypes-v2', bundledModel: true, threaded: false }),
     generate_monster: (...args) => { calls.push(['v1', ...args]); return result; },
   };
   if (supportsV2) api.generate_monster_with_profile = (...args) => {
@@ -46,14 +47,14 @@ async function runWorker(profile, supportsV2, type = 'generate', supportsHybrid 
   // validation, export selection and error serialization.
   const source = (await readFile(new URL('../worker.js', import.meta.url), 'utf8'))
     .replace("await import('./pkg/infernal_diffusion.js')", '__api');
-  const self = { crossOriginIsolated: true, postMessage: message => messages.push(message) };
-  vm.runInNewContext(source, { self, __api: api, WebAssembly, SharedArrayBuffer,
+  const self = { crossOriginIsolated: false, postMessage: message => messages.push(message) };
+  vm.runInNewContext(source, { self, __api: api, WebAssembly, Uint8Array, TextEncoder,
     navigator: { hardwareConcurrency: 4 }, setTimeout, clearTimeout });
   await self.onmessage({ data: { id: 1, type, prompt: 'ogre', seed: 42n, profile } });
   return { calls, messages };
 }
 
-test('worker preserves V1 on old binaries', async () => {
+test('worker preserves V1 when a BERT binary lacks the profile-aware export', async () => {
   const { calls, messages } = await runWorker(undefined, false);
   assert.equal(calls[0][0], 'v1');
   assert.equal(messages[0].type, 'result');
@@ -65,7 +66,7 @@ test('worker routes explicit V2 to the profile-aware export', async () => {
   assert.equal(messages[0].type, 'result');
 });
 
-test('worker never downgrades V2 on an old binary', async () => {
+test('worker never downgrades V2 when the profile-aware export is missing', async () => {
   const { calls, messages } = await runWorker('v2', false);
   assert.equal(calls.length, 0);
   assert.equal(messages[0].type, 'error');

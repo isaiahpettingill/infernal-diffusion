@@ -36,7 +36,8 @@ async function worker({ supportsSuggestion = true } = {}) {
   const calls = [], messages = [];
   let release;
   const initialized = new Promise(resolve => { release = resolve; });
-  const api = { default: () => initialized, initThreadPool: async () => {},
+  const api = { default: () => initialized, initialize_model: () => 'candle-bert-prototypes-v2',
+    generator_info: () => ({ model: 'google/bert_uncased_L-2_H-128_A-2', parser: 'candle-bert-prototypes-v2', bundledModel: true, threaded: false }),
     generate_monster: (...args) => { calls.push(['generate', ...args]); return { packages: [] }; } };
   if (supportsSuggestion) api.suggest_prompt = (...args) => {
     calls.push(['suggest', ...args]);
@@ -44,8 +45,8 @@ async function worker({ supportsSuggestion = true } = {}) {
   };
   const source = (await readFile(new URL('../worker.js', import.meta.url), 'utf8'))
     .replace("await import('./pkg/infernal_diffusion.js')", '__api');
-  const self = { crossOriginIsolated: true, postMessage: (message, transfers) => messages.push({ ...message, transfers }) };
-  vm.runInNewContext(source, { self, __api: api, WebAssembly, SharedArrayBuffer,
+  const self = { crossOriginIsolated: false, postMessage: (message, transfers) => messages.push({ ...message, transfers }) };
+  vm.runInNewContext(source, { self, __api: api, WebAssembly, Uint8Array, TextEncoder,
     navigator: { hardwareConcurrency: 4 }, setTimeout, clearTimeout });
   return { send: data => self.onmessage({ data }), calls, messages, release };
 }
@@ -77,7 +78,7 @@ test('worker rejects invalid direct suggestions and remains usable afterward', a
   assert.equal(w.messages.at(-1).type, 'result');
 });
 
-test('old WASM builds reject suggestions explicitly but retain V1 generation', async () => {
+test('BERT builds without suggestions reject explicitly but retain V1 generation', async () => {
   const w = await worker({ supportsSuggestion: false }); w.release();
   await w.send({ id: 1, type: 'suggest', seed: 1n, difficulty: 2 });
   assert.match(w.messages[0].error.message, /does not support random prompts/);

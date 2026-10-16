@@ -58,7 +58,7 @@ $('form').addEventListener('submit', async (event) => {
   $('status').textContent = 'Generating in worker… The heartbeat stays responsive.';
   const started = performance.now();
   try {
-    const result = await generator.generate($('prompt').value, $('seed').value, { profile: $('profile').value });
+    const result = await generator.generate($('prompt').value, $('seed').value, { profile: $('profile').value, onProgress: progress => { $('status').textContent = `${progress.phase}${progress.total > 1 ? ` ${progress.completed}/${progress.total}` : ''}… The heartbeat stays responsive.`; } });
     show(result);
     $('status').textContent = `Generated ${result.packages.length} package(s) in ${((performance.now() - started) / 1000).toFixed(2)}s`;
   } catch (error) {
@@ -74,9 +74,9 @@ window.addEventListener('pagehide', event => {
   else { promptControls.dispose(); generator.dispose(); }
 });
 try {
-  const { threadCount } = await generator.ready();
+  const { threadCount, model } = await generator.ready({ onProgress: progress => { $('status').textContent = `${progress.phase}…`; } });
   $('status').textContent = 'Ready';
-  $('status').title = `Rayon pool initialized with ${threadCount} workers`;
+  $('status').title = `${model} ready in ${threadCount} worker(s)`;
   initialized = true;
   setBusy(false);
 }
