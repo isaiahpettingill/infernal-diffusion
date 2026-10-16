@@ -1,8 +1,95 @@
-//! Browser entry point: only the encoder is removed, not the generation pipeline.
+//! Full browser generation with the bundled Candle BERT encoder.
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
+#[cfg(feature = "wasm-threads")]
 #[allow(unused_imports)] // Retain the exported wasm-bindgen thread-pool initializer.
 pub use wasm_bindgen_rayon::init_thread_pool;
+
+thread_local! {
+    static PROGRESS: std::cell::RefCell<Option<js_sys::Function>> = const { std::cell::RefCell::new(None) };
+}
+
+pub(crate) fn report_progress(phase: &str, completed: usize, total: usize) {
+    PROGRESS.with(|slot| {
+        if let Some(callback) = slot.borrow().as_ref() {
+            let _ = callback.call3(
+                &JsValue::NULL,
+                &phase.into(),
+                &(completed as f64).into(),
+                &(total as f64).into(),
+            );
+        }
+    });
+}
+
+struct ProgressGuard;
+impl Drop for ProgressGuard {
+    fn drop(&mut self) {
+        PROGRESS.with(|slot| *slot.borrow_mut() = None);
+    }
+}
+fn with_progress(
+    callback: js_sys::Function,
+    generate: impl FnOnce() -> Result<JsValue, JsValue>,
+) -> Result<JsValue, JsValue> {
+    PROGRESS.with(|slot| *slot.borrow_mut() = Some(callback));
+    let _guard = ProgressGuard;
+    let result = generate();
+    if result.is_ok() {
+        report_progress("complete", 1, 1);
+    }
+    result
+}
+
+/// Loads the bundled model once per worker and performs a real encoder forward pass.
+/// The thread-local cache is reused by all subsequent generations.
+#[wasm_bindgen]
+pub fn initialize_model() -> Result<String, JsValue> {
+    #[cfg(feature = "bert")]
+    {
+        crate::parser::parse_with_embedded_bert("slime")
+            .map(|spec| spec.parser)
+            .map_err(|error| js_error(&error.to_string()))
+    }
+    #[cfg(not(feature = "bert"))]
+    Err(js_error(
+        "This WASM build has no bundled BERT model; rebuild with --features wasm,bert",
+    ))
+}
+
+#[wasm_bindgen]
+pub fn generator_info() -> Result<JsValue, JsValue> {
+    serde_json::json!({
+        "model": "google/bert_uncased_L-2_H-128_A-2",
+        "parser": "candle-bert-prototypes-v2",
+        "bundledModel": cfg!(feature = "bert"),
+        "threaded": cfg!(feature = "wasm-threads"),
+        "modelSha256": "7fb69ad9f6866d8983183c930e33828f326470bf6ad8bbb2ad4ed957a92e9414"
+    })
+    .serialize(&serde_wasm_bindgen::Serializer::json_compatible())
+    .map_err(|error| js_error(&error.to_string()))
+}
+
+#[wasm_bindgen]
+pub fn generate_monster_with_profile_progress(
+    prompt: &str,
+    seed: u64,
+    profile: &str,
+    callback: js_sys::Function,
+) -> Result<JsValue, JsValue> {
+    with_progress(callback, || {
+        generate_monster_with_profile(prompt, seed, profile)
+    })
+}
+
+#[wasm_bindgen]
+pub fn generate_hybrid_json_progress(
+    recipe_json: &str,
+    seed: u64,
+    callback: js_sys::Function,
+) -> Result<JsValue, JsValue> {
+    with_progress(callback, || generate_hybrid_json(recipe_json, seed))
+}
 
 #[derive(Serialize)]
 struct Atlas {
@@ -81,6 +168,7 @@ pub fn suggest_prompt(seed: u64, difficulty: f64, prompt_profile: &str) -> Resul
 }
 
 fn serialize_generated(generated: crate::GeneratedMonster) -> Result<JsValue, JsValue> {
+    report_progress("packaging", 0, 1);
     let output = Output {
         packages: generated
             .packages

@@ -1,90 +1,135 @@
 # Browser WebAssembly generator
 
-This standalone static-site example runs Rust generation and vocabulary parsing in a dedicated module Web Worker. It initializes a real Rayon worker pool (2–4 threads, based on hardware concurrency). No generation HTTP endpoint, native BERT, or WASI runtime is used. SharedArrayBuffer and cross-origin isolation are required. Use a current browser supporting the modern WASM features selected by the build: threads/atomics, SIMD and relaxed SIMD, tail calls, bulk memory, multivalue, nontrapping float-to-int, sign extension, extended constants, and typed function references when supported by the Rust toolchain. The client instantiates the actual binary to detect unavailable features, rather than relying on an MVP-only probe.
+The default build runs the real Candle BERT encoder and full Rust monster generator in **one dedicated module Web Worker**. It embeds `google/bert_uncased_L-2_H-128_A-2` from `models/bert-mini/` inside the WASM binary, including weights, tokenizer and configuration. There is no model download, generation service, JavaScript replacement parser, WASI runtime or native executable at runtime. After loading the local bundle, generation works offline.
 
-## Run
+The portable build needs Web Workers, WebAssembly SIMD and bulk memory in a current browser. **SharedArrayBuffer and cross-origin isolation are not required.** An optional threaded build retains the real 2–4-worker Rayon pool for hosts that support isolation.
 
-1. Build the browser WASM package using the repository's WASM build instructions. The wasm-bindgen `--target web` output must live in `web/wasm/pkg/`, including `infernal_diffusion.js` and `infernal_diffusion_bg.wasm`.
-2. From `web/wasm`, run `python3 server.py`.
-3. Open <http://127.0.0.1:8080/>. Do not use `file://`; module workers and WASM fetches require HTTP(S). Production servers must use HTTPS, serve `.wasm` as `application/wasm`, and send `Cross-Origin-Opener-Policy: same-origin` plus `Cross-Origin-Embedder-Policy: require-corp`. The supplied local server sets these headers on every response, including worker scripts, and serves localhost as a secure context. A plain `python -m http.server` is insufficient for this threaded build. Keep the generated `pkg/snippets/` directory; it contains Rayon worker modules.
+## Build and run
 
-Enter a prompt and unsigned 64-bit decimal seed, select V1 (default) or V2, then Generate. Or choose a separate summoner profile and difficulty (1–3), then click **Random prompt** to fill editable text using the shared Rust generator. Summoner profiles are Default, Necromancer, Shaman, Lunatic, Boss, and Ocean. Boss always uses hard modifiers; Lunatic mixes all tiers. Difficulty remains part of the deterministic input but does not constrain those two profile policies. The first click uses the displayed seed; repeated clicks with unchanged options advance it visibly, wrapping from u64::MAX to zero. Editing the seed (including re-entering the same value), difficulty, or summoner profile resets reroll history, so the next click uses exactly the displayed seed. Profile selection does not change V1/V2, and arbitrary hand-written prompts remain supported. Example buttons fill the prompt without changing the selected profile. The live heartbeat shows the main thread remains responsive while Rust runs. Sprite, emission, and optional projectile atlases render to canvases, followed by expandable full metadata. Large atlases can briefly cost main-thread time while being painted; generation itself stays in the worker.
+From the repository root, install the `wasm32-unknown-unknown` Rust target, wasm-bindgen-cli **0.2.129** (matching Cargo.lock), and Binaryen **130**, then build:
+
+```sh
+rustup target add wasm32-unknown-unknown
+./tools/build_wasm.sh
+cd web/wasm
+python3 server.py
+```
+
+Open <http://127.0.0.1:8080/>. The script writes `pkg/infernal_diffusion.js`, `pkg/infernal_diffusion_bg.wasm`, model licensing notices, `pkg/build-info.json`, and `bundle-manifest.json` with artifact sizes and SHA-256 hashes. Deploy `client.js`, `worker.js`, the complete `pkg/` directory, and any application UI together. Keep relative URLs intact. The model weights and tokenizer do not need separate hosting. The bundled model is Apache-2.0 licensed; retain its supplied license and notice.
+
+Use HTTP(S), not `file://`, for module workers and WASM fetches. Production hosts should use HTTPS and serve `.wasm` as `application/wasm`. An ordinary static server, including `python3 -m http.server`, can serve the default portable build. The supplied server additionally sets COOP/COEP headers so it can serve either distribution. If your site has a content security policy, allow its same-origin worker/module/WASM resources as appropriate.
+
+Enter a prompt and unsigned 64-bit decimal seed, select V1 (default) or V2, then Generate. The live heartbeat demonstrates that generation and BERT inference stay off the main thread. Sprite, emission and optional projectile atlases render to canvases with full expandable metadata. Large atlases may still cost main-thread time when painted.
 
 ## Integrate
 
 ```js
 import { MonsterGenerator } from './client.js';
+
 const generator = new MonsterGenerator();
-const { threadCount } = await generator.ready(); // actual binary + Rayon pool ready
-const prompt = await generator.suggestPrompt('18446744073709551615', 2, {
-  promptProfile: 'ocean', // case-insensitive; defaults to 'default'
-});
-// You can edit this text before generation; suggestion does not render a monster.
+const onProgress = ({ phase, completed, total }) => {
+  console.log(phase, completed, total);
+};
+const info = await generator.ready({ onProgress });
+// Portable: threadCount: 1, threaded: false, bundledModel: true
+// model: 'google/bert_uncased_L-2_H-128_A-2'
+// parser: 'candle-bert-prototypes-v2'
+
 const controller = new AbortController();
 const result = await generator.generate('stormtrooper with a laser blaster', 42n, {
+  profile: 'v1', // default; explicitly choose 'v2' for V2
   signal: controller.signal,
+  onProgress,
 });
-// result.packages: [{path, monster, sprites, emission, projectiles}]
-// atlas: {width, height, rgba: Uint8Array}; projectiles may be null
-// monster: complete serialized proto metadata, not an abbreviated demo schema
-// Use bigint or decimal strings for seeds larger than Number.MAX_SAFE_INTEGER.
+// result.packages: [{ path, monster, sprites, emission, projectiles }]
+// atlas: { width, height, rgba: Uint8Array }; projectiles may be null
+// monster: complete serialized proto metadata, including generation.parser
+// Use bigint or decimal strings for seeds above Number.MAX_SAFE_INTEGER.
+
 generator.dispose();
 ```
 
-Each request has a unique numeric ID. Errors reject the matching promise; initialization errors carry `code: 'WASM_UNAVAILABLE'`. Invalid generator requests carry `code: 'GENERATION_FAILED'`; invalid suggestion requests carry `code: 'SUGGESTION_FAILED'`. The client rejects invalid seeds, difficulties, and profiles before starting a worker. Unexpected worker crashes reject all pending work, and a later request starts a fresh worker. RGBA ArrayBuffers are transferred rather than copied; the main thread owns returned buffers. Metadata is structured-cloned without trimming fields. uint64 fields may be BigInt; stringify with a replacer when needed.
+`ready({ signal, onProgress })` resolves after the actual WASM binary is instantiated and the bundled BERT encoder completes a real forward pass. The worker caches the model; repeated readiness and generation requests reuse it. Its response includes `threadCount`, `threaded`, `bundledModel`, `model`, `parser`, and the model SHA-256. There is no silent vocabulary-only fallback if BERT initialization fails. An older vocabulary-only WASM binary must be rebuilt.
 
-`generator.cancel()` or aborting a pending request terminates the worker and rejects **all** outstanding requests with `AbortError`. Termination also shuts down descendant Rayon workers; no shared pool outlives its owning generator worker. The next request lazily starts a new worker, reloads WASM, and initializes a fresh pool. Synchronous WASM cannot receive cancellation messages while generating. Use separate generator instances if jobs need independent cancellation. Requests on one instance execute sequentially. `dispose()` is permanent; create another instance afterward.
+`onProgress` receives `{ phase, completed?, total? }`. Initialization phases are `loading-wasm` and `initializing-model`. Prompt generation emits `parsing`, `building`, `rendering`, `packaging`, and `complete`. Counts describe work in the current phase, not a global percentage; phases can repeat for companion packages. Structured hybrid recipes bypass prompt parsing and retain their dedicated generation API. Initialization events occur only when that worker first initializes. Progress is optional; omitting the callback does not change generation results. Exceptions in a UI progress callback do not orphan its request.
 
-The low-level worker protocol accepts `{id, type: 'ready'}`, `{id, type: 'generate', prompt, seed: bigint}`, or `{id, type: 'suggest', seed: bigint, difficulty: 1 | 2 | 3, prompt_profile: 'default'}`. Suggestion replies use `{id, type: 'result', result: string}` with no atlas transfer. Requests share one ordered queue, and cancellation/disposal also applies to suggestions. The direct WASM export is `suggest_prompt(seed: bigint, difficulty: number, prompt_profile: string)`. Use the validated client to reject out-of-range seeds before wasm-bindgen converts its u64 argument. Replies are `{id, type: 'ready', threadCount}`, `{id, type: 'result', result}`, or `{id, type: 'error', error: {name, message, code}}`. Generation errors do not intentionally terminate the worker. Extremely large/complex prompts may exhaust browser memory; clients should constrain untrusted workloads and use termination for time limits.
+Each request has a unique numeric ID and runs through one ordered queue. Generation preserves full metadata and transfers atlas ArrayBuffers to the main thread without copying. uint64 metadata fields may be BigInt; use a replacer when JSON-stringifying. Both generation profiles preserve the complete geometry, directional renderer, animations, physics, attacks, colliders and companion packages. Browser output is raw RGBA rather than PNG to avoid encoding and decoding overhead.
 
-## Browser tests
+Client validation rejects invalid seeds, empty prompts, prompts over 4096 UTF-8 bytes, invalid difficulties and unknown profiles before starting a worker. Initialization errors use `code: 'WASM_UNAVAILABLE'`; generation errors use `GENERATION_FAILED`; suggestion errors use `SUGGESTION_FAILED`. A bad generation request does not poison the queue. Worker crashes or initialization failures reject pending work and allow a later call to start a fresh worker. The default request timeout is ten minutes; pass `{ timeoutMs }` to the constructor to change it. A timeout uses `code: 'TIMEOUT'` and terminates the worker and pending work.
 
-Build `pkg/` first, then from this directory:
+### Cancellation
 
-```sh
-npm ci
-npx playwright install chromium
-npm test
+`generator.cancel()` or aborting a pending request terminates the worker and rejects **all** outstanding requests with `AbortError`, including readiness and suggestions. Optional descendant Rayon workers also terminate. The next request lazily creates a new worker, reloads WASM, and initializes a fresh model. Synchronous WASM cannot consume a cancellation message while running, so cancellation uses worker termination rather than polling. Use separate generator instances for independent cancellation. `dispose()` is permanent.
+
+### Prompt suggestions and hybrids
+
+```js
+const prompt = await generator.suggestPrompt('18446744073709551615', 2, {
+  promptProfile: 'ocean', // case-insensitive; defaults to 'default'
+});
+// Editable text only: no monster is rendered yet.
+const monster = await generator.generate(prompt, '18446744073709551615', { profile: 'v2' });
+
+const hybrid = await generator.generateHybrid({
+  schema_version: 1,
+  upper_body: 'HUMANOID', lower_body: 'HORSE', head: 'HUMANOID',
+  lower_limb_count: 4, upper_arm_count: 2,
+}, 42n, { onProgress });
+// Structured hybrids always use V2 and do not reinterpret the recipe as prose.
 ```
 
-Playwright starts the static server automatically. Tests use the real WASM worker, covering deterministic metadata and atlas bytes, transferable typed pixels, complete stormtrooper metadata including `RANDOM_DIRECTION`, main-thread heartbeat, validation, queued request cancellation/restart, disposal, invalid-binary and missing-isolation error reporting, pool initialization, and demo canvas rendering. Tests have a generous timeout because full procedural atlases are generated, including pool startup. They do not silently skip when `pkg/` is absent: build it first.
+Summoner profiles are Default, Necromancer, Shaman, Lunatic, Boss and Ocean. Boss always uses hard modifiers; Lunatic mixes tiers. Difficulty remains part of the deterministic input for both. Suggestions use Rust's shared vocabulary; summoner selection is independent of generation V1/V2. Arbitrary hand-written prompts remain supported. See [browser prompt APIs](../../docs/browser-prompts.md) and [generation profiles](../../docs/generation-profiles.md).
 
-To use an already-installed modern Chromium, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chromium` when running `npm test`.
+In the demo, the first Random prompt click uses the displayed seed. Repeated clicks with unchanged options advance the visible seed, wrapping from u64::MAX to zero. Editing the seed, difficulty or summoner profile resets reroll history, including re-entering the same seed. Random prompt never renders automatically. Manual prompt edits, presets, option changes and generation invalidate outstanding suggestions; stale responses cannot overwrite newer text. Failures leave the text intact and allow retry.
 
-## Reproducible optimized build
+### Low-level worker protocol
 
-Install Rust nightly-2026-10-12 with rust-src, wasm-bindgen-cli **0.2.129** (matching Cargo.lock), and Binaryen **130** from their official releases, then run:
+Requests are `{ id, type, ...payload, progress?: true }`:
+
+- `ready`: no payload
+- `generate`: `prompt`, `seed: bigint`, optional `profile: 'v1' | 'v2'`
+- `generate_hybrid`: JSON-text `prompt`, `seed: bigint`, `profile: 'v2'`
+- `suggest`: `seed: bigint`, `difficulty: 1 | 2 | 3`, optional `prompt_profile`
+
+Replies are `{ id, type: 'ready', ...info }`, `{ id, type: 'result', result }`, or `{ id, type: 'error', error: { name, message, code } }`. A request with **exactly** `progress: true` can also receive `{ id, type: 'progress', progress: { phase, completed, total } }` before its terminal reply. Other requests receive no progress messages. Text suggestions have no atlas transfer list.
+
+Direct WASM exports include `initialize_model()`, `generator_info()`, `generate_monster(prompt, seed)`, `generate_monster_with_profile(prompt, seed, profile)`, `generate_monster_with_profile_progress(prompt, seed, profile, callback)`, `generate_hybrid_json(recipe, seed)`, `generate_hybrid_json_progress(recipe, seed, callback)`, and `suggest_prompt(seed, difficulty, prompt_profile)`. A direct progress callback receives `(phase, completed, total)`. Use the client for u64 validation, cancellation, request correlation and off-main-thread execution.
+
+## Optional threaded build
 
 ```sh
 rustup toolchain install nightly-2026-10-12 --profile minimal --component rust-src
-./tools/build_wasm.sh
+WASM_THREADED=1 ./tools/build_wasm.sh
 ```
 
-The `wasm-release` profile uses opt-level 3, fat LTO, one codegen unit, aborting panics and stripped debug information. The script rebuilds `std` with atomics instead of linking a non-thread-safe precompiled standard library. It targets **wasm32-unknown-unknown**, enables **atomics, bulk-memory, simd128, relaxed-simd, tail-call, multivalue, mutable-globals, nontrapping-fptoint, sign-ext, extended-const and reference-types**, and finishes with **wasm-opt --all-features -O3**. `pkg/build-info.json` records the build configuration. The maximum shared linear memory is 2 GiB; this is a ceiling, not an up-front allocation.
+This rebuilds the standard library with atomics, enables `wasm-threads,bert`, and uses shared linear memory with a 2 GiB maximum. Serve it in a secure context with `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`. Keep generated `pkg/snippets/` modules. Threaded readiness initializes a real Rayon pool with 2–4 threads, based on hardware concurrency; it reports `threaded: true`. Missing isolation produces an actionable error instead of hanging. Pool initialization times out after 45 seconds. Choose the default portable build for hosts that cannot supply isolation headers.
 
-These are enabled compiler/optimizer capabilities, not a promise that every proposal appears in every binary. Threads are real: wasm-bindgen-rayon starts a shared-memory pool and the unchanged directional renderer uses its parallel iterator. Rust/LLVM chooses whether to emit tail calls, multi-value operations, relaxed SIMD, etc. Typed function references have **no separate supported rustc target-feature** in this pinned toolchain; reference-types is enabled but is not the same proposal. We do not pass a fictional `typed-function-references` flag. Binaryen accepts all supported proposals for validation/optimization; that flag does not turn a wasm32 Rust program into memory64, a GC-language runtime or an exception-unwinding build.
+Both distributions use the `wasm-release` profile: opt-level 3, fat LTO, one codegen unit, aborting panics and stripped debug information, followed by `wasm-opt --all-features -O3`. The default Rust target features are `simd128,bulk-memory`; optional threading also enables atomics and the advanced proposal flags recorded in build-info.json. `--all-features` allows the optimizer to process supported proposals; it is not a promise that every proposal appears in the result. `pkg/build-info.json` records the actual build settings.
 
-The vocabulary parser is the existing deterministic parser, preserving compound species, materials, anatomy modifiers, attacks, mounts, minions and unknown-creature handling. Native builds retain default BERT. Geometry recipes (including stormtrooper armor/helmet and random-direction firing), 3D rasterization, palettes, directional animation, physics, colliders, gameplay and complete companion packages are shared with native generation. No atlas-size, animation-count or geometry shortcuts are introduced for the browser. Browser images are returned as RGBA rather than PNG to avoid unnecessary encode/decode work.
+No fast-math or explicit nondeterministic relaxed floating-point intrinsics are used. Tests verify same-build/same-browser metadata and every RGBA atlas hash. Cross-browser, cross-architecture, compiler-version and portable-versus-threaded bit equality are not promised; pin and validate the binary for replay systems.
 
-Seeded rendering does not use fast-math or explicit nondeterministic relaxed floating-point intrinsics. Same-build/same-browser reproducibility is checked by hashing every atlas and comparing full metadata. Relaxed SIMD is enabled as requested, so cross-browser/cross-architecture bit equality is not promised; Rust floating-point behavior and future optimizer changes also require revalidation. Pin the binary for replay systems.
+## Tests
 
-The GitHub Actions WASM job runs parser tests, compiles/optimizes this target, runs real Chromium worker tests under isolation headers, and uploads the runnable site plus WASM as `infernal-wasm32-threaded`.
+Dependency-free client, worker and controls checks, from the repository root:
 
-For a manual run in an existing browser, open `/tests/browser-check.html` on the supplied server and click **Run browser checks**. The page reports real pool initialization, stormtrooper metadata, atlas SHA-256 determinism, heartbeat progress, busy/queued cancellation, and successful generation after restart. Pool initialization times out after 45 seconds with a diagnostic rather than leaving the UI loading indefinitely; failed initialization terminates the worker tree.
+```sh
+node --test web/wasm/tests/profiles.node.mjs web/wasm/tests/suggestions.node.mjs \
+  web/wasm/tests/prompt-controls.node.mjs web/wasm/tests/worker-contract.node.mjs
+```
 
-### Opt-in V2
+After building `pkg/`, run the real browser suite:
 
-The client defaults to V1. Select V2 per call with
-`generator.generate(prompt, seed, { profile: 'v2' })`. The direct WASM export is
-`generate_monster_with_profile(prompt, seed, 'v2')`. Rebuild the WASM package to
-use V2; older packages keep working for V1 and reject V2 explicitly.
-See [generation profiles](../../docs/generation-profiles.md).
+```sh
+cd web/wasm
+npm ci
+npx playwright install chromium
+npm test
+# When testing the opt-in threaded package:
+WASM_THREADED=1 npm test
+```
 
-Run the dependency-free client and worker contract checks with
-`node --test web/wasm/tests/profiles.node.mjs web/wasm/tests/suggestions.node.mjs web/wasm/tests/prompt-controls.node.mjs` from the repository root.
+Playwright starts the server automatically. `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chromium` selects an installed browser. Tests do not silently skip a missing build. The portable suite removes isolation headers, verifies SharedArrayBuffer is unavailable, blocks off-origin requests, initializes BERT, then switches the browser offline and generates a real monster. Other tests cover exact u64 seeds, V1/V2 world-size metadata, all-atlas SHA-256 replay, real parser metadata, progress, main-thread heartbeat, queued and model-loading cancellation/restart, recoverable errors, suggestions, hybrids and demo rendering. The threaded matrix preserves isolation-error and pool checks.
 
-### Random prompt controls and stale work
+For an additional real-WASM Node regression, run `node web/wasm/tests/explicit-counts.actual-wasm.node.mjs` from the repository root. It checks BERT parser metadata and explicit head/arm counts through full V2 rendering; portable builds run directly, and threaded builds use a Node worker_threads bridge for Rayon. This does not replace browser tests.
 
-Random prompt only changes the editable prompt and, on a reroll, the visible seed. It never starts rendering automatically. Manual prompt edits, preset buttons, seed/difficulty/summoner changes, and starting generation invalidate any outstanding suggestion. Late responses or errors cannot overwrite newer text or clear a newer request’s busy state. Random prompt is disabled while generating or loading WASM; failures leave the text intact and allow a retry. An older binary without `suggest_prompt` reports an explicit rebuild error and still supports its existing generation exports.
-
-See [browser prompt APIs](../../docs/browser-prompts.md) for the matching native HTTP endpoint.
+For manual browser checks, open `/tests/browser-check.html` on the supplied server and click **Run browser checks**. It reports runtime/model readiness, full stormtrooper metadata, progress phases, atlas hashes, heartbeat activity and cancellation/restart.

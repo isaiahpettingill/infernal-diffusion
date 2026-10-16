@@ -53,8 +53,10 @@ using an isolated temporary output directory.
 
 ## Browser / Web Worker build
 
-The full procedural pipeline can run in a modern browser with a shared-memory
-WASM thread pool and deterministic vocabulary parsing instead of BERT. See
+The full procedural pipeline can run in a modern browser in a
+portable Web Worker and the bundled lightweight Candle BERT encoder. The model is
+embedded in the WASM file; no AI service or runtime model download is required.
+An optional threaded build remains available. See
 [the runnable browser demo and build instructions](web/wasm/README.md).
 The WASM CI builds an optimized wasm32 artifact and tests actual worker generation.
 

@@ -1,4 +1,4 @@
-# Random prompts in the browser
+# Browser prompts and local BERT generation
 
 Both the native Arena (`infernal serve`) and standalone WASM demo offer:
 
@@ -28,17 +28,36 @@ Both `/api/suggest` and `/api/generate` accept decimal-string u64 seeds. Numeric
 
 ## WASM client
 
+The default browser distribution runs the actual Candle BERT encoder and the full Rust generator in one Web Worker. The bundled tiny model, tokenizer and configuration are embedded in WASM; no generation endpoint or third-party model request is needed. It runs on ordinary static hosts without SharedArrayBuffer or cross-origin-isolation headers. Once the local bundle is loaded, generation can continue offline. Optional threaded builds retain Rayon and require COOP/COEP.
+
+```js
+const generator = new MonsterGenerator();
+const runtime = await generator.ready({
+  onProgress: ({ phase }) => console.log(phase),
+});
+// runtime.model === 'google/bert_uncased_L-2_H-128_A-2'
+// runtime.parser === 'candle-bert-prototypes-v2'
+// runtime.bundledModel === true; portable runtime.threadCount === 1
+```
+
+Readiness includes a real encoder forward pass. The model is initialized once per worker and reused for later calls. Prompt-generated metadata records `generation.parser: 'candle-bert-prototypes-v2'`; model loading/inference errors are reported instead of silently substituting the vocabulary-only parser. Prompt suggestions remain the shared Rust random-prompt function, independent of BERT inference and V1/V2 selection.
+
 ```js
 const text = await generator.suggestPrompt('18446744073709551615', 2, {
   promptProfile: 'necromancer',
   signal: controller.signal,
 });
 const monster = await generator.generate(text, '18446744073709551615'); // V1
-const refined = await generator.generate(text, '18446744073709551615', { profile: 'v2' });
+const refined = await generator.generate(text, '18446744073709551615', {
+  profile: 'v2', signal: controller.signal,
+  onProgress: ({ phase, completed, total }) => console.log(phase, completed, total),
+});
 ```
 
 `MonsterGenerator.suggestPrompt` returns a promise of a string, not a generated package. It accepts bigint, decimal-string, or safe-integer seeds; invalid inputs reject before worker startup. Suggestions and generation run in one request-correlated queue. Aborting any pending request or calling `cancel()` rejects all outstanding requests and terminates the worker; the next request starts a fresh worker. `dispose()` is permanent.
 
-The low-level WASM export is `suggest_prompt(seed, difficulty, prompt_profile)`. The seed is a JS BigInt/u64 argument; prefer the client wrapper because it validates range before wasm-bindgen's integer conversion. Difficulty is validated before narrowing, including rejection of fractional, non-finite, and wrapped-u8 inputs such as 257. A previously built binary lacking this export yields an explicit rebuild error, with no fallback JavaScript generator.
+`generate` and `ready` accept optional progress callbacks with `{ phase, completed?, total? }`. Phases are `loading-wasm`, `initializing-model`, `parsing`, `building`, `rendering`, `packaging`, and `complete`; initialization only occurs on a fresh worker, and stage counts are not a global percentage. The worker emits progress messages only for requests with `progress: true`. Full-resolution RGBA atlases, world-size metadata, companion packages and exact u64 seeds are retained. Prompts are limited to 4096 UTF-8 bytes. `generateHybrid(recipe, seed, options)` still accepts explicit structured V2 recipes through a separate export, without interpreting them as prose.
+
+The low-level WASM export is `suggest_prompt(seed, difficulty, prompt_profile)`. The seed is a JS BigInt/u64 argument; prefer the client wrapper because it validates range before wasm-bindgen's integer conversion. Difficulty is validated before narrowing, including rejection of fractional, non-finite, and wrapped-u8 inputs such as 257. A BERT-enabled binary lacking this suggestion export yields an explicit rebuild error, with no fallback JavaScript generator. Older vocabulary-only WASM distributions must be rebuilt for the current BERT worker.
 
 See [WASM build and browser checks](../web/wasm/README.md).

@@ -25,7 +25,7 @@ jobs:
         run: |
           cargo build --locked --release ${{ matrix.features }} --bin infernal
           python3 tools/smoke_playground.py --expect-parser ${{ matrix.features == '' && 'embedded-bert' || 'vocabulary' }}
-          node --test web/combat.test.cjs web/prompt-suggestions.test.cjs web/wasm/tests/profiles.node.mjs web/wasm/tests/suggestions.node.mjs web/wasm/tests/prompt-controls.node.mjs
+          node --test web/combat.test.cjs web/prompt-suggestions.test.cjs web/wasm/tests/profiles.node.mjs web/wasm/tests/suggestions.node.mjs web/wasm/tests/prompt-controls.node.mjs web/wasm/tests/worker-contract.node.mjs
       - name: Install local Arena browser checks
         if: matrix.features == ''
         working-directory: web/wasm

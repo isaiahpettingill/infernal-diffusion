@@ -3,7 +3,9 @@
  * request creates a fresh worker. A synchronous WASM call cannot poll messages.
  */
 export class MonsterGenerator {
-  constructor({ workerUrl = new URL('./worker.js', import.meta.url) } = {}) {
+  constructor({ workerUrl = new URL('./worker.js', import.meta.url), timeoutMs = 600000 } = {}) {
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new RangeError('timeoutMs must be a positive finite number');
+    this.timeoutMs = timeoutMs;
     this.workerUrl = workerUrl;
     this.worker = null;
     this.pending = new Map();
@@ -25,6 +27,12 @@ export class MonsterGenerator {
       if (this.worker !== worker) return;
       const entry = this.pending.get(data.id);
       if (!entry) return;
+      if (data.type === 'progress') {
+        // A UI callback must not corrupt the worker protocol or orphan its promise.
+        try { entry.onProgress?.(data.progress); } catch (error) { console.error('Generator progress callback failed', error); }
+        return;
+      }
+      if (!['error', 'ready', 'result'].includes(data.type)) return;
       this.pending.delete(data.id);
       entry.cleanup();
       if (data.type === 'error') {
@@ -33,7 +41,10 @@ export class MonsterGenerator {
         error.code = data.error.code;
         entry.reject(error);
         if (error.code === 'WASM_UNAVAILABLE') this._reset(error);
-      } else entry.resolve(data.type === 'ready' ? { threadCount: data.threadCount } : data.result);
+      } else if (data.type === 'ready') {
+        const { id, type, ...ready } = data;
+        entry.resolve(ready);
+      } else entry.resolve(data.result);
     };
     worker.onerror = (event) => {
       event.preventDefault();
@@ -45,25 +56,30 @@ export class MonsterGenerator {
     };
   }
 
-  _request(type, payload, signal) {
+  _request(type, payload, signal, onProgress) {
     return new Promise((resolve, reject) => {
       if (signal?.aborted) return reject(new DOMException('Generation cancelled', 'AbortError'));
       this._ensureWorker();
       const id = this.nextId++;
       const abort = () => this.cancel();
-      const cleanup = () => signal?.removeEventListener('abort', abort);
-      this.pending.set(id, { resolve, reject, cleanup });
+      const timeout = setTimeout(() => {
+        const error = new Error('Generator request timed out; the worker was restarted. Try a shorter prompt or a less complex monster');
+        error.code = 'TIMEOUT';
+        this._reset(error);
+      }, this.timeoutMs);
+      const cleanup = () => { clearTimeout(timeout); signal?.removeEventListener('abort', abort); };
+      this.pending.set(id, { resolve, reject, cleanup, onProgress });
       signal?.addEventListener('abort', abort, { once: true });
-      try { this.worker.postMessage({ id, type, ...payload }); }
+      try { this.worker.postMessage({ id, type, ...payload, progress: typeof onProgress === 'function' }); }
       catch (error) { this.pending.delete(id); cleanup(); reject(error); }
     });
   }
 
   /** Resolves only after the actual binary has instantiated successfully. */
-  ready({ signal } = {}) { return this._request('ready', {}, signal); }
+  ready({ signal, onProgress } = {}) { return this._request('ready', {}, signal, onProgress); }
 
   /** seed is bigint, decimal text, or a safe integer. Returns full metadata and RGBA atlases. */
-  generate(prompt, seed = 0n, { signal, profile = 'v1' } = {}) {
+  generate(prompt, seed = 0n, { signal, profile = 'v1', onProgress } = {}) {
     try {
       if (profile !== 'v1' && profile !== 'v2') throw new RangeError('Profile must be v1 or v2');
       if (typeof seed === 'number' && !Number.isSafeInteger(seed)) throw new RangeError('Numeric seed must be a safe integer; use bigint or decimal text for larger seeds');
@@ -71,8 +87,9 @@ export class MonsterGenerator {
       seed = BigInt(seed);
       if (seed < 0n || seed > 18446744073709551615n) throw new RangeError('Seed must fit an unsigned 64-bit integer');
       if (typeof prompt !== 'string' || !prompt.trim()) throw new TypeError('Prompt must be a nonempty string');
+      if (new TextEncoder().encode(prompt).length > 4096) throw new RangeError('Prompt must be at most 4096 UTF-8 bytes');
     } catch (error) { return Promise.reject(error); }
-    return this._request('generate', { prompt, seed, profile }, signal);
+    return this._request('generate', { prompt, seed, profile }, signal, onProgress);
   }
 
   /** Editable prompt text, composed by Rust. Summoner profiles do not select V1/V2. */
@@ -90,7 +107,7 @@ export class MonsterGenerator {
   }
 
   /** Validated HybridRecipe object or JSON text. Always V2; no prompt parser. */
-  generateHybrid(recipe, seed = 0n, { signal } = {}) {
+  generateHybrid(recipe, seed = 0n, { signal, onProgress } = {}) {
     let prompt;
     try {
       prompt = typeof recipe === 'string' ? recipe : JSON.stringify(recipe);
@@ -102,7 +119,7 @@ export class MonsterGenerator {
       seed = BigInt(seed);
       if (seed < 0n || seed > 18446744073709551615n) throw new RangeError('Seed must fit an unsigned 64-bit integer');
     } catch (error) { return Promise.reject(error); }
-    return this._request('generate_hybrid', { prompt, seed, profile: 'v2' }, signal);
+    return this._request('generate_hybrid', { prompt, seed, profile: 'v2' }, signal, onProgress);
   }
 
   _reset(error) {
