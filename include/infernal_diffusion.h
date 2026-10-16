@@ -75,12 +75,25 @@ InfernalGeneratedMonster *infernal_generate_object(const char *prompt, uint64_t 
    Optional symbol when loading an older ABI-1 library dynamically. */
 InfernalGeneratedMonster *infernal_generate_in_memory_profile(const char *prompt, uint64_t seed,
                                                               uint32_t profile, char **error_out);
+/* Optional additive ABI-1 symbol. Generate compact in-memory packages directly,
+   avoiding retention of full-grid companion and empty-emission atlases. */
+InfernalGeneratedMonster *infernal_generate_in_memory_profile_compact(const char *prompt, uint64_t seed,
+                                                                      uint32_t profile, char **error_out);
 /* Validated, versioned HybridRecipe JSON. Always V2, no neural parser.
    Unknown fields/versions and invalid combinations return NULL + error_out.
    Optional additive ABI-1 symbol; same object ownership and saving APIs. */
 InfernalGeneratedMonster *infernal_generate_hybrid_json(const char *recipe_json, uint64_t seed,
                                                        char **error_out);
+InfernalGeneratedMonster *infernal_generate_hybrid_json_compact(const char *recipe_json, uint64_t seed,
+                                                               char **error_out);
 void infernal_object_free(InfernalGeneratedMonster *handle);
+/* Optional additive ABI-1 symbol. Losslessly packs all package atlases in place.
+   Logical frame IDs, virtual frame dimensions and gameplay metadata are unchanged.
+   Format-8 sprites.frame_regions contains atlas rectangles and virtual offsets.
+   Blank emission uses a transparent 1x1 image and an empty emission_file.
+   Call before borrowing pixel pointers; existing pointers may be invalidated.
+   Old libraries without this symbol continue to return uniform-grid atlases. */
+int32_t infernal_object_compact(InfernalGeneratedMonster *handle, char **error_out);
 uint32_t infernal_object_count(const InfernalGeneratedMonster *handle);
 /* Returns an allocated UTF-8 path; free with infernal_free_string. */
 char *infernal_object_package_path(const InfernalGeneratedMonster *handle, uint32_t index);

@@ -1,0 +1,111 @@
+{
+  "cases": 13,
+  "packages": 17,
+  "rows": [
+    {
+      "fixture": "wolf",
+      "profile": "v1",
+      "baseline_seconds": 0.6468013375,
+      "optimized_seconds": 0.5820931995,
+      "reduction_percent": 10.004329652456844,
+      "exact": true
+    },
+    {
+      "fixture": "wolf",
+      "profile": "v2",
+      "baseline_seconds": 0.9382315215,
+      "optimized_seconds": 0.8354359625000001,
+      "reduction_percent": 10.956310531504554,
+      "exact": true
+    },
+    {
+      "fixture": "slime",
+      "profile": "v1",
+      "baseline_seconds": 0.19936043850000001,
+      "optimized_seconds": 0.1569240365,
+      "reduction_percent": 21.286270395116535,
+      "exact": true
+    },
+    {
+      "fixture": "slime",
+      "profile": "v2",
+      "baseline_seconds": 0.2511080135,
+      "optimized_seconds": 0.1866057945,
+      "reduction_percent": 25.687041246097063,
+      "exact": true
+    },
+    {
+      "fixture": "orc",
+      "profile": "v1",
+      "baseline_seconds": 0.5819351585000001,
+      "optimized_seconds": 0.4832947415,
+      "reduction_percent": 16.950413728955006,
+      "exact": true
+    },
+    {
+      "fixture": "orc",
+      "profile": "v2",
+      "baseline_seconds": 0.8169590925,
+      "optimized_seconds": 0.7224548725,
+      "reduction_percent": 11.567803194503279,
+      "exact": true
+    },
+    {
+      "fixture": "mounted",
+      "profile": "v1",
+      "baseline_seconds": 2.9281244854999997,
+      "optimized_seconds": 2.6640177769999998,
+      "reduction_percent": 9.019654383133291,
+      "exact": true
+    },
+    {
+      "fixture": "mounted",
+      "profile": "v2",
+      "baseline_seconds": 4.328262908999999,
+      "optimized_seconds": 3.872388267,
+      "reduction_percent": 10.5325081120205,
+      "exact": true
+    },
+    {
+      "fixture": "shadow",
+      "profile": "v1",
+      "baseline_seconds": 0.7135490885,
+      "optimized_seconds": 0.578598781,
+      "reduction_percent": 18.91254710782243,
+      "exact": true
+    },
+    {
+      "fixture": "shadow",
+      "profile": "v2",
+      "baseline_seconds": 0.9702284299999999,
+      "optimized_seconds": 0.8600800225,
+      "reduction_percent": 11.35283239432593,
+      "exact": true
+    },
+    {
+      "fixture": "shade",
+      "profile": "v1",
+      "baseline_seconds": 0.485623377,
+      "optimized_seconds": 0.4114836215,
+      "reduction_percent": 15.26692474279302,
+      "exact": true
+    },
+    {
+      "fixture": "shade",
+      "profile": "v2",
+      "baseline_seconds": 1.247050972,
+      "optimized_seconds": 1.1483263885000001,
+      "reduction_percent": 7.916643803393775,
+      "exact": true
+    },
+    {
+      "fixture": "hybrid",
+      "profile": "v2",
+      "baseline_seconds": 1.5824735625,
+      "optimized_seconds": 1.576904656,
+      "reduction_percent": 0.35191150310290853,
+      "exact": true
+    }
+  ],
+  "all_pixel_bytes_metadata_protobuf_exact": true
+}

@@ -2132,6 +2132,13 @@ class InfernalSpriteSet:
 		service.field = __render_mode
 		data[__render_mode.tag] = service
 
+		var __frame_regions_default: Array[InfernalFrameRegion] = []
+		__frame_regions = PBField.new("frame_regions", PB_DATA_TYPE.MESSAGE, PB_RULE.REPEATED, 11, true, __frame_regions_default)
+		service = PBServiceField.new()
+		service.field = __frame_regions
+		service.func_ref = Callable(self, "add_frame_regions")
+		data[__frame_regions.tag] = service
+
 	var data = {}
 
 	var __image_file: PBField
@@ -2259,6 +2266,153 @@ class InfernalSpriteSet:
 		__render_mode.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
 	func set_render_mode(value : String) -> void:
 		__render_mode.value = value
+
+	var __frame_regions: PBField
+	func get_frame_regions() -> Array[InfernalFrameRegion]:
+		return __frame_regions.value
+	func clear_frame_regions() -> void:
+		data[11].state = PB_SERVICE_STATE.UNFILLED
+		__frame_regions.value.clear()
+	func add_frame_regions() -> InfernalFrameRegion:
+		var element = InfernalFrameRegion.new()
+		__frame_regions.value.append(element)
+		return element
+
+	func _to_string() -> String:
+		return PBPacker.message_to_string(data)
+
+	func to_bytes() -> PackedByteArray:
+		return PBPacker.pack_message(data)
+
+	func from_bytes(bytes : PackedByteArray, offset : int = 0, limit : int = -1) -> int:
+		var cur_limit = bytes.size()
+		if limit != -1:
+			cur_limit = limit
+		var result = PBPacker.unpack_message(data, bytes, offset, cur_limit)
+		if result == cur_limit:
+			if PBPacker.check_required(data):
+				if limit == -1:
+					return PB_ERR.NO_ERRORS
+			else:
+				return PB_ERR.REQUIRED_FIELDS
+		elif limit == -1 && result > 0:
+			return PB_ERR.PARSE_INCOMPLETE
+		return result
+
+class InfernalFrameRegion:
+	extends RefCounted
+	func _init():
+		var service
+
+		__x = PBField.new("x", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __x
+		data[__x.tag] = service
+
+		__y = PBField.new("y", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 2, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __y
+		data[__y.tag] = service
+
+		__width = PBField.new("width", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 3, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __width
+		data[__width.tag] = service
+
+		__height = PBField.new("height", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 4, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __height
+		data[__height.tag] = service
+
+		__offset_x = PBField.new("offset_x", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 5, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __offset_x
+		data[__offset_x.tag] = service
+
+		__offset_y = PBField.new("offset_y", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 6, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __offset_y
+		data[__offset_y.tag] = service
+
+	var data = {}
+
+	var __x: PBField
+	func has_x() -> bool:
+		if __x.value != null:
+			return true
+		return false
+	func get_x() -> int:
+		return __x.value
+	func clear_x() -> void:
+		data[1].state = PB_SERVICE_STATE.UNFILLED
+		__x.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_x(value : int) -> void:
+		__x.value = value
+
+	var __y: PBField
+	func has_y() -> bool:
+		if __y.value != null:
+			return true
+		return false
+	func get_y() -> int:
+		return __y.value
+	func clear_y() -> void:
+		data[2].state = PB_SERVICE_STATE.UNFILLED
+		__y.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_y(value : int) -> void:
+		__y.value = value
+
+	var __width: PBField
+	func has_width() -> bool:
+		if __width.value != null:
+			return true
+		return false
+	func get_width() -> int:
+		return __width.value
+	func clear_width() -> void:
+		data[3].state = PB_SERVICE_STATE.UNFILLED
+		__width.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_width(value : int) -> void:
+		__width.value = value
+
+	var __height: PBField
+	func has_height() -> bool:
+		if __height.value != null:
+			return true
+		return false
+	func get_height() -> int:
+		return __height.value
+	func clear_height() -> void:
+		data[4].state = PB_SERVICE_STATE.UNFILLED
+		__height.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_height(value : int) -> void:
+		__height.value = value
+
+	var __offset_x: PBField
+	func has_offset_x() -> bool:
+		if __offset_x.value != null:
+			return true
+		return false
+	func get_offset_x() -> int:
+		return __offset_x.value
+	func clear_offset_x() -> void:
+		data[5].state = PB_SERVICE_STATE.UNFILLED
+		__offset_x.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_offset_x(value : int) -> void:
+		__offset_x.value = value
+
+	var __offset_y: PBField
+	func has_offset_y() -> bool:
+		if __offset_y.value != null:
+			return true
+		return false
+	func get_offset_y() -> int:
+		return __offset_y.value
+	func clear_offset_y() -> void:
+		data[6].state = PB_SERVICE_STATE.UNFILLED
+		__offset_y.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_offset_y(value : int) -> void:
+		__offset_y.value = value
 
 	func _to_string() -> String:
 		return PBPacker.message_to_string(data)

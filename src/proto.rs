@@ -188,6 +188,26 @@ pub struct SpriteSet {
     pub direction_stride: u32,
     #[prost(string, tag = "10")]
     pub render_mode: String,
+    /// Optional lossless packed atlas rectangles, indexed by logical frame ID.
+    #[prost(message, repeated, tag = "11")]
+    pub frame_regions: Vec<FrameRegion>,
+}
+
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct FrameRegion {
+    #[prost(uint32, tag = "1")]
+    pub x: u32,
+    #[prost(uint32, tag = "2")]
+    pub y: u32,
+    #[prost(uint32, tag = "3")]
+    pub width: u32,
+    #[prost(uint32, tag = "4")]
+    pub height: u32,
+    #[prost(uint32, tag = "5")]
+    pub offset_x: u32,
+    #[prost(uint32, tag = "6")]
+    pub offset_y: u32,
 }
 #[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
 #[serde(default)]

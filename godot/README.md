@@ -43,6 +43,28 @@ func _process(_delta: float) -> void:
 ```
 
 The result also contains `emission` and, where applicable, `projectiles` atlases.
+New cores generate compact in-memory sprite atlases through optional ABI-1
+symbols. Older cores continue to return uniform grids. Use
+`InfernalDiffusion.frame_texture(monster, texture, frame_id, direction_index)`
+for either layout. It returns an `AtlasTexture` with the original virtual size,
+so centered sprites and horizontal flipping keep the same world anchor.
+
+Compact packages use format 8 and `monster.sprites.frame_regions`, indexed by
+the unchanged logical frame ID (`sprite_frame_id + direction_index *
+direction_stride`). Each entry has `x`, `y`, `width`, `height`, `offset_x` and
+`offset_y`. The rectangle locates stored pixels; offsets place them within the
+original `frame_width` by `frame_height` canvas. `columns` is legacy metadata
+and must not be used to locate compact frames. Colliders, world sizes, root
+motion, attack/event metadata and direction order remain in their original
+coordinate system. Never subtract trim offsets from those values.
+
+For nonempty emission, reuse the sprite regions and margins on its atlas. An
+empty `monster.sprites.emission_file` means emission has no visible pixels;
+the raw image is a transparent 1×1 sentinel for ABI compatibility. Skip its
+texture upload and overlay. Do not draw that sentinel using sprite regions.
+Direct disk-generation APIs retain the legacy grid; saving an in-memory object
+persists whichever layout it contains.
+
 Mounted or spawning monsters include child packages in `result.packages`; use
 each package's `path` together with `mount` or `spawn.package_path` metadata.
 Up to four in-memory monsters can be retained per generator. Call

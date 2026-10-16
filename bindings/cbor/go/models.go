@@ -102,6 +102,16 @@ type SpriteSet struct {
     DirectionAnglesDeg []float32 `cbor:"direction_angles_deg"`
     DirectionStride uint32 `cbor:"direction_stride"`
     RenderMode string `cbor:"render_mode"`
+    FrameRegions []FrameRegion `cbor:"frame_regions"`
+}
+
+type FrameRegion struct {
+    X uint32 `cbor:"x"`
+    Y uint32 `cbor:"y"`
+    Width uint32 `cbor:"width"`
+    Height uint32 `cbor:"height"`
+    OffsetX uint32 `cbor:"offset_x"`
+    OffsetY uint32 `cbor:"offset_y"`
 }
 
 type PhysicsInfo struct {

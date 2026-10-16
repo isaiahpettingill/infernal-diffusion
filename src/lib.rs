@@ -1,5 +1,6 @@
 pub mod anatomy;
 pub mod animation;
+pub mod atlas;
 pub mod description;
 pub mod locomotion;
 pub mod mystery;
@@ -235,6 +236,7 @@ pub fn generate_in_memory_with_profile(
 ) -> Result<GeneratedMonster, Error> {
     let mut sink = MemorySink {
         packages: Vec::new(),
+        compact: false,
     };
     generate_prompt_profile(
         prompt,
@@ -245,6 +247,44 @@ pub fn generate_in_memory_with_profile(
         &mut sink,
         profile,
     )?;
+    Ok(GeneratedMonster {
+        packages: sink.packages,
+    })
+}
+
+/// Lossless compact runtime packages, packed before retaining companions.
+pub fn generate_in_memory_compact_with_profile(
+    prompt: &str,
+    seed: u64,
+    profile: GenerationProfile,
+) -> Result<GeneratedMonster, Error> {
+    let mut sink = MemorySink {
+        packages: Vec::new(),
+        compact: true,
+    };
+    generate_prompt_profile(
+        prompt,
+        seed,
+        Path::new("."),
+        None,
+        RenderStyle::Mesh3d,
+        &mut sink,
+        profile,
+    )?;
+    Ok(GeneratedMonster {
+        packages: sink.packages,
+    })
+}
+
+pub fn generate_hybrid_in_memory_compact(
+    recipe: &v2::hybrid::HybridRecipe,
+    seed: u64,
+) -> Result<GeneratedMonster, Error> {
+    let mut sink = MemorySink {
+        packages: Vec::new(),
+        compact: true,
+    };
+    generate_hybrid_internal(recipe, seed, Path::new("."), &mut sink)?;
     Ok(GeneratedMonster {
         packages: sink.packages,
     })
@@ -292,6 +332,7 @@ pub fn generate_hybrid_in_memory(
 ) -> Result<GeneratedMonster, Error> {
     let mut sink = MemorySink {
         packages: Vec::new(),
+        compact: false,
     };
     generate_hybrid_internal(recipe, seed, Path::new("."), &mut sink)?;
     Ok(GeneratedMonster {
@@ -343,6 +384,7 @@ pub struct GeneratedMonster {
 pub fn generate_in_memory(prompt: &str, seed: u64) -> Result<GeneratedMonster, Error> {
     let mut sink = MemorySink {
         packages: Vec::new(),
+        compact: false,
     };
     generate_prompt(
         prompt,
@@ -387,7 +429,7 @@ trait PackageSink {
         &mut self,
         path: &Path,
         monster: &proto::Monster,
-        sheet: &image::RgbaImage,
+        sheet: image::RgbaImage,
         projectiles: Option<&image::RgbaImage>,
         preview: Option<(u32, u32, u32)>,
     ) -> Result<(), Error>;
@@ -401,7 +443,7 @@ impl PackageSink for DiskSink {
         &mut self,
         path: &Path,
         monster: &proto::Monster,
-        sheet: &image::RgbaImage,
+        sheet: image::RgbaImage,
         projectiles: Option<&image::RgbaImage>,
         preview: Option<(u32, u32, u32)>,
     ) -> Result<(), Error> {
@@ -410,9 +452,9 @@ impl PackageSink for DiskSink {
         if let Some(atlas) = projectiles {
             atlas.save(path.join("projectiles.png"))?;
         }
-        render::emission_sheet(sheet).save(path.join("emission.png"))?;
+        render::emission_sheet(&sheet).save(path.join("emission.png"))?;
         if let Some((size, columns, stride)) = preview {
-            render3d::preview(sheet, size, columns, stride).save(path.join("preview.png"))?;
+            render3d::preview(&sheet, size, columns, stride).save(path.join("preview.png"))?;
         }
         write_metadata(path, monster, self.format)?;
         Ok(())
@@ -421,23 +463,32 @@ impl PackageSink for DiskSink {
 
 struct MemorySink {
     packages: Vec<GeneratedPackage>,
+    compact: bool,
 }
 impl PackageSink for MemorySink {
     fn store(
         &mut self,
         path: &Path,
         monster: &proto::Monster,
-        sheet: &image::RgbaImage,
+        sheet: image::RgbaImage,
         projectiles: Option<&image::RgbaImage>,
         _preview: Option<(u32, u32, u32)>,
     ) -> Result<(), Error> {
-        self.packages.push(GeneratedPackage {
+        let mut package = GeneratedPackage {
             path: path.to_path_buf(),
             monster: monster.clone(),
-            sprites: sheet.clone(),
-            emission: render::emission_sheet(sheet),
+            emission: if self.compact {
+                image::RgbaImage::new(1, 1)
+            } else {
+                render::emission_sheet(&sheet)
+            },
+            sprites: sheet,
             projectiles: projectiles.cloned(),
-        });
+        };
+        if self.compact {
+            atlas::compact_package(&mut package)?;
+        }
+        self.packages.push(package);
         Ok(())
     }
 }
@@ -1295,6 +1346,7 @@ fn generate_spec_internal(
                 .collect(),
         }),
         sprites: Some(proto::SpriteSet {
+            frame_regions: Vec::new(),
             image_file: "sprites.png".into(),
             frame_width: size,
             frame_height: size,
@@ -1375,7 +1427,7 @@ fn generate_spec_internal(
     sink.store(
         output_dir,
         &monster,
-        &sheet,
+        sheet,
         projectile_sheet.as_ref(),
         (render_style == RenderStyle::Mesh3d).then_some((size, columns, poses.len() as u32)),
     )?;
@@ -1564,7 +1616,7 @@ fn validate_body(body: &anatomy::Body) -> Result<(), Error> {
 
 pub fn validate(monster: &proto::Monster, sheet: &image::RgbaImage) -> Result<(), Error> {
     v2::validate_profile(monster)?;
-    if ![2, 3, 4, 5, 6, 7].contains(&monster.format_version) {
+    if ![2, 3, 4, 5, 6, 7, 8].contains(&monster.format_version) {
         return Err(Error::InvalidMonster("unsupported format_version".into()));
     }
     if monster.id.trim().is_empty()
@@ -1636,13 +1688,22 @@ pub fn validate(monster: &proto::Monster, sheet: &image::RgbaImage) -> Result<()
         || sprites.columns == 0
         || sprites.frame_width == 0
         || sprites.frame_height == 0
-        || sprites.columns.checked_mul(sprites.frame_width) != Some(sheet.width())
-        || sprites
-            .frame_height
-            .checked_mul(sprites.frame_count.div_ceil(sprites.columns))
-            .is_none_or(|required| sheet.height() != required)
     {
         return Err(Error::InvalidMonster("invalid sprite dimensions".into()));
+    }
+    if sprites.frame_regions.is_empty() {
+        if sprites.columns.checked_mul(sprites.frame_width) != Some(sheet.width())
+            || sprites
+                .frame_height
+                .checked_mul(sprites.frame_count.div_ceil(sprites.columns))
+                != Some(sheet.height())
+        {
+            return Err(Error::InvalidMonster("invalid sprite dimensions".into()));
+        }
+    } else if monster.format_version != 8
+        || !atlas::valid_regions(sprites, sheet.width(), sheet.height())
+    {
+        return Err(Error::InvalidMonster("invalid packed frame regions".into()));
     }
     if monster.format_version >= 5 {
         let size = monster
@@ -2036,10 +2097,19 @@ pub fn validate(monster: &proto::Monster, sheet: &image::RgbaImage) -> Result<()
             return Err(Error::InvalidMonster(format!("invalid attack {}", a.id)));
         }
         if let Some(frame) = clip.and_then(|c| c.frames.first()) {
-            let sx = frame.sprite_frame_id % sprites.columns * sprites.frame_width;
-            let sy = frame.sprite_frame_id / sprites.columns * sprites.frame_height;
-            let visible = (sy..sy + sprites.frame_height)
-                .any(|y| (sx..sx + sprites.frame_width).any(|x| sheet.get_pixel(x, y)[3] > 0));
+            let (sx, sy, width, height) =
+                if let Some(r) = sprites.frame_regions.get(frame.sprite_frame_id as usize) {
+                    (r.x, r.y, r.width, r.height)
+                } else {
+                    (
+                        frame.sprite_frame_id % sprites.columns * sprites.frame_width,
+                        frame.sprite_frame_id / sprites.columns * sprites.frame_height,
+                        sprites.frame_width,
+                        sprites.frame_height,
+                    )
+                };
+            let visible =
+                (sy..sy + height).any(|y| (sx..sx + width).any(|x| sheet.get_pixel(x, y)[3] > 0));
             if !visible {
                 return Err(Error::InvalidMonster(format!(
                     "invisible telegraph for {}",
@@ -2843,6 +2913,112 @@ pub unsafe extern "C" fn infernal_object_save_with_format(
                 *error_out = CString::new(message).unwrap_or_default().into_raw();
             }
             -1
+        }
+    }
+}
+
+/// Opt into lossless format-8 packed textures before acquiring image/metadata
+/// pointers. Invalidates previously borrowed image pointers; owns no new handle.
+#[no_mangle]
+/// # Safety
+/// `object` must be a live, exclusively borrowed handle from this library.
+/// `error_out`, when non-null, must point to writable pointer storage.
+pub unsafe extern "C" fn infernal_object_compact(
+    object: *mut GeneratedMonster,
+    error_out: *mut *mut c_char,
+) -> i32 {
+    if !error_out.is_null() {
+        *error_out = std::ptr::null_mut();
+    }
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let object = object.as_mut().ok_or_else(|| "null object".to_string())?;
+        atlas::compact(object).map_err(|error| error.to_string())
+    }));
+    match result {
+        Ok(Ok(())) => 0,
+        other => {
+            let message = match other {
+                Ok(Err(message)) => message,
+                _ => "panic during atlas compaction".into(),
+            };
+            if !error_out.is_null() {
+                *error_out = CString::new(message).unwrap_or_default().into_raw();
+            }
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+/// # Safety
+/// Same pointer and ownership contract as `infernal_generate_object`.
+pub unsafe extern "C" fn infernal_generate_in_memory_profile_compact(
+    prompt: *const c_char,
+    seed: u64,
+    profile: u32,
+    error_out: *mut *mut c_char,
+) -> *mut GeneratedMonster {
+    if !error_out.is_null() {
+        *error_out = std::ptr::null_mut();
+    }
+    let result = std::panic::catch_unwind(|| {
+        if prompt.is_null() {
+            return Err("null prompt".to_string());
+        }
+        let profile = GenerationProfile::try_from(profile).map_err(|e| e.to_string())?;
+        let text = CStr::from_ptr(prompt).to_str().map_err(|e| e.to_string())?;
+        generate_in_memory_compact_with_profile(text, seed, profile).map_err(|e| e.to_string())
+    });
+    match result {
+        Ok(Ok(value)) => Box::into_raw(Box::new(value)),
+        other => {
+            let message = match other {
+                Ok(Err(e)) => e,
+                _ => "panic during generation".into(),
+            };
+            if !error_out.is_null() {
+                *error_out = CString::new(message).unwrap_or_default().into_raw();
+            }
+            std::ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+/// # Safety
+/// `recipe_json` must be valid NUL-terminated UTF-8. `error_out`, when non-null,
+/// must point to writable storage for one pointer. Free the returned object with
+/// `infernal_object_free` and an error string with `infernal_free_string`.
+pub unsafe extern "C" fn infernal_generate_hybrid_json_compact(
+    recipe_json: *const c_char,
+    seed: u64,
+    error_out: *mut *mut c_char,
+) -> *mut GeneratedMonster {
+    if !error_out.is_null() {
+        *error_out = std::ptr::null_mut();
+    }
+    let result = std::panic::catch_unwind(|| {
+        if recipe_json.is_null() {
+            return Err("null hybrid recipe".to_string());
+        }
+        let text = CStr::from_ptr(recipe_json)
+            .to_str()
+            .map_err(|e| e.to_string())?;
+        let recipe: v2::hybrid::HybridRecipe =
+            serde_json::from_str(text).map_err(|e| e.to_string())?;
+        generate_hybrid_in_memory_compact(&recipe, seed).map_err(|e| e.to_string())
+    });
+    match result {
+        Ok(Ok(value)) => Box::into_raw(Box::new(value)),
+        other => {
+            let message = match other {
+                Ok(Err(error)) => error,
+                _ => "panic during hybrid generation".into(),
+            };
+            if !error_out.is_null() {
+                *error_out = CString::new(message).unwrap_or_default().into_raw();
+            }
+            std::ptr::null_mut()
         }
     }
 }

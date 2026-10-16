@@ -79,7 +79,7 @@ export class MonsterGenerator {
   ready({ signal, onProgress } = {}) { return this._request('ready', {}, signal, onProgress); }
 
   /** seed is bigint, decimal text, or a safe integer. Returns full metadata and RGBA atlases. */
-  generate(prompt, seed = 0n, { signal, profile = 'v1', onProgress } = {}) {
+  generate(prompt, seed = 0n, { signal, profile = 'v1', onProgress, compact = false } = {}) {
     try {
       if (profile !== 'v1' && profile !== 'v2') throw new RangeError('Profile must be v1 or v2');
       if (typeof seed === 'number' && !Number.isSafeInteger(seed)) throw new RangeError('Numeric seed must be a safe integer; use bigint or decimal text for larger seeds');
@@ -89,7 +89,7 @@ export class MonsterGenerator {
       if (typeof prompt !== 'string' || !prompt.trim()) throw new TypeError('Prompt must be a nonempty string');
       if (new TextEncoder().encode(prompt).length > 4096) throw new RangeError('Prompt must be at most 4096 UTF-8 bytes');
     } catch (error) { return Promise.reject(error); }
-    return this._request('generate', { prompt, seed, profile }, signal, onProgress);
+    return this._request('generate', { prompt, seed, profile, compact }, signal, onProgress);
   }
 
   /** Editable prompt text, composed by Rust. Summoner profiles do not select V1/V2. */
@@ -107,7 +107,7 @@ export class MonsterGenerator {
   }
 
   /** Validated HybridRecipe object or JSON text. Always V2; no prompt parser. */
-  generateHybrid(recipe, seed = 0n, { signal, onProgress } = {}) {
+  generateHybrid(recipe, seed = 0n, { signal, onProgress, compact = false } = {}) {
     let prompt;
     try {
       prompt = typeof recipe === 'string' ? recipe : JSON.stringify(recipe);
@@ -119,7 +119,7 @@ export class MonsterGenerator {
       seed = BigInt(seed);
       if (seed < 0n || seed > 18446744073709551615n) throw new RangeError('Seed must fit an unsigned 64-bit integer');
     } catch (error) { return Promise.reject(error); }
-    return this._request('generate_hybrid', { prompt, seed, profile: 'v2' }, signal, onProgress);
+    return this._request('generate_hybrid', { prompt, seed, profile: 'v2', compact }, signal, onProgress);
   }
 
   _reset(error) {

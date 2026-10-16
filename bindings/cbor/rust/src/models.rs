@@ -122,6 +122,18 @@ pub struct SpriteSet {
     pub direction_angles_deg: Vec<f32>,
     pub direction_stride: u32,
     pub render_mode: String,
+    pub frame_regions: Vec<FrameRegion>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct FrameRegion {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+    pub offset_x: u32,
+    pub offset_y: u32,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
