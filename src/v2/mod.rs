@@ -2,9 +2,9 @@
 pub mod anatomy;
 pub mod attack_tracks;
 pub mod combat;
+pub mod damage_traits;
 pub mod encounter_visuals;
 pub mod encounters;
-pub mod damage_traits;
 pub mod grip;
 pub mod hybrid;
 pub mod prompt_normalization;
@@ -114,7 +114,7 @@ pub fn interpret(mut spec: MonsterSpec, prompt: &str) -> MonsterSpec {
         spec.body_plan = "FUNGUS".into();
         spec.materials = vec!["WOOD".into()];
     }
-    if has("cute") || has("chibi") {
+    if (has("cute") || has("chibi")) && !spec.features.iter().any(|f| f == "CHIBI") {
         spec.features.push("CHIBI".into());
     }
     if [

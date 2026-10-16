@@ -18,6 +18,7 @@ pub use v2::GenerationProfile;
 mod wasm;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod web;
+pub mod world_scale;
 
 #[cfg(all(target_arch = "wasm32", feature = "bert"))]
 compile_error!(
@@ -732,7 +733,10 @@ fn generate_spec_internal(
     let allow_auto_spawn = options.allow_auto_spawn
         && !(options.profile == GenerationProfile::V2
             && spec.features.iter().any(|feature| feature == "SHADE"));
-    if !spec.size.is_finite()
+    if spec
+        .world_height_px
+        .is_some_and(|height| !height.is_finite() || !(4.0..=1024.0).contains(&height))
+        || !spec.size.is_finite()
         || !(0.0..=1.0).contains(&spec.size)
         || !spec.bulk.is_finite()
         || !(0.0..=1.0).contains(&spec.bulk)
@@ -1011,6 +1015,7 @@ fn generate_spec_internal(
             visible_height_px,
             anchor_x_px: size as f32 * 0.5,
             anchor_y_px: size as f32 * 0.57,
+            ..world_scale::size_info(&spec, &body, seed)
         })
     } else {
         None
@@ -1173,6 +1178,13 @@ fn generate_spec_internal(
         } else {
             0.22
         };
+        // Minions must not inherit a giant parent's absolute size unchanged.
+        let minion_height = if intent.target == "SELF" {
+            world_scale::target_height(&spec, seed) * 0.45
+        } else {
+            world_scale::target_height(&minion_spec, seed) * 0.45
+        };
+        minion_spec.world_height_px = Some(minion_height.clamp(4.0, 1024.0));
         minion_spec.bulk = minion_spec.bulk.min(0.55);
         let minion_source = serde_json::to_string(&minion_spec)
             .map_err(|error| Error::InvalidMonster(error.to_string()))?;
@@ -1233,6 +1245,12 @@ fn generate_spec_internal(
         v2::attack_tracks::populate(&mut profile, &body, &animations, &attacks, &poses, size);
         profile
     });
+    let mut identity = Sha256::new();
+    identity.update(id.as_bytes());
+    identity.update(world_scale::RECIPE_ID.as_bytes());
+    let id = format!("monster-{}", hex_prefix(&identity.finalize(), 8));
+    recipe_ids.push(world_scale::RECIPE_ID.into());
+    let recipe_version = format!("{recipe_version}-{}", world_scale::RECIPE_ID);
     let monster = proto::Monster {
         v2_profile,
         format_version: if render_style == RenderStyle::Mesh3d {
@@ -1636,6 +1654,7 @@ pub fn validate(monster: &proto::Monster, sheet: &image::RgbaImage) -> Result<()
             || size.visible_width_px > sprites.frame_width
             || size.visible_height_px == 0
             || size.visible_height_px > sprites.frame_height
+            || !world_scale::valid_size_info(size)
             || !size.anchor_x_px.is_finite()
             || !(0.0..sprites.frame_width as f32).contains(&size.anchor_x_px)
             || !size.anchor_y_px.is_finite()

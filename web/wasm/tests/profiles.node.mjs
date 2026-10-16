@@ -28,19 +28,19 @@ test('unknown profiles reject before worker initialization', async () => {
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
-async function runWorker(profile, supportsV2, type = 'generate', supportsHybrid = false) {
+async function runWorker(profile, supportsV2, type = 'generate', supportsHybrid = false, result = { packages: [] }) {
   const calls = [];
   const messages = [];
   const api = {
     default: async () => {},
     initThreadPool: async () => {},
-    generate_monster: (...args) => { calls.push(['v1', ...args]); return { packages: [] }; },
+    generate_monster: (...args) => { calls.push(['v1', ...args]); return result; },
   };
   if (supportsV2) api.generate_monster_with_profile = (...args) => {
-    calls.push(['v2', ...args]); return { packages: [] };
+    calls.push(['v2', ...args]); return result;
   };
   if (supportsHybrid) api.generate_hybrid_json = (...args) => {
-    calls.push(['hybrid', ...args]); return { packages: [] };
+    calls.push(['hybrid', ...args]); return result;
   };
   // Substitute only the WASM module loader, preserving the worker's real request
   // validation, export selection and error serialization.
@@ -104,4 +104,20 @@ test('worker routes structured hybrids without falling back to a prompt parser',
   const invalid = await runWorker('v1', true, 'generate_hybrid', true);
   assert.equal(invalid.calls.length, 0);
   assert.match(invalid.messages[0].error.message, /requires V2/);
+});
+
+
+test('V1 and V2 worker transport preserves world sizing metadata without rescaling atlases', async () => {
+  for (const profile of ['v1', 'v2']) {
+    const size = { world_scale: .5, pixels_per_unit: 1.5, reference_height_px: 128,
+      target_height_px: 64, reference_player_height_px: 96 };
+    const pkg = { path: '', monster: { size, sprites: { frame_width: 256, frame_height: 256 } },
+      sprites: { width: 256, height: 256, rgba: new Uint8Array([1, 2, 3, 255]) } };
+    const { messages } = await runWorker(profile, true, 'generate', false, { packages: [pkg] });
+    assert.equal(messages[0].type, 'result');
+    assert.equal(messages[0].result.packages[0], pkg);
+    assert.equal(messages[0].result.packages[0].monster.size.world_scale, .5);
+    assert.equal(messages[0].result.packages[0].monster.sprites.frame_width, 256);
+    assert.equal(messages[0].result.packages[0].sprites.rgba.byteLength, 4);
+  }
 });

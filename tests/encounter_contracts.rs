@@ -109,7 +109,8 @@ fn encounter_descriptors_roundtrip_all_wire_formats() {
         "boulder pusher",
     ] {
         let mut original = fixture(prompt);
-        original.v2_profile.as_mut().unwrap().damage_traits = v2::damage_traits::describe(&spec(prompt));
+        original.v2_profile.as_mut().unwrap().damage_traits =
+            v2::damage_traits::describe(&spec(prompt));
         let pb = Monster::decode(original.encode_to_vec().as_slice()).unwrap();
         assert_eq!(original, pb);
         let mut cbor = Vec::new();

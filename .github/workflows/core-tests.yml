@@ -61,7 +61,7 @@ jobs:
         run: |
           cargo build --locked --release --no-default-features --bin infernal
           cargo build --locked --release --no-default-features --manifest-path .v1-reference/Cargo.toml --target-dir target/v1-reference --bin infernal
-      - name: Require byte-identical terrestrial V1 outputs
+      - name: Require identical V1 artwork and existing metadata contracts
         run: python tools/check_v1_compatibility.py --baseline target/v1-reference/release/infernal --candidate target/release/infernal
       - uses: actions/upload-artifact@v4
         if: always()

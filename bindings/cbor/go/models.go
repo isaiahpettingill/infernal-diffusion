@@ -44,6 +44,10 @@ type SizeInfo struct {
     VisibleHeightPx uint32 `cbor:"visible_height_px"`
     AnchorXPx float32 `cbor:"anchor_x_px"`
     AnchorYPx float32 `cbor:"anchor_y_px"`
+    WorldScale float32 `cbor:"world_scale"`
+    ReferenceHeightPx float32 `cbor:"reference_height_px"`
+    TargetHeightPx float32 `cbor:"target_height_px"`
+    ReferencePlayerHeightPx float32 `cbor:"reference_player_height_px"`
 }
 
 type BehaviorInfo struct {
