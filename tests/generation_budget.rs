@@ -5,6 +5,8 @@ use infernal_diffusion::{
 
 #[test]
 fn runaway_chain_fails_before_parsing_and_c_abi_returns_error() {
+    assert_eq!(infernal_diffusion::infernal_abi_version(), 1);
+    assert_eq!(infernal_diffusion::infernal_live_budget_version(), 1);
     let prompt = "orc riding an orc riding an orc riding a mammoth riding a mammoth";
     for profile in [GenerationProfile::V1, GenerationProfile::V2] {
         assert!(matches!(

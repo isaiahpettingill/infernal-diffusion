@@ -30,7 +30,7 @@ python3 - "$THREADED" "$FEATURES" "$RUSTUP_TOOLCHAIN" <<'PY'
 import hashlib, json, pathlib, subprocess, sys
 root = pathlib.Path('web/wasm')
 model = pathlib.Path('models/bert-mini/model.safetensors')
-info = {'target':'wasm32-unknown-unknown', 'rustFeatures':sys.argv[2], 'optimization':'-O3 --all-features', 'toolchain':sys.argv[3], 'portable':sys.argv[1]!='1', 'threads':sys.argv[1]=='1', 'bert':True, 'backend':'candle', 'model':'google/bert_uncased_L-2_H-128_A-2', 'modelSha256':hashlib.sha256(model.read_bytes()).hexdigest()}
+info = {'target':'wasm32-unknown-unknown', 'rustFeatures':sys.argv[2], 'optimization':'-O3 --all-features', 'toolchain':sys.argv[3], 'liveGenerationBudgetVersion':1, 'portable':sys.argv[1]!='1', 'threads':sys.argv[1]=='1', 'bert':True, 'backend':'candle', 'model':'google/bert_uncased_L-2_H-128_A-2', 'modelSha256':hashlib.sha256(model.read_bytes()).hexdigest()}
 (root/'pkg/build-info.json').write_text(json.dumps(info, indent=2)+'\n')
 files = [root/'client.js', root/'worker.js', *sorted((root/'pkg').rglob('*'))]
 manifest = {'schema_version':1, 'revision':subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(), 'source_dirty':bool(subprocess.check_output(['git', 'status', '--porcelain'], text=True).strip()), 'model':{'id':info['model'], 'embedded':True, 'sha256':info['modelSha256'], 'license':'Apache-2.0'}, 'artifacts':[{'path':str(p.relative_to(root)), 'sha256':hashlib.sha256(p.read_bytes()).hexdigest(), 'size_bytes':p.stat().st_size} for p in files if p.is_file()]}

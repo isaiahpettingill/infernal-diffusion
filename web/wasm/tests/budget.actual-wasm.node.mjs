@@ -8,6 +8,10 @@ import { createHash } from 'node:crypto';
 import * as api from '../pkg/infernal_diffusion.js';
 
 await api.default({ module_or_path: await readFile(new URL('../pkg/infernal_diffusion_bg.wasm', import.meta.url)) });
+assert.equal(api.live_generation_budget_version(), 1);
+assert.equal(api.generator_info().liveGenerationBudgetVersion, 1);
+const buildInfo = JSON.parse(await readFile(new URL('../pkg/build-info.json', import.meta.url), 'utf8'));
+assert.equal(buildInfo.liveGenerationBudgetVersion, 1);
 assert.equal(api.generator_info().threaded, false, 'Run this Node smoke against the portable build');
 const phases = [];
 assert.throws(() => api.generate_monster_compact_progress(

@@ -53,3 +53,23 @@ Rust callers can select explicit limits through
 does not remove existing geometry, parser or package-format constraints. There
 is no deadline/cancellation claim: these bounds limit admitted work, while the
 host owns queueing and worker lifetime.
+
+## Detecting installed runtime support
+
+Compact storage predates these guards. Do not infer live-generation safety from
+ABI version 1, format version 8, a compact export, or a copied build manifest.
+Check the actual runtime before allowing automatic background generation:
+
+- C: optional `infernal_live_budget_version()` returns `1`; a missing symbol is unsupported
+- Godot wrapper: `supports_live_generation_budget()` checks both the shim method and
+  the selected core's version marker plus prompt/hybrid compact entry points
+- Raw `InfernalGenerator`: `supports_live_generation_budget(library_dir)` takes the
+  same absolute library directory as generation
+- Web client: `await generator.ready()` returns `liveGenerationBudgetVersion: 1`
+  from actual WASM `generator_info()`; the binary also exports
+  `live_generation_budget_version()`. Missing/zero means unsupported
+
+`build-info.json` includes the marker for provenance, but it is not a substitute
+for the runtime handshake. Older cores retain their manual/legacy arena API
+compatibility; a background gameplay scheduler should use prebaked fallbacks
+when the capability is absent.

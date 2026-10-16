@@ -87,6 +87,15 @@ impl IRefCounted for InfernalGenerator {
 
 #[godot_api]
 impl InfernalGenerator {
+    /// Probe the selected native core, without parsing or generating a monster.
+    /// Older compact-capable cores must not be mistaken for budgeted runtimes.
+    #[func]
+    fn supports_live_generation_budget(&self, library_dir: GString) -> bool {
+        let path = PathBuf::from(library_dir.to_string());
+        path.is_absolute()
+            && load_backend(&path).is_ok_and(|backend| backend.supports_live_budget())
+    }
+
     /// All paths must be absolute OS paths. Call ProjectSettings.globalize_path()
     /// before this method; no Godot API is used from the worker thread.
     #[func]
@@ -621,6 +630,7 @@ type ObjectSave = unsafe extern "C" fn(*const c_void, *const c_char, u32, *mut *
 struct Backend {
     path: PathBuf,
     cpu_kernel_name: CpuKernelName,
+    live_budget_version: u32,
     random_prompt: RandomPrompt,
     random_prompt_profile: Option<RandomPromptProfile>,
     arena_prompt: ArenaPrompt,
@@ -643,6 +653,14 @@ struct Backend {
 }
 
 impl Backend {
+    fn supports_live_budget(&self) -> bool {
+        supports_live_budget(
+            self.live_budget_version,
+            self.generate_object_profile_compact.is_some(),
+            self.generate_hybrid_json_compact.is_some(),
+        )
+    }
+
     fn kernel_name(&self) -> String {
         let pointer = unsafe { (self.cpu_kernel_name)() };
         if pointer.is_null() {
@@ -723,6 +741,12 @@ fn load_backend(library_dir: &Path) -> Result<Backend, String> {
         return Ok(Backend {
             path,
             cpu_kernel_name: functions.2,
+            live_budget_version: unsafe {
+                library
+                    .get::<AbiVersion>(b"infernal_live_budget_version")
+                    .map(|version| version())
+                    .unwrap_or(0)
+            },
             random_prompt: functions.3,
             random_prompt_profile: unsafe {
                 library
@@ -1267,6 +1291,10 @@ unsafe fn read_packages(
     Ok(packages)
 }
 
+fn supports_live_budget(version: u32, compact_prompt: bool, compact_hybrid: bool) -> bool {
+    version >= 1 && compact_prompt && compact_hybrid
+}
+
 fn valid_profile(profile: i32) -> bool {
     matches!(profile, 1 | 2)
 }
@@ -1344,6 +1372,14 @@ mod tests {
             );
         }
     }
+    #[test]
+    fn compact_support_alone_is_not_a_live_budget_capability() {
+        assert!(!supports_live_budget(0, true, true));
+        assert!(!supports_live_budget(1, false, true));
+        assert!(!supports_live_budget(1, true, false));
+        assert!(supports_live_budget(1, true, true));
+    }
+
     #[test]
     fn profiles_are_explicit_and_bounded() {
         assert!(valid_profile(1));

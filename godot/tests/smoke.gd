@@ -138,6 +138,7 @@ func _test_v2_profile() -> void:
 
 func _run() -> void:
 	generator = Infernal.new()
+	assert(generator.supports_live_generation_budget(), "new shim must verify guarded compact core")
 	assert(generator.generate_in_memory_async("wolf", -1) == -1)
 	# Descriptor projection accepts old records and never copies AI or attack data.
 	var legacy := Infernal.locomotion_profile({

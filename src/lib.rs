@@ -2279,6 +2279,13 @@ pub extern "C" fn infernal_abi_version() -> u32 {
     1
 }
 
+/// Capability handshake for guarded compact runtime entry points. ABI version
+/// alone cannot distinguish an older library that only supports compact storage.
+#[no_mangle]
+pub extern "C" fn infernal_live_budget_version() -> u32 {
+    1
+}
+
 #[no_mangle]
 pub extern "C" fn infernal_cpu_kernel_name() -> *const c_char {
     match render3d::cpu_kernel_name() {

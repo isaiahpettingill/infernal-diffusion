@@ -7,12 +7,15 @@ import { MonsterGenerator } from '../client.js';
 const modelInfo = {
   model: 'google/bert_uncased_L-2_H-128_A-2',
   parser: 'candle-bert-prototypes-v2', bundledModel: true, threaded: false,
+  liveGenerationBudgetVersion: 1,
 };
 const phases = ['parsing', 'building', 'rendering', 'packaging'];
 
-async function worker({ threaded = false, isolated = false, initializationError, generationError, compact = false } = {}) {
+async function worker({ threaded = false, isolated = false, initializationError, generationError, compact = false, budgetVersion = 1 } = {}) {
   const calls = [], messages = [];
   const info = { ...modelInfo, threaded };
+  if (budgetVersion === null) delete info.liveGenerationBudgetVersion;
+  else info.liveGenerationBudgetVersion = budgetVersion;
   const result = { packages: [] };
   const api = {
     default: async () => { calls.push(['wasm']); },
@@ -309,4 +312,16 @@ test('compact requests never silently fall back to incompatible dense or V1 gene
   const modern=await worker({compact:true});
   await modern.send({id:1,type:'generate_hybrid',prompt:'{}',seed:42n,profile:'v1',compact:true});
   assert.match(modern.messages.at(-1).error.message,/requires V2/);
+});
+
+
+test('readiness reports actual budget capability and never fabricates it for older compact WASM', async () => {
+  const modern = await worker({ compact: true, budgetVersion: 1 });
+  await modern.send({ id: 1, type: 'ready' });
+  assert.equal(modern.messages.at(-1).liveGenerationBudgetVersion, 1);
+  const older = await worker({ compact: true, budgetVersion: null });
+  await older.send({ id: 1, type: 'ready' });
+  assert.equal(older.messages.at(-1).liveGenerationBudgetVersion, undefined);
+  await older.send({ id: 2, type: 'generate', prompt: 'slime', seed: 42n, compact: true });
+  assert.equal(older.messages.at(-1).type, 'result', 'Legacy manual arena use remains compatible');
 });

@@ -8,6 +8,9 @@ extern "C" {
 
 /* ABI version 1. All returned strings are UTF-8 and freed with infernal_free_string. */
 uint32_t infernal_abi_version(void);
+/* Optional ABI-1 capability: >=1 means compact generation has live budgets.
+   Missing symbol means unknown/unbounded; do not infer this from ABI or format 8. */
+uint32_t infernal_live_budget_version(void);
 /* Selected CPU raster kernel: x64, x64_v2, x64_v3, x86, or arm64.
    The returned static string is owned by the library. */
 const char *infernal_cpu_kernel_name(void);
