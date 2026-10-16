@@ -82,6 +82,15 @@ pub struct SizeInfo {
     pub anchor_x_px: f32,
     #[prost(float, tag = "8")]
     pub anchor_y_px: f32,
+    /// Baked sprite pixels to world pixels; apply once, never per frame.
+    #[prost(float, tag = "9")]
+    pub world_scale: f32,
+    #[prost(float, tag = "10")]
+    pub reference_height_px: f32,
+    #[prost(float, tag = "11")]
+    pub target_height_px: f32,
+    #[prost(float, tag = "12")]
+    pub reference_player_height_px: f32,
 }
 #[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
 #[serde(default)]

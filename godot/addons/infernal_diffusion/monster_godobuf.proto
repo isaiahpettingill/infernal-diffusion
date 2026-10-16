@@ -34,7 +34,8 @@ message SpawnInfo {
   uint32 count = 3;
   uint32 max_active = 4;
 }
-// Morphology is already baked at a shared pixel scale; do not scale the atlas again.
+// Morphology is already baked. Apply world_scale once for player-relative world size,
+// never morphology_scale again. Zero world_scale denotes a legacy package.
 message SizeInfo {
   float normalized_size = 1;
   string size_class = 2;
@@ -44,6 +45,10 @@ message SizeInfo {
   uint32 visible_height_px = 6;
   float anchor_x_px = 7;
   float anchor_y_px = 8;
+  float world_scale = 9; // Baked sprite px -> world px (96px reference player).
+  float reference_height_px = 10; // Neutral core mesh, excluding padding/accessories.
+  float target_height_px = 11; // Reference body height after species/style/modifiers.
+  float reference_player_height_px = 12;
 }
 // Deprecated integration surface: demo-AI preferences, never required engine policy.
 message BehaviorInfo {

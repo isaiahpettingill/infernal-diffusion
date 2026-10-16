@@ -1275,6 +1275,26 @@ class InfernalSizeInfo:
 		service.field = __anchor_y_px
 		data[__anchor_y_px.tag] = service
 
+		__world_scale = PBField.new("world_scale", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 9, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __world_scale
+		data[__world_scale.tag] = service
+
+		__reference_height_px = PBField.new("reference_height_px", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 10, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __reference_height_px
+		data[__reference_height_px.tag] = service
+
+		__target_height_px = PBField.new("target_height_px", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 11, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __target_height_px
+		data[__target_height_px.tag] = service
+
+		__reference_player_height_px = PBField.new("reference_player_height_px", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 12, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __reference_player_height_px
+		data[__reference_player_height_px.tag] = service
+
 	var data = {}
 
 	var __normalized_size: PBField
@@ -1380,6 +1400,58 @@ class InfernalSizeInfo:
 		__anchor_y_px.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
 	func set_anchor_y_px(value : float) -> void:
 		__anchor_y_px.value = value
+
+	var __world_scale: PBField
+	func has_world_scale() -> bool:
+		if __world_scale.value != null:
+			return true
+		return false
+	func get_world_scale() -> float:
+		return __world_scale.value
+	func clear_world_scale() -> void:
+		data[9].state = PB_SERVICE_STATE.UNFILLED
+		__world_scale.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_world_scale(value : float) -> void:
+		__world_scale.value = value
+
+	var __reference_height_px: PBField
+	func has_reference_height_px() -> bool:
+		if __reference_height_px.value != null:
+			return true
+		return false
+	func get_reference_height_px() -> float:
+		return __reference_height_px.value
+	func clear_reference_height_px() -> void:
+		data[10].state = PB_SERVICE_STATE.UNFILLED
+		__reference_height_px.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_reference_height_px(value : float) -> void:
+		__reference_height_px.value = value
+
+	var __target_height_px: PBField
+	func has_target_height_px() -> bool:
+		if __target_height_px.value != null:
+			return true
+		return false
+	func get_target_height_px() -> float:
+		return __target_height_px.value
+	func clear_target_height_px() -> void:
+		data[11].state = PB_SERVICE_STATE.UNFILLED
+		__target_height_px.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_target_height_px(value : float) -> void:
+		__target_height_px.value = value
+
+	var __reference_player_height_px: PBField
+	func has_reference_player_height_px() -> bool:
+		if __reference_player_height_px.value != null:
+			return true
+		return false
+	func get_reference_player_height_px() -> float:
+		return __reference_player_height_px.value
+	func clear_reference_player_height_px() -> void:
+		data[12].state = PB_SERVICE_STATE.UNFILLED
+		__reference_player_height_px.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_reference_player_height_px(value : float) -> void:
+		__reference_player_height_px.value = value
 
 	func _to_string() -> String:
 		return PBPacker.message_to_string(data)

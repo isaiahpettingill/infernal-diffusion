@@ -106,7 +106,7 @@ fn monster_json(monster: &Monster, asset_base: &str) -> Value {
             "id": p.id, "kind": p.kind, "frameWidth": p.frame_width,
             "frameHeight": p.frame_height, "columns": p.columns,
             "firstFrame": p.first_frame, "frameCount": p.frame_count,
-            "frameDuration": p.frame_duration_ms,
+            "frameDuration": p.frame_duration_ms, "collisionRadius": p.collision_radius,
         })).collect::<Vec<_>>(),
         "animations": monster.animations.iter().map(|a| json!({
             "id": a.id, "state": a.semantic_state, "loop": a.looped,
@@ -120,6 +120,20 @@ fn monster_json(monster: &Monster, asset_base: &str) -> Value {
         })).collect::<Vec<_>>(),
         "attacks": monster.attacks.iter().map(|a| json!({
             "id": a.id, "delivery": a.delivery, "element": a.element,
+            "originNode": a.origin_node,
+            "originViews": monster.colliders.iter().find(|c| c.node_id == a.origin_node)
+                .map(|c| c.views.iter().map(|v| json!({
+                    "direction": v.direction_index, "x": v.x, "y": v.y, "radius": v.radius,
+                })).collect::<Vec<_>>()).unwrap_or_default(),
+            "motionSamples": monster.v2_profile.as_ref()
+                .and_then(|profile| profile.attack_patterns.iter().find(|p| p.attack_id == a.id))
+                .map(|pattern| pattern.motion_samples.iter().map(|sample| json!({
+                    "time": sample.time_ms, "frame": sample.sprite_frame_id,
+                    "node": sample.node_id, "active": sample.active,
+                    "views": sample.views.iter().map(|v| json!({
+                        "direction": v.direction_index, "x": v.x, "y": v.y, "radius": v.radius,
+                    })).collect::<Vec<_>>(),
+                })).collect::<Vec<_>>()).unwrap_or_default(),
             "damage": a.damage, "range": a.range, "cooldown": a.cooldown_ms,
             "telegraph": a.telegraph_ms, "animation": a.animation_id,
             "projectile": a.projectile_id,
@@ -154,6 +168,9 @@ fn monster_json(monster: &Monster, asset_base: &str) -> Value {
             "normalized": s.normalized_size, "class": s.size_class,
             "visibleWidth": s.visible_width_px, "visibleHeight": s.visible_height_px,
             "anchorX": s.anchor_x_px, "anchorY": s.anchor_y_px,
+            "worldScale": s.world_scale, "pixelsPerUnit": s.pixels_per_unit,
+            "referenceHeight": s.reference_height_px, "targetHeight": s.target_height_px,
+            "referencePlayerHeight": s.reference_player_height_px,
         })),
     })
 }
@@ -241,7 +258,7 @@ fn package_dir_with_parser(
 ) -> (String, PathBuf) {
     let mut digest = Sha256::new();
     // Never reuse vocabulary packages in a BERT-enabled server, or vice versa.
-    digest.update(b"arena-parser-cache-v2:");
+    digest.update(b"arena-world-scale-cache-v3:");
     digest.update(parser.as_bytes());
     digest.update([0]);
     digest.update(env!("CARGO_PKG_VERSION").as_bytes());
@@ -435,6 +452,58 @@ pub fn serve(port: u16, output_root: &Path) -> std::io::Result<()> {
 mod tests {
     use super::*;
     use crate::{GenerationProfile, PackageFormat};
+
+    #[test]
+    fn web_adapter_preserves_world_scale_and_baked_coordinates() {
+        let monster = Monster {
+            sprites: Some(crate::proto::SpriteSet {
+                frame_width: 256,
+                frame_height: 256,
+                ..Default::default()
+            }),
+            gameplay: Some(Default::default()),
+            size: Some(crate::proto::SizeInfo {
+                world_scale: 0.5,
+                pixels_per_unit: 1.5,
+                reference_height_px: 128.0,
+                target_height_px: 64.0,
+                reference_player_height_px: 96.0,
+                anchor_x_px: 128.0,
+                anchor_y_px: 145.0,
+                ..Default::default()
+            }),
+            colliders: vec![crate::proto::Collider {
+                node_id: "mouth".into(),
+                hurtbox: false,
+                views: vec![crate::proto::ColliderView {
+                    direction_index: 0,
+                    x: 140.0,
+                    y: 105.0,
+                    radius: 5.0,
+                }],
+                ..Default::default()
+            }],
+            attacks: vec![crate::proto::Attack {
+                id: "spit".into(),
+                origin_node: "mouth".into(),
+                range: 190.0,
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let output = monster_json(&monster, "/asset/test");
+        assert_eq!(output["size"]["worldScale"], 0.5);
+        assert_eq!(output["size"]["pixelsPerUnit"], 1.5);
+        assert_eq!(output["size"]["referenceHeight"], 128.0);
+        assert_eq!(output["size"]["targetHeight"], 64.0);
+        assert_eq!(output["size"]["referencePlayerHeight"], 96.0);
+        assert_eq!(output["size"]["anchorX"], 128.0);
+        assert_eq!(output["sprites"]["frameWidth"], 256);
+        assert_eq!(output["attacks"][0]["range"], 190.0);
+        assert_eq!(output["attacks"][0]["originViews"][0]["x"], 140.0);
+        assert_eq!(output["attacks"][0]["originViews"][0]["radius"], 5.0);
+        assert_eq!(output["colliders"].as_array().unwrap().len(), 0);
+    }
 
     #[test]
     fn web_profile_defaults_to_v1_and_rejects_invalid_values() {

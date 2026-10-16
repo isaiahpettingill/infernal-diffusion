@@ -84,6 +84,14 @@ public sealed class SizeInfo
     public float AnchorXPx { get; set; }
     [CborProperty(TextName = "anchor_y_px")]
     public float AnchorYPx { get; set; }
+    [CborProperty(TextName = "world_scale")]
+    public float WorldScale { get; set; }
+    [CborProperty(TextName = "reference_height_px")]
+    public float ReferenceHeightPx { get; set; }
+    [CborProperty(TextName = "target_height_px")]
+    public float TargetHeightPx { get; set; }
+    [CborProperty(TextName = "reference_player_height_px")]
+    public float ReferencePlayerHeightPx { get; set; }
 }
 
 public sealed class BehaviorInfo

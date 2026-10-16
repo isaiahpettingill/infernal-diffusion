@@ -44,25 +44,95 @@ function combatFacing(monster, left) {
   }, { index: 0, distance: Infinity }).index;
   return { direction, mirror: left };
 }
+// New packages provide one baked-pixel -> world-pixel scale. Old packages keep
+// the original arena's 2x artwork and unscaled gameplay distances.
+function hasWorldScale(monster) {
+  return Number.isFinite(monster?.size?.worldScale) && monster.size.worldScale > 0;
+}
+function worldScale(monster) { return hasWorldScale(monster) ? monster.size.worldScale : 2; }
+function worldLength(monster, length) {
+  if (!hasWorldScale(monster)) return length;
+  const pixelsPerUnit = monster.size.pixelsPerUnit;
+  return length * (Number.isFinite(pixelsPerUnit) && pixelsPerUnit > 0 ? pixelsPerUnit : 1)
+    * worldScale(monster);
+}
+function spriteAnchor(monster) {
+  const anchor = { x: monster?.size?.anchorX ?? (monster?.sprites?.frameWidth ?? 96) / 2,
+    y: monster?.size?.anchorY ?? (monster?.sprites?.frameHeight ?? 96) * .57 };
+  if (!hasWorldScale(monster)) return anchor;
+  // Package anchorY is the camera's projection origin, not the creature's feet.
+  // Pick one neutral side-view support baseline for the entire package. Reusing
+  // it for every frame/direction keeps artwork and geometry grounded together.
+  const direction = combatFacing(monster, false).direction;
+  const supports = (monster.colliders || []).flatMap(collider => {
+    const view = collider.views?.find(item => item.direction === direction);
+    return view && Number.isFinite(view.y) && Number.isFinite(view.radius) && view.radius >= 0
+      ? [{ node: collider.node || '', bottom: view.y + view.radius }] : [];
+  });
+  // Use substrate feet ahead of hanging rider feet. Footless creatures use
+  // their neutral physical receiver envelope; no species or animation inference.
+  const feet = supports.filter(item => /^(?:mount_)*foot(?:_|$)/.test(item.node));
+  const support = feet.length ? feet : supports;
+  if (support.length) anchor.y = Math.max(...support.map(item => item.bottom));
+  return anchor;
+}
+function worldCircle(monster, view, x, ground, mirror) {
+  const anchor = spriteAnchor(monster), scale = worldScale(monster);
+  return { x: x + (mirror ? anchor.x - view.x : view.x - anchor.x) * scale,
+    y: ground + (view.y - anchor.y) * scale, radius: view.radius * scale };
+}
+function bodyHeight(monster, legacyHeight = 96) {
+  return hasWorldScale(monster)
+    ? (monster.size.referenceHeight || monster.size.visibleHeight || 48) * worldScale(monster)
+    : legacyHeight;
+}
+function meleeReach(monster, attack, minimum = 110, padding = 40) {
+  return hasWorldScale(monster) ? worldLength(monster, attack.range || 38) + 16
+    : Math.max(minimum, attack.range + padding);
+}
+function attackOrigin(monster, attack, x, ground, mirror, clock = 0, legacyHeight = 65) {
+  if (hasWorldScale(monster)) {
+    const direction = combatFacing(monster, mirror).direction;
+    // V2 tracks are already projected frame pixels. Never multiply by PPU again.
+    const samples = attack.motionSamples?.filter(sample => sample.active) || [];
+    const sample = samples.reduce((best, item) => !best || Math.abs(item.time - clock) < Math.abs(best.time - clock) ? item : best, null);
+    const view = (sample?.views || attack.originViews)?.find(item => item.direction === direction);
+    if (view) return worldCircle(monster, view, x, ground, mirror);
+    return { x, y: ground - bodyHeight(monster) * .65, radius: 0 };
+  }
+  return { x, y: ground - legacyHeight, radius: 0 };
+}
 function hurtCircles(monster, x, ground, mirror) {
-  const sprites = monster?.sprites;
   const direction = combatFacing(monster, mirror).direction;
-  const anchorX = monster?.size?.anchorX ?? sprites?.frameWidth / 2 ?? 48;
-  const anchorY = monster?.size?.anchorY ?? sprites?.frameHeight * .57 ?? 55;
   const circles = monster?.colliders?.flatMap(collider => {
     const view = collider.views?.find(item => item.direction === direction);
     if (!view) return [];
-    return [{ x: x + (mirror ? anchorX - view.x : view.x - anchorX) * 2,
-      y: ground + (view.y - anchorY) * 2, radius: Math.max(5, view.radius * 2) }];
+    const circle = worldCircle(monster, view, x, ground, mirror);
+    if (!hasWorldScale(monster)) circle.radius = Math.max(5, circle.radius);
+    return [circle];
   }) || [];
   if (circles.length) return circles;
   const width = monster?.size?.visibleWidth || 40;
   const height = monster?.size?.visibleHeight || 50;
+  if (hasWorldScale(monster)) {
+    const scale = worldScale(monster), referenceHeight = monster.size.referenceHeight || height;
+    return [{ x, y: ground - referenceHeight * scale / 2,
+      radius: Math.min(width, referenceHeight) * scale / 2 }];
+  }
   return [{ x, y: ground - Math.max(48, height), radius: Math.max(25, Math.min(70, width * .7)) }];
 }
 function hitsHurtbox(monster, x, ground, mirror, px, py, padding = 0) {
   return hurtCircles(monster, x, ground, mirror)
     .some(circle => Math.hypot(px - circle.x, py - circle.y) <= circle.radius + padding);
+}
+function touchesHero(monster, x, ground, mirror) {
+  const hero = state.hero;
+  if (!hasWorldScale(monster)) return hitsHurtbox(monster, x, ground, mirror, hero.x, hero.y - 47, 16);
+  return hurtCircles(monster, x, ground, mirror).some(circle => {
+    const px = clamp(circle.x, hero.x - 16, hero.x + 16);
+    const py = clamp(circle.y, hero.y - 96, hero.y);
+    return Math.hypot(circle.x - px, circle.y - py) <= circle.radius;
+  });
 }
 function swingHits(monster, x, ground) {
   const facing = state.hero.facing;
@@ -112,7 +182,13 @@ function setupMonster(monster, sheet, projectileSheet) {
   $('size-badge').textContent = monster.size?.class || 'UNKNOWN SIZE';
   $('health').textContent = monster.health;
   $('defense').textContent = monster.defense;
-  $('visible-size').textContent = monster.size ? `${monster.size.visibleWidth} × ${monster.size.visibleHeight} px` : '—';
+  $('visible-size').textContent = monster.size
+    ? hasWorldScale(monster)
+      ? `${Math.round(bodyHeight(monster))} px body · ${worldScale(monster).toFixed(2)}× atlas`
+      : `${monster.size.visibleWidth} × ${monster.size.visibleHeight} px (legacy)` : '—';
+  $('visible-size').title = hasWorldScale(monster)
+    ? `Neutral body height in world pixels; reference player ${monster.size.referencePlayerHeight || 96} px. Atlas ${monster.sprites.frameWidth} × ${monster.sprites.frameHeight} px per frame.`
+    : 'Older package: artwork uses the original 2× display scale.';
   const parts = $('health-parts');
   parts.replaceChildren();
   for (const [label, value] of Object.entries(monster.healthParts)) {
@@ -344,8 +420,8 @@ function minionAttack(minion, monster, distance) {
       minion.teleportAttempts = (minion.teleportAttempts || 0) + 1;
       if (minion.teleportAttempts % 12 !== 0) continue;
     }
-    const reach = attack.delivery === 'PROJECTILE' ? 460
-      : attack.delivery === 'FIELD' ? 230 : Math.max(90, attack.range + 35);
+    const reach = attack.delivery === 'PROJECTILE' ? worldLength(monster, 460)
+      : attack.delivery === 'FIELD' ? worldLength(monster, 230) : meleeReach(monster, attack, 90, 35);
     if (distance > reach) continue;
     minion.attackCursor = (index + 1) % attacks.length;
     return attack;
@@ -365,16 +441,16 @@ function useMinionAttack(minion, child) {
       duration: clamp(motion.duration / 1000 || .45, .25, 1.2), startX: minion.x,
       targetX: clamp(motion.kind === 'DODGE' ? minion.x - direction * 90
         : motion.kind === 'TELEPORT' ? teleportDestination(hero.x, -hero.facing) : hero.x,
-      35, W - 35), attack, hit: false };
+      35, W - 35), attack, hit: false, radius: worldLength(child.monster, 75) };
   } else if (attack.delivery === 'PROJECTILE') {
-    launchProjectile(attack, minion.x, minion.y - 42, child.monster, child.projectileSheet);
+    launchProjectile(attack, minion.x, minion.y, child.monster, child.projectileSheet, minion.clipClock, 42);
   } else if (attack.delivery === 'FIELD') {
     const step = attack.steps?.find(item => item.kind === 'SPAWN_FIELD');
-    state.fields.push({ x: hero.x, radius: step?.radius || 38, age: 0,
+    state.fields.push({ x: hero.x, radius: worldLength(child.monster, step?.radius || 38), age: 0,
       life: Math.max(.7, (step?.duration || 900) / 1000), tick: 0,
       damage: Math.max(2, Math.round(attack.damage * .4)) });
-  } else if (distance < Math.max(90, attack.range + 35)
-      && Math.abs(hero.y - minion.y) < 100) {
+  } else if (distance < meleeReach(child.monster, attack, 90, 35)
+      && Math.abs(hero.y - minion.y) < bodyHeight(child.monster, 100)) {
     damageHero(attack.damage, minion.x);
   }
 }
@@ -411,7 +487,7 @@ function updateMinions(dt) {
         : canFly(monster) ? FLOOR - 70 : FLOOR;
       if (!action.hit && progress >= .78) {
         action.hit = true;
-        if (action.kind !== 'TELEPORT' && Math.abs(hero.x - minion.x) < 75 && Math.abs(hero.y - minion.y) < 95)
+        if (action.kind !== 'TELEPORT' && Math.abs(hero.x - minion.x) < action.radius && Math.abs(hero.y - minion.y) < bodyHeight(monster, 95))
           damageHero(action.attack.damage, minion.x);
       }
       if (progress >= 1) minion.action = null;
@@ -436,13 +512,16 @@ function updateMinions(dt) {
       }
     }
     const ranged = monster.attacks?.some(attack => attack.delivery === 'PROJECTILE');
-    const preferred = canFly(monster) ? 160 : ranged ? 180 : 55;
-    if (hero.hp > 0 && !isAnchored(monster) && distance > preferred + 16) {
+    const preferred = canFly(monster) ? worldLength(monster, 160) : ranged ? worldLength(monster, 180)
+      : hasWorldScale(monster) ? meleeReach(monster, monster.attacks?.[0] || {}) * .65 : 55;
+    const approachPadding = hasWorldScale(monster) && !ranged && !canFly(monster)
+      ? meleeReach(monster, monster.attacks?.[0] || {}) * .2 : 16;
+    if (hero.hp > 0 && !isAnchored(monster) && distance > preferred + approachPadding) {
       minion.x = clamp(minion.x + Math.sign(gap)
-        * Math.min(110, monster.movementModes[0]?.speed || 65) * dt, 25, W - 25);
+        * worldLength(monster, Math.min(110, monster.movementModes[0]?.speed || 65)) * dt, 25, W - 25);
       minionClip(minion, monster, canFly(monster) ? 'FLY' : 'MOVE');
     } else if (hero.hp > 0 && !isAnchored(monster) && ranged && distance < preferred - 45) {
-      minion.x = clamp(minion.x - Math.sign(gap) * 65 * dt, 25, W - 25);
+      minion.x = clamp(minion.x - Math.sign(gap) * worldLength(monster, 65) * dt, 25, W - 25);
       minionClip(minion, monster, 'MOVE');
     } else minionClip(minion, monster, canFly(monster) ? 'FLY' : 'IDLE');
   }
@@ -487,22 +566,25 @@ function damageHero(amount, sourceX = state.foe.x) {
   }
 }
 
-function launchProjectile(attack, sourceX = state.foe.x, sourceY = state.foe.y - 65,
-    monster = state.monster, sheet = state.projectileSheet) {
+function launchProjectile(attack, x = state.foe.x, ground = state.foe.y,
+    monster = state.monster, sheet = state.projectileSheet, clock = state.clipClock, legacyHeight = 65) {
+  const origin = attackOrigin(monster, attack, x, ground, state.hero.x < x, clock, legacyHeight);
+  const sourceX = origin.x, sourceY = origin.y;
   const dx = state.hero.x - sourceX;
   const dy = state.hero.y - 48 - sourceY;
   const angle = Math.atan2(dy, dx);
   const step = attack.steps?.find(item => item.kind === 'SPAWN_PROJECTILE');
   const count = clamp(step?.count || 1, 1, 7);
   const spread = (step?.spread || 0) * Math.PI / 180;
-  const speed = clamp(step?.speed || 240, 120, 370);
+  const speed = worldLength(monster, clamp(step?.speed || 240, 120, 370));
   const projectile = monster.projectiles?.find(p => p.id === attack.projectile);
   for (let index = 0; index < count; index++) {
     const offset = count === 1 ? 0 : (index / (count - 1) - .5) * spread;
     const direction = angle + offset;
-    state.shots.push({ x: sourceX + Math.cos(direction) * 28, y: sourceY,
+    state.shots.push({ x: sourceX + Math.cos(direction) * (hasWorldScale(monster) ? 0 : 28), y: sourceY,
       vx: Math.cos(direction) * speed, vy: Math.sin(direction) * speed,
-      age: 0, attack, projectile, sheet, prevX: sourceX });
+      age: 0, attack, projectile, sheet, prevX: sourceX, scale: worldScale(monster),
+      radius: hasWorldScale(monster) ? worldLength(monster, projectile?.collisionRadius || step?.radius || 5) : 5 });
   }
 }
 
@@ -512,7 +594,9 @@ function launchHeroProjectile() {
   const x = hero.x + hero.facing * 24;
   const y = hero.y - 53;
   const targetX = state.foe.hp > 0 ? state.foe.x : x + hero.facing * 300;
-  const targetY = state.foe.hp > 0 ? state.foe.y - 58 : y;
+  const targetCircle = hasWorldScale(state.monster)
+    ? hurtCircles(state.monster, state.foe.x, state.foe.y, hero.x < state.foe.x)[0] : null;
+  const targetY = state.foe.hp > 0 ? targetCircle?.y ?? state.foe.y - 58 : y;
   const angle = Math.atan2(targetY - y, targetX - x);
   state.heroShots.push({ x, y, prevX: x, vx: Math.cos(angle) * 350,
     vy: Math.sin(angle) * 350, age: 0, damage: 10 });
@@ -534,7 +618,7 @@ function startMotion(attack, step) {
         : kind === 'TELEPORT' ? teleportDestination(state.hero.x, -state.hero.facing)
           : state.hero.x + toward * (kind === 'DASH' ? 30 : 0), 35, W - 35),
     targetY: state.hero.y,
-    radius: impact?.radius || 70,
+    radius: worldLength(state.monster, impact?.radius || 70),
     hitAt: Number.isFinite(impact?.time) && Number.isFinite(step.time) && step.duration > 0
       ? clamp((impact.time - step.time) / step.duration, .1, 1) : defaultHitAt,
     hit: false,
@@ -588,7 +672,7 @@ function updateMotion(dt) {
     action.hit = true;
     const nearX = Math.abs(state.hero.x - foe.x) < action.radius;
     const nearY = action.kind === 'LEAP' || action.kind === 'BURROW'
-      ? state.hero.y > FLOOR - 80 : Math.abs(state.hero.y - foe.y) < 88;
+      ? state.hero.y > FLOOR - 80 : Math.abs(state.hero.y - foe.y) < bodyHeight(state.monster, 88);
     if (nearX && nearY && action.kind !== 'TELEPORT') damageHero(action.attack.damage, foe.x);
   }
   if (t >= 1) {
@@ -614,12 +698,12 @@ function chooseAttack(distance) {
     if (attack.delivery === 'SUMMON') {
       if (state.summonCooldown > 0 || !attack.spawn || state.minions.length >= attack.spawn.maxActive) continue;
     } else if (motionStep(attack)) {
-      if (distance > attack.range) continue;
+      if (distance > worldLength(state.monster, attack.range)) continue;
     } else if (attack.delivery === 'PROJECTILE') {
-      if (distance > 480) continue;
+      if (distance > worldLength(state.monster, 480)) continue;
     } else if (attack.delivery === 'FIELD') {
-      if (distance > Math.max(220, attack.range + 80)) continue;
-    } else if (distance > Math.max(120, attack.range + 55)) continue;
+      if (distance > worldLength(state.monster, Math.max(220, attack.range + 80))) continue;
+    } else if (distance > meleeReach(state.monster, attack, 120, 55)) continue;
     foe.attackCursor = (index + 1) % attacks.length;
     return attack;
   }
@@ -682,8 +766,7 @@ function updateFight(dt) {
   if (foe.hp > 0 && hero.hp > 0) {
     const distance = Math.abs(hero.x - foe.x);
     for (const contact of state.monster.attacks.filter(a => a.delivery === 'CONTACT')) {
-      if ((foe.cooldowns[contact.id] || 0) === 0 && hitsHurtbox(state.monster, foe.x, foe.y,
-          hero.x < foe.x, hero.x, hero.y - 47, 16)) {
+      if ((foe.cooldowns[contact.id] || 0) === 0 && touchesHero(state.monster, foe.x, foe.y, hero.x < foe.x)) {
         damageHero(contact.damage, foe.x);
         foe.cooldowns[contact.id] = Math.max(.3, contact.cooldown / 1000);
       }
@@ -700,11 +783,11 @@ function updateFight(dt) {
         else if (attack.delivery === 'PROJECTILE') launchProjectile(attack);
         else if (attack.delivery === 'FIELD') {
           const fieldStep = attack.steps?.find(step => step.kind === 'SPAWN_FIELD');
-          state.fields.push({ x: hero.x, radius: fieldStep?.radius || 55, age: 0,
+          state.fields.push({ x: hero.x, radius: worldLength(state.monster, fieldStep?.radius || 55), age: 0,
             life: Math.max(1, (fieldStep?.duration || 1200) / 1000),
             tick: 0, damage: Math.max(2, Math.round(attack.damage * .45)) });
-        } else if (distance < Math.max(110, attack.range + 40)
-            && Math.abs(hero.y - foe.y) < 90) damageHero(attack.damage, foe.x);
+        } else if (distance < meleeReach(state.monster, attack)
+            && Math.abs(hero.y - foe.y) < bodyHeight(state.monster, 90)) damageHero(attack.damage, foe.x);
         if (!motion) foe.attack = null;
         foe.attackCooldown = Math.max(foe.attackCooldown, .42);
       }
@@ -722,9 +805,13 @@ function updateFight(dt) {
       const toward = Math.sign(hero.x - foe.x);
       const flying = canFly(state.monster);
       const preferred = state.monster.attacks.every(a => a.delivery === 'CONTACT') ? 0
-        : flying ? 225 : state.monster.attacks.some(a => a.delivery === 'PROJECTILE') ? 250 : 95;
-      const speed = clamp(state.monster.movementModes[0]?.speed || 70, 38, flying ? 145 : 125);
-      if (distance > preferred + 25) {
+        : flying ? worldLength(state.monster, 225) : state.monster.attacks.some(a => a.delivery === 'PROJECTILE') ? worldLength(state.monster, 250)
+          : hasWorldScale(state.monster) ? meleeReach(state.monster, state.monster.attacks[0] || {}) * .75 : 95;
+      const speed = worldLength(state.monster, clamp(state.monster.movementModes[0]?.speed || 70, 38, flying ? 145 : 125));
+      const approachPadding = hasWorldScale(state.monster) && !flying
+        && !state.monster.attacks.some(a => a.delivery === 'PROJECTILE')
+        ? preferred * .2 : 25;
+      if (distance > preferred + approachPadding) {
         foe.x = clamp(foe.x + toward * speed * dt, 30, W - 30);
         playClip(flying ? 'FLY' : 'MOVE');
       } else if (flying && distance < 150) {
@@ -758,9 +845,9 @@ function updateFight(dt) {
     bolt.y += bolt.vy * dt;
     bolt.age += dt;
     for (const shot of state.shots) {
-      if (shot.age >= 3 || Math.abs(bolt.y - shot.y) > 23) continue;
+      if (shot.age >= 3 || Math.abs(bolt.y - shot.y) > 18 + (shot.radius ?? 5)) continue;
       const crossed = Math.max(Math.min(bolt.prevX, bolt.x), Math.min(shot.prevX, shot.x))
-        <= Math.min(Math.max(bolt.prevX, bolt.x), Math.max(shot.prevX, shot.x)) + 17;
+        <= Math.min(Math.max(bolt.prevX, bolt.x), Math.max(shot.prevX, shot.x)) + 12 + (shot.radius ?? 5);
       if (crossed) {
         state.sparks.push({ x: (bolt.x + shot.x) / 2, y: (bolt.y + shot.y) / 2, life: .24 });
         bolt.age = 99; shot.age = 99; break;
@@ -783,12 +870,12 @@ function updateFight(dt) {
     if (shot.age >= 3) continue;
     const parry = hero.attackClock > .1 && hero.attackClock < .31
       && Math.sign(shot.x - hero.x) === hero.facing
-      && Math.abs(shot.x - hero.x) < 65 && Math.abs(shot.y - (hero.y - 57)) < 48;
+      && Math.abs(shot.x - hero.x) < 60 + (shot.radius ?? 5) && Math.abs(shot.y - (hero.y - 57)) < 43 + (shot.radius ?? 5);
     if (parry) {
       state.sparks.push({ x: shot.x, y: shot.y, life: .24 });
       shot.age = 99;
     }
-    else if (Math.abs(shot.x - hero.x) < 21 && Math.abs(shot.y - (hero.y - 47)) < 43) {
+    else if (Math.abs(shot.x - hero.x) < 16 + (shot.radius ?? 5) && Math.abs(shot.y - (hero.y - 47)) < 38 + (shot.radius ?? 5)) {
       damageHero(shot.attack.damage, shot.x - shot.vx * Math.min(dt, .05));
       shot.age = 99;
     }
@@ -830,9 +917,8 @@ function drawSprite(monster, sheet, frame, direction, x, ground, alpha = 1, mirr
   const id = frame + direction * sprites.stride;
   const sx = (id % sprites.columns) * sprites.frameWidth;
   const sy = Math.floor(id / sprites.columns) * sprites.frameHeight;
-  const scale = 2;
-  const anchorX = monster.size?.anchorX ?? sprites.frameWidth / 2;
-  const anchorY = monster.size?.anchorY ?? sprites.frameHeight * .57;
+  const scale = worldScale(monster);
+  const { x: anchorX, y: anchorY } = spriteAnchor(monster);
   ctx.save();
   ctx.globalAlpha = alpha;
   if (mirror) {
@@ -886,8 +972,8 @@ function drawStickman(hero, time) {
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   ctx.strokeStyle = hero.hurtClock > 0 ? '#ff9e86' : '#f7e8d7';
   ctx.lineWidth = 5;
-  ctx.beginPath(); ctx.arc(x, y - 75, 11, 0, Math.PI * 2); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(x, y - 64); ctx.lineTo(x, y - 30); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x, y - 82.5, 11, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x, y - 71.5); ctx.lineTo(x, y - 30); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(x, y - 30); ctx.lineTo(x - 14 + swing, y); ctx.moveTo(x, y - 30); ctx.lineTo(x + 14 - swing, y); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(x, y - 55); ctx.lineTo(x - 17, y - 38); ctx.moveTo(x, y - 55);
   const striking = hero.attackClock > 0;
@@ -906,9 +992,10 @@ function drawShots() {
       const frame = p.firstFrame + Math.floor(shot.age * 1000 / Math.max(1, p.frameDuration)) % p.frameCount;
       ctx.drawImage(shot.sheet || state.projectileSheet, (frame % p.columns) * p.frameWidth,
         Math.floor(frame / p.columns) * p.frameHeight, p.frameWidth, p.frameHeight,
-        shot.x - p.frameWidth, shot.y - p.frameHeight, p.frameWidth * 2, p.frameHeight * 2);
+        shot.x - p.frameWidth * (shot.scale ?? 2) / 2, shot.y - p.frameHeight * (shot.scale ?? 2) / 2,
+        p.frameWidth * (shot.scale ?? 2), p.frameHeight * (shot.scale ?? 2));
     } else {
-      ctx.fillStyle = '#ffab52'; ctx.beginPath(); ctx.arc(shot.x, shot.y, 10, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffab52'; ctx.beginPath(); ctx.arc(shot.x, shot.y, 5 * (shot.scale ?? 2), 0, Math.PI * 2); ctx.fill();
     }
   }
   for (const bolt of state.heroShots) {
@@ -969,6 +1056,9 @@ function draw(time) {
   if (!state.monster) return;
   if (state.mode === 'viewer') {
     drawMonster(W / 2, FLOOR);
+    drawStickman({ ...state.hero, x: 130, y: FLOOR, hurtClock: 0, attackClock: 0 }, time);
+    ctx.fillStyle = '#cbbbc4'; ctx.textAlign = 'center'; ctx.font = '12px system-ui';
+    ctx.fillText('96 px player reference', 130, FLOOR + 28);
     ctx.fillStyle = '#e8d1bd'; ctx.textAlign = 'center'; ctx.font = 'bold 13px system-ui';
     ctx.fillText(state.clip?.state || 'IDLE', W / 2, 30);
   } else {

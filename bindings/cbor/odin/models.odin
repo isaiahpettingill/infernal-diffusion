@@ -44,6 +44,10 @@ SizeInfo :: struct {
     visible_height_px: u32,
     anchor_x_px: f32,
     anchor_y_px: f32,
+    world_scale: f32,
+    reference_height_px: f32,
+    target_height_px: f32,
+    reference_player_height_px: f32,
 }
 
 BehaviorInfo :: struct {

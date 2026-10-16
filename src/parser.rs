@@ -6,6 +6,14 @@ pub struct MonsterSpec {
     pub body_plan: String,
     pub affinity: String,
     pub size: f32,
+    /// Absolute world-space body height. Overrides species, cute and text modifiers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub world_height_px: Option<f32>,
+    #[serde(
+        default,
+        skip_serializing_if = "crate::world_scale::SizeModifier::is_normal"
+    )]
+    pub world_size_modifier: crate::world_scale::SizeModifier,
     pub bulk: f32,
     pub limb_count: u8,
     pub arm_count: u8,
@@ -623,6 +631,14 @@ fn parse_vocabulary_clause(prompt: &str) -> MonsterSpec {
             !modifier_affinity(affinity) && !(has_stormtrooper && *affinity == "HUMANOID")
         })
         .copied()
+        // Size adjectives never replace a named slime/skeleton/spectral species,
+        // even though those nouns may also act as material modifiers.
+        .or_else(|| {
+            subject
+                .iter()
+                .find(|(_, _, (_, _, affinity))| *affinity != "GIANT")
+                .copied()
+        })
         .or_else(|| subject.first().copied())
         .or_else(|| {
             selected
@@ -700,12 +716,15 @@ fn parse_vocabulary_clause(prompt: &str) -> MonsterSpec {
         }
     }
     let mut part_scales = BTreeMap::new();
+    let mut world_size_modifier = crate::world_scale::SizeModifier::Normal;
     let mut large_creature = false;
     let mut small_creature = false;
     for (index, word) in words.iter().enumerate() {
         let factor = if ["giant", "huge", "colossal", "massive"].contains(word) {
             1.8
-        } else if ["tiny", "small", "little"].contains(word) {
+        } else if ["large", "big"].contains(word) {
+            1.4
+        } else if ["tiny", "small", "little", "mini", "miniature"].contains(word) {
             0.65
         } else {
             continue;
@@ -749,6 +768,7 @@ fn parse_vocabulary_clause(prompt: &str) -> MonsterSpec {
             })
             .unwrap_or("CREATURE");
         if target == "CREATURE" {
+            world_size_modifier = crate::world_scale::SizeModifier::from_word(word);
             if factor > 1.0 {
                 large_creature = true;
             } else {
@@ -917,6 +937,9 @@ fn parse_vocabulary_clause(prompt: &str) -> MonsterSpec {
         materials = vec!["ARMOR_WHITE".into()];
     }
     let mut features = Vec::new();
+    if contains_word(&words, "cute") || contains_word(&words, "chibi") {
+        features.push("CHIBI".into());
+    }
     for (word, feature) in [
         ("horned", "HORN"),
         ("horns", "HORN"),
@@ -1205,6 +1228,8 @@ fn parse_vocabulary_clause(prompt: &str) -> MonsterSpec {
         body_plan: body_plan.into(),
         affinity: affinity.into(),
         size,
+        world_height_px: None,
+        world_size_modifier,
         bulk,
         limb_count,
         arm_count,

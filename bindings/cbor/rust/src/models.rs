@@ -52,6 +52,10 @@ pub struct SizeInfo {
     pub visible_height_px: u32,
     pub anchor_x_px: f32,
     pub anchor_y_px: f32,
+    pub world_scale: f32,
+    pub reference_height_px: f32,
+    pub target_height_px: f32,
+    pub reference_player_height_px: f32,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

@@ -876,10 +876,7 @@ mod tests {
         for object in ["MIMIC_BUSH", "MIMIC_BANANA", "MIMIC_VASE"] {
             let (spec, body, poses) = fixture("OBJECT_MIMIC", Some(object));
             let closed_pose = poses.iter().find(|p| p.clip_id == "v2_lure").unwrap();
-            let open_pose = poses
-                .iter()
-                .rfind(|p| p.clip_id == "v2_reveal")
-                .unwrap();
+            let open_pose = poses.iter().rfind(|p| p.clip_id == "v2_reveal").unwrap();
             let closed = scene(&spec, &body, closed_pose, 8).unwrap();
             let open = scene(&spec, &body, open_pose, 8).unwrap();
             assert!(closed
@@ -981,10 +978,7 @@ mod tests {
     fn pusher_is_empty_handed_and_follows_posed_hands() {
         let (spec, body, poses) = fixture("BOULDER_PUSHER", None);
         let resting = poses.iter().find(|p| p.clip_id == "v2_push").unwrap();
-        let pushing = poses
-            .iter()
-            .rfind(|p| p.clip_id == "v2_push")
-            .unwrap();
+        let pushing = poses.iter().rfind(|p| p.clip_id == "v2_push").unwrap();
         let first = scene(&spec, &body, resting, 8).unwrap();
         let last = scene(&spec, &body, pushing, 8).unwrap();
         let (_, first_max) = bounds(&first);

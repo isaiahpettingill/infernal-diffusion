@@ -30,7 +30,12 @@ function show(result) {
     const pre = document.createElement('pre');
     pre.textContent = JSON.stringify(pkg.monster, (_, value) => typeof value === 'bigint' ? value.toString() : value, 2);
     metadata.append(summary, pre);
-    article.append(heading, atlasView('Sprites', pkg.sprites), atlasView('Emission', pkg.emission), atlasView('Projectiles', pkg.projectiles), metadata);
+    const size = pkg.monster.size;
+    const worldSize = document.createElement('p');
+    worldSize.textContent = Number.isFinite(size?.world_scale) && size.world_scale > 0
+      ? `World body: ${Math.round(size.target_height_px)} px · player reference: ${size.reference_player_height_px} px · baked-pixel scale: ${size.world_scale.toFixed(3)}×. Atlases below show render resolution.`
+      : 'Legacy package: no world scale metadata. Atlas dimensions describe render resolution.';
+    article.append(heading, worldSize, atlasView('Sprites', pkg.sprites), atlasView('Emission', pkg.emission), atlasView('Projectiles', pkg.projectiles), metadata);
     $('results').append(article);
   }
 }
