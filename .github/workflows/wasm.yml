@@ -43,7 +43,9 @@ jobs:
         run: tools/build_wasm.sh
       - name: Test actual portable WASM worker with offline Node host adapters
         if: matrix.threaded == 0
-        run: node web/wasm/tests/worker.actual-wasm.node.mjs
+        run: |
+          node web/wasm/tests/worker.actual-wasm.node.mjs
+          node web/wasm/tests/budget.actual-wasm.node.mjs
       - name: Install browser tests
         working-directory: web/wasm
         run: |

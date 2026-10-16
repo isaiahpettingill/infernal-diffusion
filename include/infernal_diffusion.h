@@ -76,7 +76,10 @@ InfernalGeneratedMonster *infernal_generate_object(const char *prompt, uint64_t 
 InfernalGeneratedMonster *infernal_generate_in_memory_profile(const char *prompt, uint64_t seed,
                                                               uint32_t profile, char **error_out);
 /* Optional additive ABI-1 symbol. Generate compact in-memory packages directly,
-   avoiding retention of full-grid companion and empty-emission atlases. */
+   avoiding retention of full-grid companion and empty-emission atlases.
+   Uses the default live-generation admission budget; an oversized request
+   returns NULL + error_out instead of changing its anatomy/attacks/frames.
+   See docs/generation-budgets.md. Legacy dense entry points are unchanged. */
 InfernalGeneratedMonster *infernal_generate_in_memory_profile_compact(const char *prompt, uint64_t seed,
                                                                       uint32_t profile, char **error_out);
 /* Validated, versioned HybridRecipe JSON. Always V2, no neural parser.

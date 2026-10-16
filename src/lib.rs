@@ -1,6 +1,8 @@
 pub mod anatomy;
 pub mod animation;
 pub mod atlas;
+pub mod budget;
+pub use budget::GenerationBudget;
 pub mod description;
 pub mod locomotion;
 pub mod mystery;
@@ -50,6 +52,12 @@ use thiserror::Error;
 pub enum Error {
     #[error("prompt must contain visible text and be at most 4096 bytes")]
     InvalidPrompt,
+    #[error("generation budget exceeded: {resource} requested {requested}, limit {limit}")]
+    ResourceLimit {
+        resource: &'static str,
+        requested: u64,
+        limit: u64,
+    },
     #[error("invalid monster: {0}")]
     InvalidMonster(String),
     #[error(transparent)]
@@ -237,6 +245,7 @@ pub fn generate_in_memory_with_profile(
     let mut sink = MemorySink {
         packages: Vec::new(),
         compact: false,
+        budget: None,
     };
     generate_prompt_profile(
         prompt,
@@ -258,9 +267,21 @@ pub fn generate_in_memory_compact_with_profile(
     seed: u64,
     profile: GenerationProfile,
 ) -> Result<GeneratedMonster, Error> {
+    generate_in_memory_compact_with_budget(prompt, seed, profile, GenerationBudget::default())
+}
+
+/// Compact generation with explicit admission limits. Limits reject the entire
+/// request; they never reduce anatomy, attacks, animation frames or pixel scale.
+pub fn generate_in_memory_compact_with_budget(
+    prompt: &str,
+    seed: u64,
+    profile: GenerationProfile,
+    budget: GenerationBudget,
+) -> Result<GeneratedMonster, Error> {
     let mut sink = MemorySink {
         packages: Vec::new(),
         compact: true,
+        budget: Some(budget::BudgetState::new(budget)),
     };
     generate_prompt_profile(
         prompt,
@@ -280,9 +301,18 @@ pub fn generate_hybrid_in_memory_compact(
     recipe: &v2::hybrid::HybridRecipe,
     seed: u64,
 ) -> Result<GeneratedMonster, Error> {
+    generate_hybrid_in_memory_compact_with_budget(recipe, seed, GenerationBudget::default())
+}
+
+pub fn generate_hybrid_in_memory_compact_with_budget(
+    recipe: &v2::hybrid::HybridRecipe,
+    seed: u64,
+    budget: GenerationBudget,
+) -> Result<GeneratedMonster, Error> {
     let mut sink = MemorySink {
         packages: Vec::new(),
         compact: true,
+        budget: Some(budget::BudgetState::new(budget)),
     };
     generate_hybrid_internal(recipe, seed, Path::new("."), &mut sink)?;
     Ok(GeneratedMonster {
@@ -333,6 +363,7 @@ pub fn generate_hybrid_in_memory(
     let mut sink = MemorySink {
         packages: Vec::new(),
         compact: false,
+        budget: None,
     };
     generate_hybrid_internal(recipe, seed, Path::new("."), &mut sink)?;
     Ok(GeneratedMonster {
@@ -385,6 +416,7 @@ pub fn generate_in_memory(prompt: &str, seed: u64) -> Result<GeneratedMonster, E
     let mut sink = MemorySink {
         packages: Vec::new(),
         compact: false,
+        budget: None,
     };
     generate_prompt(
         prompt,
@@ -425,6 +457,10 @@ pub fn save_generated_with_format(
 }
 
 trait PackageSink {
+    fn budget(&mut self) -> Option<&mut budget::BudgetState> {
+        None
+    }
+
     fn store(
         &mut self,
         path: &Path,
@@ -464,8 +500,13 @@ impl PackageSink for DiskSink {
 struct MemorySink {
     packages: Vec<GeneratedPackage>,
     compact: bool,
+    budget: Option<budget::BudgetState>,
 }
 impl PackageSink for MemorySink {
+    fn budget(&mut self) -> Option<&mut budget::BudgetState> {
+        self.budget.as_mut()
+    }
+
     fn store(
         &mut self,
         path: &Path,
@@ -527,29 +568,42 @@ fn generate_prompt_profile(
     if prompt.trim().is_empty() || prompt.len() > 4096 {
         return Err(Error::InvalidPrompt);
     }
+    if let Some(budget) = sink.budget() {
+        budget.check_prompt(prompt)?;
+    }
     report_progress("parsing", 0, 1);
-    let spec = if let Some(dir) = model_dir {
-        #[cfg(feature = "bert")]
-        {
-            parser::parse_with_bert(prompt, dir).map_err(|e| Error::Model(e.to_string()))?
-        }
-        #[cfg(not(feature = "bert"))]
-        {
-            return Err(Error::Model(format!(
-                "rebuild with --features bert to load {}",
-                dir.display()
-            )));
-        }
-    } else {
-        #[cfg(feature = "bert")]
-        {
-            parser::parse_with_embedded_bert(prompt).map_err(|e| Error::Model(e.to_string()))?
-        }
-        #[cfg(not(feature = "bert"))]
-        {
-            parser::parse_vocabulary(prompt)
-        }
+    let parse = || -> Result<parser::MonsterSpec, Error> {
+        Ok(if let Some(dir) = model_dir {
+            #[cfg(feature = "bert")]
+            {
+                parser::parse_with_bert(prompt, dir).map_err(|e| Error::Model(e.to_string()))?
+            }
+            #[cfg(not(feature = "bert"))]
+            {
+                return Err(Error::Model(format!(
+                    "rebuild with --features bert to load {}",
+                    dir.display()
+                )));
+            }
+        } else {
+            #[cfg(feature = "bert")]
+            {
+                parser::parse_with_embedded_bert(prompt).map_err(|e| Error::Model(e.to_string()))?
+            }
+            #[cfg(not(feature = "bert"))]
+            {
+                parser::parse_vocabulary(prompt)
+            }
+        })
     };
+    let spec = if sink.budget().is_some() {
+        budget::with_parser_pool(parse)?
+    } else {
+        parse()?
+    };
+    if let Some(budget) = sink.budget() {
+        budget.check_spec(&spec)?;
+    }
     let spec = if generation_profile == GenerationProfile::V2 {
         v2::hybrid::parse_prompt_checked(prompt).map_err(Error::InvalidMonster)?;
         v2::interpret(spec, prompt)
@@ -770,6 +824,10 @@ fn generate_spec_internal(
     sink: &mut dyn PackageSink,
     options: GenerationOptions,
 ) -> Result<proto::Monster, Error> {
+    if let Some(budget) = sink.budget() {
+        budget.check_spec(&spec)?;
+        budget.begin_package()?;
+    }
     let render_style = options.render_style;
     if options.profile == GenerationProfile::V2 {
         if render_style != RenderStyle::Mesh3d {
@@ -950,10 +1008,19 @@ fn generate_spec_internal(
             .into();
         }
     }
+    if let Some(budget) = sink.budget() {
+        budget.check_spec(&spec)?;
+    }
     let mut body = stages.anatomy(&spec, &mut rng);
+    if let Some(budget) = sink.budget() {
+        budget.check_body(&body)?;
+    }
     if options.profile == GenerationProfile::V2 {
         v2::anatomy::refine(&spec, &mut body, seed);
         v2::grip::prepare_body(&spec, &mut body);
+    }
+    if let Some(budget) = sink.budget() {
+        budget.check_body(&body)?;
     }
     validate_body(&body)?;
     stages.repair(&mut body);
@@ -997,7 +1064,6 @@ fn generate_spec_internal(
             }
         }
     }
-    let (projectiles, projectile_sheet) = projectile::bake(&spec, &mut attacks, seed);
     let base_size = if spec.size > 0.8 {
         96
     } else if spec.size < 0.35 {
@@ -1033,6 +1099,10 @@ fn generate_spec_internal(
     } else {
         base_size
     };
+    if let Some(budget) = sink.budget() {
+        // Check the lower-bound canvas before the all-pose mesh framing pass.
+        budget.check_render(size, poses.len(), body.nodes.len())?;
+    }
     let size = if render_style == RenderStyle::Mesh3d {
         render3d::required_frame_size(&spec, &body, &poses, size, seed)
     } else {
@@ -1043,6 +1113,11 @@ fn generate_spec_internal(
             "posed geometry requires {size}px frames, exceeding the 512px generation limit"
         )));
     }
+    if let Some(budget) = sink.budget() {
+        // Include all already-rendered parents/companions in admission.
+        budget.reserve_render(size, poses.len(), body.nodes.len())?;
+    }
+    let (projectiles, projectile_sheet) = projectile::bake(&spec, &mut attacks, seed);
     let (sheet, columns, palette_size) = if render_style == RenderStyle::Mesh3d {
         render3d::sheet(&spec, &body, &poses, size, seed)
     } else {
