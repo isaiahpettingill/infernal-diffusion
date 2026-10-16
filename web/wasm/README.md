@@ -130,6 +130,14 @@ WASM_THREADED=1 npm test
 
 Playwright starts the server automatically. `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chromium` selects an installed browser. Tests do not silently skip a missing build. The portable suite removes isolation headers, verifies SharedArrayBuffer is unavailable, blocks off-origin requests, initializes BERT, then switches the browser offline and generates a real monster. Other tests cover exact u64 seeds, V1/V2 world-size metadata, all-atlas SHA-256 replay, real parser metadata, progress, main-thread heartbeat, queued and model-loading cancellation/restart, recoverable errors, suggestions, hybrids and demo rendering. The threaded matrix preserves isolation-error and pool checks.
 
-For an additional real-WASM Node regression, run `node web/wasm/tests/explicit-counts.actual-wasm.node.mjs` from the repository root. It checks BERT parser metadata and explicit head/arm counts through full V2 rendering; portable builds run directly, and threaded builds use a Node worker_threads bridge for Rayon. This does not replace browser tests.
+When a browser cannot be launched, run the full production client/worker integration through Node host adapters:
+
+```sh
+node web/wasm/tests/worker.actual-wasm.node.mjs
+```
+
+This portable-only test runs the unchanged `client.js`, `worker.js`, generated bindings and actual WASM. It adapts browser Worker/message APIs to `node:worker_threads` and allows the WASM loader to read only its local binary. It verifies real BERT/model reuse, both V1/V2 full metadata and all-atlas replay hashes, exact u64 seeds, sizes, progress, main-thread heartbeat, queue recovery, cancellation/restart, and detached transfer buffers with SharedArrayBuffer absent. It also checks that the binary did not change during the run, so finish the build before starting it. It reports atlas hashes, elapsed time and peak process RSS. Set `INFERNAL_WASM_SAMPLE_DIR=/tmp/infernal-actual-package` to additionally save each profile’s complete package metadata and separate raw RGBA files for integration checks. This is **Node-host validation**, not proof of browser deployment, isolation headers, CSP, or browser rendering.
+
+For an additional real-WASM Node anatomy regression, run `node web/wasm/tests/explicit-counts.actual-wasm.node.mjs` from the repository root. It checks BERT parser metadata and explicit head/arm counts through full V2 rendering; portable builds run directly, and threaded builds use a Node worker_threads bridge for Rayon. This does not replace browser tests.
 
 For manual browser checks, open `/tests/browser-check.html` on the supplied server and click **Run browser checks**. It reports runtime/model readiness, full stormtrooper metadata, progress phases, atlas hashes, heartbeat activity and cancellation/restart.

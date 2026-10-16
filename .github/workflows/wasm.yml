@@ -41,6 +41,9 @@ jobs:
         run: cargo test --locked --no-default-features --lib parser
       - name: Build full optimized BERT WASM
         run: tools/build_wasm.sh
+      - name: Test actual portable WASM worker with offline Node host adapters
+        if: matrix.threaded == 0
+        run: node web/wasm/tests/worker.actual-wasm.node.mjs
       - name: Install browser tests
         working-directory: web/wasm
         run: |
