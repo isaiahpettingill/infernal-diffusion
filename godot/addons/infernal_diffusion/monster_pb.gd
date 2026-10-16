@@ -1275,6 +1275,26 @@ class InfernalSizeInfo:
 		service.field = __anchor_y_px
 		data[__anchor_y_px.tag] = service
 
+		__world_scale = PBField.new("world_scale", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 9, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __world_scale
+		data[__world_scale.tag] = service
+
+		__reference_height_px = PBField.new("reference_height_px", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 10, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __reference_height_px
+		data[__reference_height_px.tag] = service
+
+		__target_height_px = PBField.new("target_height_px", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 11, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __target_height_px
+		data[__target_height_px.tag] = service
+
+		__reference_player_height_px = PBField.new("reference_player_height_px", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 12, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __reference_player_height_px
+		data[__reference_player_height_px.tag] = service
+
 	var data = {}
 
 	var __normalized_size: PBField
@@ -1380,6 +1400,58 @@ class InfernalSizeInfo:
 		__anchor_y_px.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
 	func set_anchor_y_px(value : float) -> void:
 		__anchor_y_px.value = value
+
+	var __world_scale: PBField
+	func has_world_scale() -> bool:
+		if __world_scale.value != null:
+			return true
+		return false
+	func get_world_scale() -> float:
+		return __world_scale.value
+	func clear_world_scale() -> void:
+		data[9].state = PB_SERVICE_STATE.UNFILLED
+		__world_scale.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_world_scale(value : float) -> void:
+		__world_scale.value = value
+
+	var __reference_height_px: PBField
+	func has_reference_height_px() -> bool:
+		if __reference_height_px.value != null:
+			return true
+		return false
+	func get_reference_height_px() -> float:
+		return __reference_height_px.value
+	func clear_reference_height_px() -> void:
+		data[10].state = PB_SERVICE_STATE.UNFILLED
+		__reference_height_px.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_reference_height_px(value : float) -> void:
+		__reference_height_px.value = value
+
+	var __target_height_px: PBField
+	func has_target_height_px() -> bool:
+		if __target_height_px.value != null:
+			return true
+		return false
+	func get_target_height_px() -> float:
+		return __target_height_px.value
+	func clear_target_height_px() -> void:
+		data[11].state = PB_SERVICE_STATE.UNFILLED
+		__target_height_px.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_target_height_px(value : float) -> void:
+		__target_height_px.value = value
+
+	var __reference_player_height_px: PBField
+	func has_reference_player_height_px() -> bool:
+		if __reference_player_height_px.value != null:
+			return true
+		return false
+	func get_reference_player_height_px() -> float:
+		return __reference_player_height_px.value
+	func clear_reference_player_height_px() -> void:
+		data[12].state = PB_SERVICE_STATE.UNFILLED
+		__reference_player_height_px.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_reference_player_height_px(value : float) -> void:
+		__reference_player_height_px.value = value
 
 	func _to_string() -> String:
 		return PBPacker.message_to_string(data)
@@ -3905,6 +3977,18 @@ class InfernalV2Profile:
 		service.func_ref = Callable(self, "add_body_motion_samples")
 		data[__body_motion_samples.tag] = service
 
+		__encounter = PBField.new("encounter", PB_DATA_TYPE.MESSAGE, PB_RULE.OPTIONAL, 10, true, DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE])
+		service = PBServiceField.new()
+		service.field = __encounter
+		service.func_ref = Callable(self, "new_encounter")
+		data[__encounter.tag] = service
+
+		var __damage_traits_default: Array[String] = []
+		__damage_traits = PBField.new("damage_traits", PB_DATA_TYPE.STRING, PB_RULE.REPEATED, 11, true, __damage_traits_default)
+		service = PBServiceField.new()
+		service.field = __damage_traits
+		data[__damage_traits.tag] = service
+
 	var data = {}
 
 	var __profile_version: PBField
@@ -4010,6 +4094,29 @@ class InfernalV2Profile:
 		var element = InfernalBodyMotionSample.new()
 		__body_motion_samples.value.append(element)
 		return element
+
+	var __encounter: PBField
+	func has_encounter() -> bool:
+		if __encounter.value != null:
+			return true
+		return false
+	func get_encounter() -> InfernalEncounterDescriptor:
+		return __encounter.value
+	func clear_encounter() -> void:
+		data[10].state = PB_SERVICE_STATE.UNFILLED
+		__encounter.value = DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE]
+	func new_encounter() -> InfernalEncounterDescriptor:
+		__encounter.value = InfernalEncounterDescriptor.new()
+		return __encounter.value
+
+	var __damage_traits: PBField
+	func get_damage_traits() -> Array[String]:
+		return __damage_traits.value
+	func clear_damage_traits() -> void:
+		data[11].state = PB_SERVICE_STATE.UNFILLED
+		__damage_traits.value.clear()
+	func add_damage_traits(value : String) -> void:
+		__damage_traits.value.append(value)
 
 	func _to_string() -> String:
 		return PBPacker.message_to_string(data)
@@ -5231,6 +5338,802 @@ class InfernalPosedHurtbox:
 		var element = InfernalColliderView.new()
 		__views.value.append(element)
 		return element
+
+	func _to_string() -> String:
+		return PBPacker.message_to_string(data)
+
+	func to_bytes() -> PackedByteArray:
+		return PBPacker.pack_message(data)
+
+	func from_bytes(bytes : PackedByteArray, offset : int = 0, limit : int = -1) -> int:
+		var cur_limit = bytes.size()
+		if limit != -1:
+			cur_limit = limit
+		var result = PBPacker.unpack_message(data, bytes, offset, cur_limit)
+		if result == cur_limit:
+			if PBPacker.check_required(data):
+				if limit == -1:
+					return PB_ERR.NO_ERRORS
+			else:
+				return PB_ERR.REQUIRED_FIELDS
+		elif limit == -1 && result > 0:
+			return PB_ERR.PARSE_INCOMPLETE
+		return result
+
+class InfernalEncounterDescriptor:
+	extends RefCounted
+	func _init():
+		var service
+
+		__contract_version = PBField.new("contract_version", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __contract_version
+		data[__contract_version.tag] = service
+
+		__archetype = PBField.new("archetype", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 2, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __archetype
+		data[__archetype.tag] = service
+
+		__split = PBField.new("split", PB_DATA_TYPE.MESSAGE, PB_RULE.OPTIONAL, 3, true, DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE])
+		service = PBServiceField.new()
+		service.field = __split
+		service.func_ref = Callable(self, "new_split")
+		data[__split.tag] = service
+
+		__mimic = PBField.new("mimic", PB_DATA_TYPE.MESSAGE, PB_RULE.OPTIONAL, 4, true, DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE])
+		service = PBServiceField.new()
+		service.field = __mimic
+		service.func_ref = Callable(self, "new_mimic")
+		data[__mimic.tag] = service
+
+		__shield = PBField.new("shield", PB_DATA_TYPE.MESSAGE, PB_RULE.OPTIONAL, 5, true, DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE])
+		service = PBServiceField.new()
+		service.field = __shield
+		service.func_ref = Callable(self, "new_shield")
+		data[__shield.tag] = service
+
+		__pushed_prop = PBField.new("pushed_prop", PB_DATA_TYPE.MESSAGE, PB_RULE.OPTIONAL, 6, true, DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE])
+		service = PBServiceField.new()
+		service.field = __pushed_prop
+		service.func_ref = Callable(self, "new_pushed_prop")
+		data[__pushed_prop.tag] = service
+
+	var data = {}
+
+	var __contract_version: PBField
+	func has_contract_version() -> bool:
+		if __contract_version.value != null:
+			return true
+		return false
+	func get_contract_version() -> int:
+		return __contract_version.value
+	func clear_contract_version() -> void:
+		data[1].state = PB_SERVICE_STATE.UNFILLED
+		__contract_version.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_contract_version(value : int) -> void:
+		__contract_version.value = value
+
+	var __archetype: PBField
+	func has_archetype() -> bool:
+		if __archetype.value != null:
+			return true
+		return false
+	func get_archetype() -> String:
+		return __archetype.value
+	func clear_archetype() -> void:
+		data[2].state = PB_SERVICE_STATE.UNFILLED
+		__archetype.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_archetype(value : String) -> void:
+		__archetype.value = value
+
+	var __split: PBField
+	func has_split() -> bool:
+		if __split.value != null:
+			return true
+		return false
+	func get_split() -> InfernalSplitDescriptor:
+		return __split.value
+	func clear_split() -> void:
+		data[3].state = PB_SERVICE_STATE.UNFILLED
+		__split.value = DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE]
+	func new_split() -> InfernalSplitDescriptor:
+		__split.value = InfernalSplitDescriptor.new()
+		return __split.value
+
+	var __mimic: PBField
+	func has_mimic() -> bool:
+		if __mimic.value != null:
+			return true
+		return false
+	func get_mimic() -> InfernalMimicDescriptor:
+		return __mimic.value
+	func clear_mimic() -> void:
+		data[4].state = PB_SERVICE_STATE.UNFILLED
+		__mimic.value = DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE]
+	func new_mimic() -> InfernalMimicDescriptor:
+		__mimic.value = InfernalMimicDescriptor.new()
+		return __mimic.value
+
+	var __shield: PBField
+	func has_shield() -> bool:
+		if __shield.value != null:
+			return true
+		return false
+	func get_shield() -> InfernalShieldDescriptor:
+		return __shield.value
+	func clear_shield() -> void:
+		data[5].state = PB_SERVICE_STATE.UNFILLED
+		__shield.value = DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE]
+	func new_shield() -> InfernalShieldDescriptor:
+		__shield.value = InfernalShieldDescriptor.new()
+		return __shield.value
+
+	var __pushed_prop: PBField
+	func has_pushed_prop() -> bool:
+		if __pushed_prop.value != null:
+			return true
+		return false
+	func get_pushed_prop() -> InfernalPushedPropDescriptor:
+		return __pushed_prop.value
+	func clear_pushed_prop() -> void:
+		data[6].state = PB_SERVICE_STATE.UNFILLED
+		__pushed_prop.value = DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE]
+	func new_pushed_prop() -> InfernalPushedPropDescriptor:
+		__pushed_prop.value = InfernalPushedPropDescriptor.new()
+		return __pushed_prop.value
+
+	func _to_string() -> String:
+		return PBPacker.message_to_string(data)
+
+	func to_bytes() -> PackedByteArray:
+		return PBPacker.pack_message(data)
+
+	func from_bytes(bytes : PackedByteArray, offset : int = 0, limit : int = -1) -> int:
+		var cur_limit = bytes.size()
+		if limit != -1:
+			cur_limit = limit
+		var result = PBPacker.unpack_message(data, bytes, offset, cur_limit)
+		if result == cur_limit:
+			if PBPacker.check_required(data):
+				if limit == -1:
+					return PB_ERR.NO_ERRORS
+			else:
+				return PB_ERR.REQUIRED_FIELDS
+		elif limit == -1 && result > 0:
+			return PB_ERR.PARSE_INCOMPLETE
+		return result
+
+class InfernalSplitDescriptor:
+	extends RefCounted
+	func _init():
+		var service
+
+		__count = PBField.new("count", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __count
+		data[__count.tag] = service
+
+		__max_generations = PBField.new("max_generations", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 2, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __max_generations
+		data[__max_generations.tag] = service
+
+		__max_offspring = PBField.new("max_offspring", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 3, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __max_offspring
+		data[__max_offspring.tag] = service
+
+		__child_scale = PBField.new("child_scale", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 4, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __child_scale
+		data[__child_scale.tag] = service
+
+		__child_health_fraction = PBField.new("child_health_fraction", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 5, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __child_health_fraction
+		data[__child_health_fraction.tag] = service
+
+		__child_speed_multiplier = PBField.new("child_speed_multiplier", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 6, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __child_speed_multiplier
+		data[__child_speed_multiplier.tag] = service
+
+		__emergence_ms = PBField.new("emergence_ms", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 7, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __emergence_ms
+		data[__emergence_ms.tag] = service
+
+		__separation_px = PBField.new("separation_px", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 8, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __separation_px
+		data[__separation_px.tag] = service
+
+		__emergence_animation_id = PBField.new("emergence_animation_id", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 9, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __emergence_animation_id
+		data[__emergence_animation_id.tag] = service
+
+		__burst_animation_id = PBField.new("burst_animation_id", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 10, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __burst_animation_id
+		data[__burst_animation_id.tag] = service
+
+	var data = {}
+
+	var __count: PBField
+	func has_count() -> bool:
+		if __count.value != null:
+			return true
+		return false
+	func get_count() -> int:
+		return __count.value
+	func clear_count() -> void:
+		data[1].state = PB_SERVICE_STATE.UNFILLED
+		__count.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_count(value : int) -> void:
+		__count.value = value
+
+	var __max_generations: PBField
+	func has_max_generations() -> bool:
+		if __max_generations.value != null:
+			return true
+		return false
+	func get_max_generations() -> int:
+		return __max_generations.value
+	func clear_max_generations() -> void:
+		data[2].state = PB_SERVICE_STATE.UNFILLED
+		__max_generations.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_max_generations(value : int) -> void:
+		__max_generations.value = value
+
+	var __max_offspring: PBField
+	func has_max_offspring() -> bool:
+		if __max_offspring.value != null:
+			return true
+		return false
+	func get_max_offspring() -> int:
+		return __max_offspring.value
+	func clear_max_offspring() -> void:
+		data[3].state = PB_SERVICE_STATE.UNFILLED
+		__max_offspring.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_max_offspring(value : int) -> void:
+		__max_offspring.value = value
+
+	var __child_scale: PBField
+	func has_child_scale() -> bool:
+		if __child_scale.value != null:
+			return true
+		return false
+	func get_child_scale() -> float:
+		return __child_scale.value
+	func clear_child_scale() -> void:
+		data[4].state = PB_SERVICE_STATE.UNFILLED
+		__child_scale.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_child_scale(value : float) -> void:
+		__child_scale.value = value
+
+	var __child_health_fraction: PBField
+	func has_child_health_fraction() -> bool:
+		if __child_health_fraction.value != null:
+			return true
+		return false
+	func get_child_health_fraction() -> float:
+		return __child_health_fraction.value
+	func clear_child_health_fraction() -> void:
+		data[5].state = PB_SERVICE_STATE.UNFILLED
+		__child_health_fraction.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_child_health_fraction(value : float) -> void:
+		__child_health_fraction.value = value
+
+	var __child_speed_multiplier: PBField
+	func has_child_speed_multiplier() -> bool:
+		if __child_speed_multiplier.value != null:
+			return true
+		return false
+	func get_child_speed_multiplier() -> float:
+		return __child_speed_multiplier.value
+	func clear_child_speed_multiplier() -> void:
+		data[6].state = PB_SERVICE_STATE.UNFILLED
+		__child_speed_multiplier.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_child_speed_multiplier(value : float) -> void:
+		__child_speed_multiplier.value = value
+
+	var __emergence_ms: PBField
+	func has_emergence_ms() -> bool:
+		if __emergence_ms.value != null:
+			return true
+		return false
+	func get_emergence_ms() -> int:
+		return __emergence_ms.value
+	func clear_emergence_ms() -> void:
+		data[7].state = PB_SERVICE_STATE.UNFILLED
+		__emergence_ms.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_emergence_ms(value : int) -> void:
+		__emergence_ms.value = value
+
+	var __separation_px: PBField
+	func has_separation_px() -> bool:
+		if __separation_px.value != null:
+			return true
+		return false
+	func get_separation_px() -> float:
+		return __separation_px.value
+	func clear_separation_px() -> void:
+		data[8].state = PB_SERVICE_STATE.UNFILLED
+		__separation_px.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_separation_px(value : float) -> void:
+		__separation_px.value = value
+
+	var __emergence_animation_id: PBField
+	func has_emergence_animation_id() -> bool:
+		if __emergence_animation_id.value != null:
+			return true
+		return false
+	func get_emergence_animation_id() -> String:
+		return __emergence_animation_id.value
+	func clear_emergence_animation_id() -> void:
+		data[9].state = PB_SERVICE_STATE.UNFILLED
+		__emergence_animation_id.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_emergence_animation_id(value : String) -> void:
+		__emergence_animation_id.value = value
+
+	var __burst_animation_id: PBField
+	func has_burst_animation_id() -> bool:
+		if __burst_animation_id.value != null:
+			return true
+		return false
+	func get_burst_animation_id() -> String:
+		return __burst_animation_id.value
+	func clear_burst_animation_id() -> void:
+		data[10].state = PB_SERVICE_STATE.UNFILLED
+		__burst_animation_id.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_burst_animation_id(value : String) -> void:
+		__burst_animation_id.value = value
+
+	func _to_string() -> String:
+		return PBPacker.message_to_string(data)
+
+	func to_bytes() -> PackedByteArray:
+		return PBPacker.pack_message(data)
+
+	func from_bytes(bytes : PackedByteArray, offset : int = 0, limit : int = -1) -> int:
+		var cur_limit = bytes.size()
+		if limit != -1:
+			cur_limit = limit
+		var result = PBPacker.unpack_message(data, bytes, offset, cur_limit)
+		if result == cur_limit:
+			if PBPacker.check_required(data):
+				if limit == -1:
+					return PB_ERR.NO_ERRORS
+			else:
+				return PB_ERR.REQUIRED_FIELDS
+		elif limit == -1 && result > 0:
+			return PB_ERR.PARSE_INCOMPLETE
+		return result
+
+class InfernalMimicDescriptor:
+	extends RefCounted
+	func _init():
+		var service
+
+		__disguise = PBField.new("disguise", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __disguise
+		data[__disguise.tag] = service
+
+		__trigger_radius = PBField.new("trigger_radius", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 2, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __trigger_radius
+		data[__trigger_radius.tag] = service
+
+		__reveal_ms = PBField.new("reveal_ms", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 3, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __reveal_ms
+		data[__reveal_ms.tag] = service
+
+	var data = {}
+
+	var __disguise: PBField
+	func has_disguise() -> bool:
+		if __disguise.value != null:
+			return true
+		return false
+	func get_disguise() -> String:
+		return __disguise.value
+	func clear_disguise() -> void:
+		data[1].state = PB_SERVICE_STATE.UNFILLED
+		__disguise.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_disguise(value : String) -> void:
+		__disguise.value = value
+
+	var __trigger_radius: PBField
+	func has_trigger_radius() -> bool:
+		if __trigger_radius.value != null:
+			return true
+		return false
+	func get_trigger_radius() -> float:
+		return __trigger_radius.value
+	func clear_trigger_radius() -> void:
+		data[2].state = PB_SERVICE_STATE.UNFILLED
+		__trigger_radius.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_trigger_radius(value : float) -> void:
+		__trigger_radius.value = value
+
+	var __reveal_ms: PBField
+	func has_reveal_ms() -> bool:
+		if __reveal_ms.value != null:
+			return true
+		return false
+	func get_reveal_ms() -> int:
+		return __reveal_ms.value
+	func clear_reveal_ms() -> void:
+		data[3].state = PB_SERVICE_STATE.UNFILLED
+		__reveal_ms.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_reveal_ms(value : int) -> void:
+		__reveal_ms.value = value
+
+	func _to_string() -> String:
+		return PBPacker.message_to_string(data)
+
+	func to_bytes() -> PackedByteArray:
+		return PBPacker.pack_message(data)
+
+	func from_bytes(bytes : PackedByteArray, offset : int = 0, limit : int = -1) -> int:
+		var cur_limit = bytes.size()
+		if limit != -1:
+			cur_limit = limit
+		var result = PBPacker.unpack_message(data, bytes, offset, cur_limit)
+		if result == cur_limit:
+			if PBPacker.check_required(data):
+				if limit == -1:
+					return PB_ERR.NO_ERRORS
+			else:
+				return PB_ERR.REQUIRED_FIELDS
+		elif limit == -1 && result > 0:
+			return PB_ERR.PARSE_INCOMPLETE
+		return result
+
+class InfernalShieldDescriptor:
+	extends RefCounted
+	func _init():
+		var service
+
+		__front_arc_degrees = PBField.new("front_arc_degrees", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __front_arc_degrees
+		data[__front_arc_degrees.tag] = service
+
+		__bash_windup_ms = PBField.new("bash_windup_ms", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 2, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __bash_windup_ms
+		data[__bash_windup_ms.tag] = service
+
+		__bash_recovery_ms = PBField.new("bash_recovery_ms", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 3, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
+		service = PBServiceField.new()
+		service.field = __bash_recovery_ms
+		data[__bash_recovery_ms.tag] = service
+
+		__guard_animation_id = PBField.new("guard_animation_id", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 4, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __guard_animation_id
+		data[__guard_animation_id.tag] = service
+
+		__bash_animation_id = PBField.new("bash_animation_id", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 5, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __bash_animation_id
+		data[__bash_animation_id.tag] = service
+
+		__recovery_animation_id = PBField.new("recovery_animation_id", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 6, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __recovery_animation_id
+		data[__recovery_animation_id.tag] = service
+
+	var data = {}
+
+	var __front_arc_degrees: PBField
+	func has_front_arc_degrees() -> bool:
+		if __front_arc_degrees.value != null:
+			return true
+		return false
+	func get_front_arc_degrees() -> float:
+		return __front_arc_degrees.value
+	func clear_front_arc_degrees() -> void:
+		data[1].state = PB_SERVICE_STATE.UNFILLED
+		__front_arc_degrees.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_front_arc_degrees(value : float) -> void:
+		__front_arc_degrees.value = value
+
+	var __bash_windup_ms: PBField
+	func has_bash_windup_ms() -> bool:
+		if __bash_windup_ms.value != null:
+			return true
+		return false
+	func get_bash_windup_ms() -> int:
+		return __bash_windup_ms.value
+	func clear_bash_windup_ms() -> void:
+		data[2].state = PB_SERVICE_STATE.UNFILLED
+		__bash_windup_ms.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_bash_windup_ms(value : int) -> void:
+		__bash_windup_ms.value = value
+
+	var __bash_recovery_ms: PBField
+	func has_bash_recovery_ms() -> bool:
+		if __bash_recovery_ms.value != null:
+			return true
+		return false
+	func get_bash_recovery_ms() -> int:
+		return __bash_recovery_ms.value
+	func clear_bash_recovery_ms() -> void:
+		data[3].state = PB_SERVICE_STATE.UNFILLED
+		__bash_recovery_ms.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_bash_recovery_ms(value : int) -> void:
+		__bash_recovery_ms.value = value
+
+	var __guard_animation_id: PBField
+	func has_guard_animation_id() -> bool:
+		if __guard_animation_id.value != null:
+			return true
+		return false
+	func get_guard_animation_id() -> String:
+		return __guard_animation_id.value
+	func clear_guard_animation_id() -> void:
+		data[4].state = PB_SERVICE_STATE.UNFILLED
+		__guard_animation_id.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_guard_animation_id(value : String) -> void:
+		__guard_animation_id.value = value
+
+	var __bash_animation_id: PBField
+	func has_bash_animation_id() -> bool:
+		if __bash_animation_id.value != null:
+			return true
+		return false
+	func get_bash_animation_id() -> String:
+		return __bash_animation_id.value
+	func clear_bash_animation_id() -> void:
+		data[5].state = PB_SERVICE_STATE.UNFILLED
+		__bash_animation_id.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_bash_animation_id(value : String) -> void:
+		__bash_animation_id.value = value
+
+	var __recovery_animation_id: PBField
+	func has_recovery_animation_id() -> bool:
+		if __recovery_animation_id.value != null:
+			return true
+		return false
+	func get_recovery_animation_id() -> String:
+		return __recovery_animation_id.value
+	func clear_recovery_animation_id() -> void:
+		data[6].state = PB_SERVICE_STATE.UNFILLED
+		__recovery_animation_id.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_recovery_animation_id(value : String) -> void:
+		__recovery_animation_id.value = value
+
+	func _to_string() -> String:
+		return PBPacker.message_to_string(data)
+
+	func to_bytes() -> PackedByteArray:
+		return PBPacker.pack_message(data)
+
+	func from_bytes(bytes : PackedByteArray, offset : int = 0, limit : int = -1) -> int:
+		var cur_limit = bytes.size()
+		if limit != -1:
+			cur_limit = limit
+		var result = PBPacker.unpack_message(data, bytes, offset, cur_limit)
+		if result == cur_limit:
+			if PBPacker.check_required(data):
+				if limit == -1:
+					return PB_ERR.NO_ERRORS
+			else:
+				return PB_ERR.REQUIRED_FIELDS
+		elif limit == -1 && result > 0:
+			return PB_ERR.PARSE_INCOMPLETE
+		return result
+
+class InfernalPushedPropDescriptor:
+	extends RefCounted
+	func _init():
+		var service
+
+		__kind = PBField.new("kind", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __kind
+		data[__kind.tag] = service
+
+		__id_suffix = PBField.new("id_suffix", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 2, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __id_suffix
+		data[__id_suffix.tag] = service
+
+		__radius = PBField.new("radius", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 3, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __radius
+		data[__radius.tag] = service
+
+		__health = PBField.new("health", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 4, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __health
+		data[__health.tag] = service
+
+		__push_speed = PBField.new("push_speed", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 5, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __push_speed
+		data[__push_speed.tag] = service
+
+		__coordinate_space = PBField.new("coordinate_space", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 6, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __coordinate_space
+		data[__coordinate_space.tag] = service
+
+		__anchor_x = PBField.new("anchor_x", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 7, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __anchor_x
+		data[__anchor_x.tag] = service
+
+		__anchor_y = PBField.new("anchor_y", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 8, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+		service = PBServiceField.new()
+		service.field = __anchor_y
+		data[__anchor_y.tag] = service
+
+		__push_animation_id = PBField.new("push_animation_id", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 9, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __push_animation_id
+		data[__push_animation_id.tag] = service
+
+		__recovery_animation_id = PBField.new("recovery_animation_id", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 10, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __recovery_animation_id
+		data[__recovery_animation_id.tag] = service
+
+		__release_event = PBField.new("release_event", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 11, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __release_event
+		data[__release_event.tag] = service
+
+	var data = {}
+
+	var __kind: PBField
+	func has_kind() -> bool:
+		if __kind.value != null:
+			return true
+		return false
+	func get_kind() -> String:
+		return __kind.value
+	func clear_kind() -> void:
+		data[1].state = PB_SERVICE_STATE.UNFILLED
+		__kind.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_kind(value : String) -> void:
+		__kind.value = value
+
+	var __id_suffix: PBField
+	func has_id_suffix() -> bool:
+		if __id_suffix.value != null:
+			return true
+		return false
+	func get_id_suffix() -> String:
+		return __id_suffix.value
+	func clear_id_suffix() -> void:
+		data[2].state = PB_SERVICE_STATE.UNFILLED
+		__id_suffix.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_id_suffix(value : String) -> void:
+		__id_suffix.value = value
+
+	var __radius: PBField
+	func has_radius() -> bool:
+		if __radius.value != null:
+			return true
+		return false
+	func get_radius() -> float:
+		return __radius.value
+	func clear_radius() -> void:
+		data[3].state = PB_SERVICE_STATE.UNFILLED
+		__radius.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_radius(value : float) -> void:
+		__radius.value = value
+
+	var __health: PBField
+	func has_health() -> bool:
+		if __health.value != null:
+			return true
+		return false
+	func get_health() -> float:
+		return __health.value
+	func clear_health() -> void:
+		data[4].state = PB_SERVICE_STATE.UNFILLED
+		__health.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_health(value : float) -> void:
+		__health.value = value
+
+	var __push_speed: PBField
+	func has_push_speed() -> bool:
+		if __push_speed.value != null:
+			return true
+		return false
+	func get_push_speed() -> float:
+		return __push_speed.value
+	func clear_push_speed() -> void:
+		data[5].state = PB_SERVICE_STATE.UNFILLED
+		__push_speed.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_push_speed(value : float) -> void:
+		__push_speed.value = value
+
+	var __coordinate_space: PBField
+	func has_coordinate_space() -> bool:
+		if __coordinate_space.value != null:
+			return true
+		return false
+	func get_coordinate_space() -> String:
+		return __coordinate_space.value
+	func clear_coordinate_space() -> void:
+		data[6].state = PB_SERVICE_STATE.UNFILLED
+		__coordinate_space.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_coordinate_space(value : String) -> void:
+		__coordinate_space.value = value
+
+	var __anchor_x: PBField
+	func has_anchor_x() -> bool:
+		if __anchor_x.value != null:
+			return true
+		return false
+	func get_anchor_x() -> float:
+		return __anchor_x.value
+	func clear_anchor_x() -> void:
+		data[7].state = PB_SERVICE_STATE.UNFILLED
+		__anchor_x.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_anchor_x(value : float) -> void:
+		__anchor_x.value = value
+
+	var __anchor_y: PBField
+	func has_anchor_y() -> bool:
+		if __anchor_y.value != null:
+			return true
+		return false
+	func get_anchor_y() -> float:
+		return __anchor_y.value
+	func clear_anchor_y() -> void:
+		data[8].state = PB_SERVICE_STATE.UNFILLED
+		__anchor_y.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_anchor_y(value : float) -> void:
+		__anchor_y.value = value
+
+	var __push_animation_id: PBField
+	func has_push_animation_id() -> bool:
+		if __push_animation_id.value != null:
+			return true
+		return false
+	func get_push_animation_id() -> String:
+		return __push_animation_id.value
+	func clear_push_animation_id() -> void:
+		data[9].state = PB_SERVICE_STATE.UNFILLED
+		__push_animation_id.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_push_animation_id(value : String) -> void:
+		__push_animation_id.value = value
+
+	var __recovery_animation_id: PBField
+	func has_recovery_animation_id() -> bool:
+		if __recovery_animation_id.value != null:
+			return true
+		return false
+	func get_recovery_animation_id() -> String:
+		return __recovery_animation_id.value
+	func clear_recovery_animation_id() -> void:
+		data[10].state = PB_SERVICE_STATE.UNFILLED
+		__recovery_animation_id.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_recovery_animation_id(value : String) -> void:
+		__recovery_animation_id.value = value
+
+	var __release_event: PBField
+	func has_release_event() -> bool:
+		if __release_event.value != null:
+			return true
+		return false
+	func get_release_event() -> String:
+		return __release_event.value
+	func clear_release_event() -> void:
+		data[11].state = PB_SERVICE_STATE.UNFILLED
+		__release_event.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_release_event(value : String) -> void:
+		__release_event.value = value
 
 	func _to_string() -> String:
 		return PBPacker.message_to_string(data)

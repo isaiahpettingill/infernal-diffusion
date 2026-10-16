@@ -44,6 +44,10 @@ type SizeInfo struct {
     VisibleHeightPx uint32 `cbor:"visible_height_px"`
     AnchorXPx float32 `cbor:"anchor_x_px"`
     AnchorYPx float32 `cbor:"anchor_y_px"`
+    WorldScale float32 `cbor:"world_scale"`
+    ReferenceHeightPx float32 `cbor:"reference_height_px"`
+    TargetHeightPx float32 `cbor:"target_height_px"`
+    ReferencePlayerHeightPx float32 `cbor:"reference_player_height_px"`
 }
 
 type BehaviorInfo struct {
@@ -217,6 +221,8 @@ type V2Profile struct {
     Spectral *SpectralDescriptor `cbor:"spectral"`
     Hybrid *HybridRecipeDescriptor `cbor:"hybrid"`
     BodyMotionSamples []BodyMotionSample `cbor:"body_motion_samples"`
+    Encounter *EncounterDescriptor `cbor:"encounter"`
+    DamageTraits []string `cbor:"damage_traits"`
 }
 
 type AttackPatternDescriptor struct {
@@ -298,4 +304,55 @@ type BodyMotionSample struct {
 type PosedHurtbox struct {
     NodeID string `cbor:"node_id"`
     Views []ColliderView `cbor:"views"`
+}
+
+type EncounterDescriptor struct {
+    ContractVersion uint32 `cbor:"contract_version"`
+    Archetype string `cbor:"archetype"`
+    Split *SplitDescriptor `cbor:"split"`
+    Mimic *MimicDescriptor `cbor:"mimic"`
+    Shield *ShieldDescriptor `cbor:"shield"`
+    PushedProp *PushedPropDescriptor `cbor:"pushed_prop"`
+}
+
+type SplitDescriptor struct {
+    Count uint32 `cbor:"count"`
+    MaxGenerations uint32 `cbor:"max_generations"`
+    MaxOffspring uint32 `cbor:"max_offspring"`
+    ChildScale float32 `cbor:"child_scale"`
+    ChildHealthFraction float32 `cbor:"child_health_fraction"`
+    ChildSpeedMultiplier float32 `cbor:"child_speed_multiplier"`
+    EmergenceMs uint32 `cbor:"emergence_ms"`
+    SeparationPx float32 `cbor:"separation_px"`
+    EmergenceAnimationID string `cbor:"emergence_animation_id"`
+    BurstAnimationID string `cbor:"burst_animation_id"`
+}
+
+type MimicDescriptor struct {
+    Disguise string `cbor:"disguise"`
+    TriggerRadius float32 `cbor:"trigger_radius"`
+    RevealMs uint32 `cbor:"reveal_ms"`
+}
+
+type ShieldDescriptor struct {
+    FrontArcDegrees float32 `cbor:"front_arc_degrees"`
+    BashWindupMs uint32 `cbor:"bash_windup_ms"`
+    BashRecoveryMs uint32 `cbor:"bash_recovery_ms"`
+    GuardAnimationID string `cbor:"guard_animation_id"`
+    BashAnimationID string `cbor:"bash_animation_id"`
+    RecoveryAnimationID string `cbor:"recovery_animation_id"`
+}
+
+type PushedPropDescriptor struct {
+    Kind string `cbor:"kind"`
+    IDSuffix string `cbor:"id_suffix"`
+    Radius float32 `cbor:"radius"`
+    Health float32 `cbor:"health"`
+    PushSpeed float32 `cbor:"push_speed"`
+    CoordinateSpace string `cbor:"coordinate_space"`
+    AnchorX float32 `cbor:"anchor_x"`
+    AnchorY float32 `cbor:"anchor_y"`
+    PushAnimationID string `cbor:"push_animation_id"`
+    RecoveryAnimationID string `cbor:"recovery_animation_id"`
+    ReleaseEvent string `cbor:"release_event"`
 }

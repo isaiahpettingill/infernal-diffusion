@@ -17,7 +17,14 @@
       <form id="generator" class="generator">
         <label for="prompt">Monster prompt</label>
         <div class="prompt-row"><input id="prompt" name="prompt" value="giant spider that shoots fire" maxlength="4096" autocomplete="off" required><button type="submit" id="generate">Generate monster</button></div>
-        <div class="options"><label for="profile">Profile <select id="profile"><option value="v1">V1 · classic</option><option value="v2">V2 · refined</option></select></label><label for="seed">Seed <input id="seed" type="number" min="0" step="1" value="7"></label><label for="package-format">Save as <select id="package-format"><option value="protobuf">Protobuf</option><option value="cbor">CBOR</option></select></label><span>3D bake · shared pixel scale · seeded surface noise</span></div>
+        <div class="options"><label for="profile">Generation profile <select id="profile"><option value="v1">V1 · classic</option><option value="v2">V2 · refined</option></select></label><label for="seed">Seed <input id="seed" inputmode="numeric" pattern="[0-9]+" value="7" required></label><label for="package-format">Save as <select id="package-format"><option value="protobuf">Protobuf</option><option value="cbor">CBOR</option></select></label><span>3D bake · species-aware world scale · seeded surface noise</span></div>
+        <div class="options prompt-options" aria-label="Random prompt options">
+          <label for="prompt-profile">Summoner profile <select id="prompt-profile"><option value="default">Default</option><option value="necromancer">Necromancer</option><option value="shaman">Shaman</option><option value="lunatic">Lunatic</option><option value="boss">Boss</option><option value="ocean">Ocean</option></select></label>
+          <label for="difficulty">Difficulty <select id="difficulty"><option value="1">1 · Easy</option><option value="2" selected>2 · Medium</option><option value="3">3 · Hard</option></select></label>
+          <button id="random-prompt" type="button">Random prompt</button>
+        </div>
+        <p class="status">Boss always uses hard modifiers; Lunatic mixes all tiers.</p>
+        <p class="status" id="suggestion-status" role="status">Random prompt fills editable text. Each repeat advances the seed.</p>
         <p class="status" id="status" role="status">Ready. Generation can take a little while.</p>
       </form>
       <div class="preset-row" aria-label="Example prompts">
@@ -36,12 +43,13 @@
     </section>
     <section class="details" id="details" hidden>
       <div class="detail-heading"><div><p class="eyebrow">SPECIMEN RECORD</p><h2 id="detail-name"></h2><p id="description"></p></div><div class="size-badge" id="size-badge"></div></div>
-      <div class="stats"><div><span>HIT POINTS</span><strong id="health"></strong></div><div><span>DEFENSE</span><strong id="defense"></strong></div><div><span>VISIBLE SIZE</span><strong id="visible-size"></strong></div></div>
+      <div class="stats"><div><span>HIT POINTS</span><strong id="health"></strong></div><div><span>DEFENSE</span><strong id="defense"></strong></div><div><span>WORLD SIZE</span><strong id="visible-size"></strong></div></div>
       <div class="health-formula"><h3>Where its health comes from</h3><div id="health-parts"></div></div>
       <div class="tags" id="tags"></div>
       <p class="download-note">The generated package is saved under <code>web/generated/</code> with protobuf or CBOR metadata, sprite sheet, emission, and projectile art.</p>
     </section>
   </main>
+  <script src="/prompt-controls.js" defer></script>
   <script src="/app.js" defer></script>
 </body>
 </html>

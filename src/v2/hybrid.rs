@@ -217,43 +217,6 @@ pub fn node_identity(spec: &MonsterSpec, id: &str) -> Option<(&'static str, &'st
         None
     }
 }
-fn count(words: &[&str], nouns: &[&str]) -> Result<Option<u8>, String> {
-    for p in words.windows(2) {
-        if !nouns.contains(&p[1]) {
-            continue;
-        }
-        let value = match p[0] {
-            "zero" | "no" => Some(0),
-            "one" => Some(1),
-            "two" => Some(2),
-            "three" => Some(3),
-            "four" => Some(4),
-            "five" => Some(5),
-            "six" => Some(6),
-            "seven" => Some(7),
-            "eight" => Some(8),
-            "nine" => Some(9),
-            "ten" => Some(10),
-            "eleven" => Some(11),
-            "twelve" => Some(12),
-            "thirteen" => Some(13),
-            "fourteen" => Some(14),
-            "fifteen" => Some(15),
-            "sixteen" => Some(16),
-            "twenty" => Some(20),
-            "hundred" => Some(100),
-            v if v.chars().all(|c| c.is_ascii_digit()) => Some(
-                v.parse::<u8>()
-                    .map_err(|_| format!("hybrid {} count is out of range", p[1]))?,
-            ),
-            _ => None,
-        };
-        if value.is_some() {
-            return Ok(value);
-        }
-    }
-    Ok(None)
-}
 pub fn parse_prompt(prompt: &str) -> Option<HybridRecipe> {
     parse_prompt_checked(prompt).ok().flatten()
 }
@@ -319,18 +282,19 @@ pub fn parse_prompt_checked(prompt: &str) -> Result<Option<HybridRecipe>, String
             _ => HeadKind::Humanoid,
         }
     };
+    let counts = crate::parser::ExplicitCounts::from_prompt(prompt);
     let recipe = HybridRecipe {
         schema_version: 1,
         upper_body: upper,
         lower_body: lower,
         head,
-        lower_limb_count: count(&words, &["legs", "legged", "limbs"])?.unwrap_or(match lower {
+        lower_limb_count: counts.legs.unwrap_or(match lower {
             LowerBody::Spider => 8,
             LowerBody::Horse | LowerBody::Wolf => 4,
             LowerBody::Mermaid | LowerBody::Serpent => 0,
             _ => 2,
         }),
-        upper_arm_count: count(&words, &["arms", "armed"])?.unwrap_or(2),
+        upper_arm_count: counts.arms.unwrap_or(2),
     };
     recipe.validate()?;
     Ok(Some(recipe))

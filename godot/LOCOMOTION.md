@@ -115,3 +115,12 @@ the additive fields. Rust callers constructing `MovementMode` with a struct
 literal must supply the two fields or add `..Default::default()`; wire backward
 compatibility does not remove that source-level requirement. Regenerate readers after future schema changes using the
 commands in [the addon README](README.md).
+
+## Player-relative size
+
+New V1/V2 packages publish `size.world_scale` (baked pixels to world pixels).
+Use `size.pixels_per_unit * size.world_scale` as the generator-to-world length
+conversion, and apply the same world scale to sprite/collider/attack-view pixel
+offsets. It is computed once from neutral body geometry, never frame dimensions.
+See [world-scaling contract](../docs/world-scaling.md) for 96px player defaults,
+seeded giant/mini modifiers, 64px cute/chibi bodies and legacy fallback.

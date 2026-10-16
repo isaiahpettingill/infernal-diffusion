@@ -24,7 +24,7 @@ enum Command {
     Generate,
     GenerateHybrid,
     BakeProp { path: PathBuf, options_json: String },
-    Suggest(u32),
+    Suggest(u32, Option<u32>),
     SuggestArena(u32),
     Save(i64),
     Release(i64),
@@ -321,7 +321,28 @@ impl InfernalGenerator {
     /// Queue a cheap recipe-aware prompt for an NPC to speak before spawning.
     #[func]
     fn suggest_prompt_async(&mut self, seed: i64, difficulty: i32, library_dir: GString) -> i64 {
-        self.queue_suggestion(seed, difficulty, library_dir, false)
+        self.queue_suggestion(seed, difficulty, library_dir, false, None)
+    }
+
+    /// Named summoner vocabulary; independent of V1/V2 generation.
+    #[func]
+    fn suggest_prompt_async_profile(
+        &mut self,
+        seed: i64,
+        difficulty: i32,
+        prompt_profile: i32,
+        library_dir: GString,
+    ) -> i64 {
+        if !(0..=5).contains(&prompt_profile) {
+            return -1;
+        }
+        self.queue_suggestion(
+            seed,
+            difficulty,
+            library_dir,
+            false,
+            Some(prompt_profile as u32),
+        )
     }
 
     /// Queue a one-based arena round. Difficulty rises every three rounds.
@@ -332,7 +353,7 @@ impl InfernalGenerator {
         round: i32,
         library_dir: GString,
     ) -> i64 {
-        self.queue_suggestion(run_seed, round, library_dir, true)
+        self.queue_suggestion(run_seed, round, library_dir, true, None)
     }
 
     fn queue_suggestion(
@@ -341,6 +362,7 @@ impl InfernalGenerator {
         value: i32,
         library_dir: GString,
         arena: bool,
+        prompt_profile: Option<u32>,
     ) -> i64 {
         let libraries = PathBuf::from(library_dir.to_string());
         if seed < 0 || value < 1 || !libraries.is_absolute() || (!arena && value > 3) {
@@ -358,7 +380,7 @@ impl InfernalGenerator {
             command: if arena {
                 Command::SuggestArena(value as u32)
             } else {
-                Command::Suggest(value as u32)
+                Command::Suggest(value as u32, prompt_profile)
             },
         };
         match self.jobs.try_send(job) {
@@ -482,7 +504,7 @@ fn worker(incoming: Receiver<Job>, outgoing: SyncSender<JobResult>) {
             Command::Generate
             | Command::GenerateHybrid
             | Command::BakeProp { .. }
-            | Command::Suggest(_)
+            | Command::Suggest(_, _)
             | Command::SuggestArena(_) => run_job(&job, &mut backend, &mut objects),
             Command::Release(_) => unreachable!(),
         };
@@ -547,6 +569,7 @@ type FreeString = unsafe extern "C" fn(*mut c_char);
 type AbiVersion = unsafe extern "C" fn() -> u32;
 type CpuKernelName = unsafe extern "C" fn() -> *const c_char;
 type RandomPrompt = unsafe extern "C" fn(u64, u32, *mut *mut c_char) -> *mut c_char;
+type RandomPromptProfile = unsafe extern "C" fn(u64, u32, u32, *mut *mut c_char) -> *mut c_char;
 type ArenaPrompt =
     unsafe extern "C" fn(u64, u32, *mut u32, *mut u64, *mut *mut c_char) -> *mut c_char;
 type GenerateObject = unsafe extern "C" fn(*const c_char, u64, *mut *mut c_char) -> *mut c_void;
@@ -598,6 +621,7 @@ struct Backend {
     path: PathBuf,
     cpu_kernel_name: CpuKernelName,
     random_prompt: RandomPrompt,
+    random_prompt_profile: Option<RandomPromptProfile>,
     arena_prompt: ArenaPrompt,
     _library: libloading::Library,
     generate: Generate,
@@ -696,6 +720,12 @@ fn load_backend(library_dir: &Path) -> Result<Backend, String> {
             path,
             cpu_kernel_name: functions.2,
             random_prompt: functions.3,
+            random_prompt_profile: unsafe {
+                library
+                    .get::<RandomPromptProfile>(b"infernal_random_prompt_profile")
+                    .ok()
+                    .map(|symbol| *symbol)
+            },
             arena_prompt: functions.4,
             props: unsafe { load_prop_api(&library) },
             generate_hybrid_json: unsafe {
@@ -779,9 +809,23 @@ fn run_job(
     let active = backend.as_ref().expect("loaded above");
     result.backend = active.kernel_name();
     match &job.command {
-        Command::Suggest(difficulty) => {
+        Command::Suggest(difficulty, prompt_profile) => {
             let mut error_ptr = std::ptr::null_mut();
-            let pointer = unsafe { (active.random_prompt)(job.seed, *difficulty, &mut error_ptr) };
+            let pointer = if let Some(suggest) = active.random_prompt_profile {
+                unsafe {
+                    suggest(
+                        job.seed,
+                        *difficulty,
+                        prompt_profile.unwrap_or(0),
+                        &mut error_ptr,
+                    )
+                }
+            } else if prompt_profile.is_none() {
+                unsafe { (active.random_prompt)(job.seed, *difficulty, &mut error_ptr) }
+            } else {
+                result.error = "This generator core does not support named prompt profiles; rebuild the Infernal addon".into();
+                return result;
+            };
             if pointer.is_null() {
                 result.error = copy_error(error_ptr, active.free);
                 if result.error.is_empty() {
@@ -789,7 +833,11 @@ fn run_job(
                 }
             } else {
                 result.prompt = copy_error(pointer, active.free);
-                result.difficulty = *difficulty;
+                result.difficulty = if *prompt_profile == Some(4) {
+                    3
+                } else {
+                    *difficulty
+                };
             }
             return result;
         }

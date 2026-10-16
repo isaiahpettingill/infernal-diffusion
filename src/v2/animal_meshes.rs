@@ -5,6 +5,8 @@
 //! horns, tusks, trunks, limbs and tails: these meshes never invent rig joints.
 use super::{v2_append_blob, MeshAsset, V3};
 use std::{f32::consts::TAU, sync::OnceLock};
+#[path = "dinosaur_meshes.rs"]
+mod dinosaurs;
 
 fn empty() -> MeshAsset {
     MeshAsset {
@@ -1674,6 +1676,9 @@ fn meshes() -> &'static [MeshAsset] {
 /// Call only behind PROFILE_V2 and after humanoid/skeletal overrides. Affinity
 /// must already be resolved to the local mount/rider/hybrid node owner.
 pub(super) fn mesh(affinity: &str, kind: &str, node_id: &str) -> Option<&'static MeshAsset> {
+    if let Some(mesh) = dinosaurs::mesh(affinity, kind, node_id) {
+        return Some(mesh);
+    }
     let canine = matches!(
         affinity,
         "WOLF"
@@ -1831,7 +1836,7 @@ pub(super) fn mesh(affinity: &str, kind: &str, node_id: &str) -> Option<&'static
         "TUSK" if affinity == "MAMMOTH" => 43,
         "TUSK" if matches!(affinity, "ELEPHANT" | "GROOTSLANG") => 42,
         "HORN" if affinity == "RHINO" => 44,
-        "HORN" if affinity == "TRICERATOPS" && node_id.starts_with("triceratops_horn_") => 66,
+        "HORN" if affinity == "TRICERATOPS" && node_id.contains("triceratops_horn_") => 66,
         "HORN" if affinity == "GOAT" => 59,
         "HORN" if affinity == "RAM" => 60,
         "FLUKE" if affinity == "LOBSTER" => 61,
@@ -1847,8 +1852,8 @@ pub(super) fn mesh(affinity: &str, kind: &str, node_id: &str) -> Option<&'static
         }
         "NECK" if affinity == "COBRA" => 53,
         "NECK" if matches!(affinity, "WORM" | "SAND_WORM") => 63,
-        "FIN" if affinity == "STEGO" && node_id.starts_with("dorsal_plate_") => 64,
-        "SHELL" if affinity == "TRICERATOPS" && node_id == "head_frill" => 65,
+        "FIN" if affinity == "STEGO" && node_id.contains("dorsal_plate_") => 64,
+        "SHELL" if affinity == "TRICERATOPS" && node_id.contains("head_frill") => 65,
         "SHELL" if affinity == "CRAB" => 45,
         "SHELL" if affinity == "LOBSTER" => 46,
         "CLAW" | "HAND" if matches!(affinity, "CRAB" | "LOBSTER") => 48,

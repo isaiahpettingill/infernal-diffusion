@@ -18,6 +18,8 @@ use std::sync::OnceLock;
 
 #[path = "v2/animal_meshes.rs"]
 mod v2_animals;
+#[path = "v2/encounter_meshes.rs"]
+mod v2_encounters;
 #[path = "v2/face_meshes.rs"]
 mod v2_faces;
 #[path = "v2/fantasy_meshes.rs"]
@@ -1661,6 +1663,9 @@ fn v2_node_material<'a>(spec: &MonsterSpec, node: &'a Node, seed: u64) -> &'a st
 }
 
 fn scene_palette(spec: &MonsterSpec, body: &Body, seed: u64) -> Vec<[u8; 4]> {
+    if let Some(colors) = v2_encounters::palette(spec) {
+        return colors;
+    }
     let mut colors = palette(body);
     if visual_v2(spec) {
         let friendly = spec.features.iter().any(|f| f == "FRIENDLY_LURE");
@@ -1738,6 +1743,19 @@ fn scene_palette(spec: &MonsterSpec, body: &Body, seed: u64) -> Vec<[u8; 4]> {
 mod v2_shade_mesh;
 
 fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangle> {
+    scene_parts(spec, body, pose, seed, false)
+}
+
+fn scene_parts(
+    spec: &MonsterSpec,
+    body: &Body,
+    pose: &Pose,
+    seed: u64,
+    core_only: bool,
+) -> Vec<Triangle> {
+    if let Some(triangles) = v2_encounters::scene(spec, body, pose, seed) {
+        return triangles;
+    }
     let positions: Vec<(V3, f32)> = body
         .nodes
         .iter()
@@ -1748,6 +1766,9 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
     let mut texture_rng = ChaCha8Rng::seed_from_u64(seed);
     let mut shade_strands = Vec::new();
     for (i, node) in body.nodes.iter().enumerate() {
+        if core_only && !crate::world_scale::reference_node(spec, node) {
+            continue;
+        }
         let connector_start = triangles.len();
         if let Some(parent) = node.parent {
             if visual_v2(spec) && node.id.starts_with("v2_shade_tendril_") {
@@ -1803,6 +1824,9 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
     }
     for (i, node) in body.nodes.iter().enumerate() {
         let node_seed = texture_rng.random::<u32>();
+        if core_only && !crate::world_scale::reference_node(spec, node) {
+            continue;
+        }
         if visual_v2(spec)
             && node.kind == "WEAPON"
             && v2_surface_spec(spec, &node.id).attack.concept == "SPEAR"
@@ -1825,6 +1849,15 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
         }
         let (position, angle) = positions[i];
         let (node_plan, node_affinity) = node_identity(spec, &node.id);
+        // Theropod foot meshes own their three toes and sickle claws. Keep the
+        // native collision node, but do not render a second oversized claw.
+        if visual_v2(spec)
+            && matches!(node_affinity, "TREX" | "RAPTOR")
+            && node.kind == "CLAW"
+            && node.id.starts_with("claw_")
+        {
+            continue;
+        }
         let radius_z = node.rz.unwrap_or_else(|| {
             if node.kind == "TORSO" {
                 if node_plan == "HUMANOID"
@@ -1980,6 +2013,22 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
         };
         let mesh = friendly_head.as_ref().unwrap_or(mesh);
         let mut scale = scale;
+        // Dinosaur recipes author real transverse frill, armor and foot widths.
+        // Legacy primitive defaults must not flatten these dedicated surfaces.
+        if visual_v2(spec)
+            && matches!(
+                node_affinity,
+                "TREX" | "RAPTOR" | "LONGNECK_DINO" | "STEGO" | "TRICERATOPS" | "ANKYLOSAUR"
+            )
+            && matches!(
+                node.kind.as_str(),
+                "SHELL" | "FOOT" | "HAND" | "HORN" | "TUSK"
+            )
+        {
+            if let Some(radius) = node.rz {
+                scale.z = radius;
+            }
+        }
         if pose.motion_archetype == "AQUATIC_JELLY"
             && aquatic_render_power(pose) > 0.0
             && matches!(node.kind.as_str(), "HEAD" | "TORSO" | "LOBE")
@@ -2075,7 +2124,7 @@ fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangl
             }
         }
     }
-    if visual_v2(spec) && spec.features.iter().any(|f| f == "SHADE") {
+    if !core_only && visual_v2(spec) && spec.features.iter().any(|f| f == "SHADE") {
         v2_shade_mesh::unwind(&mut triangles, body, pose, &positions);
     }
     triangles.extend(shade_strands);
@@ -2174,6 +2223,37 @@ pub(crate) fn project_with_camera(point: V3, camera: Camera) -> ScreenPoint {
 
 fn project(point: V3, angle: f32, resolution: u32, supersample: f32) -> ScreenPoint {
     project_with_camera(point, Camera::new(angle, resolution, supersample))
+}
+
+/// Neutral side-view core mesh height at the atlas pixel density. This never
+/// depends on animation extremes, transparent tile margins or output resolution.
+/// Physical rest positions suppress idle bobbing, emergence and attack transforms.
+pub fn reference_body_height(spec: &MonsterSpec, body: &Body, seed: u64) -> f32 {
+    let pose = Pose {
+        clip_id: "world_scale_reference".into(),
+        state: "REFERENCE".into(),
+        phase: 0.0,
+        root_x: 0.0,
+        root_y: 0.0,
+        root_angle: 0.0,
+        physical_positions: body.nodes.iter().map(|n| (n.x, n.y, n.angle)).collect(),
+        motion_archetype: String::new(),
+    };
+    let camera = Camera::new(0.0, 0, 1.0);
+    let mut top = f32::INFINITY;
+    let mut bottom = f32::NEG_INFINITY;
+    for triangle in scene_parts(spec, body, &pose, seed, true) {
+        for vertex in [triangle.a, triangle.b, triangle.c] {
+            let y = project_with_camera(vertex, camera).y;
+            top = top.min(y);
+            bottom = bottom.max(y);
+        }
+    }
+    if top.is_finite() && bottom.is_finite() {
+        (bottom - top).max(1.0)
+    } else {
+        1.0
+    }
 }
 
 /// Expand framing to contain every posed triangle from every view, without

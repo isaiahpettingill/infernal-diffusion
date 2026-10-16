@@ -20,9 +20,16 @@
   <p class="heartbeat">Main-thread heartbeat: <output id="heartbeat">0</output></p>
   <form id="form">
     <label>Prompt <input id="prompt" value="stormtrooper with a laser blaster" required></label>
-    <label>Profile <select id="profile"><option value="v1">V1 · classic (default)</option><option value="v2">V2 · refined</option></select></label>
+    <label>Generation profile <select id="profile"><option value="v1">V1 · classic (default)</option><option value="v2">V2 · refined</option></select></label>
     <label>Seed <input id="seed" value="42" inputmode="numeric" pattern="[0-9]+" required></label>
-    <button id="generate" type="submit" disabled>Generate</button>
+    <div class="options prompt-options" aria-label="Random prompt options">
+          <label for="prompt-profile">Summoner profile <select id="prompt-profile"><option value="default">Default</option><option value="necromancer">Necromancer</option><option value="shaman">Shaman</option><option value="lunatic">Lunatic</option><option value="boss">Boss</option><option value="ocean">Ocean</option></select></label>
+          <label for="difficulty">Difficulty <select id="difficulty"><option value="1">1 · Easy</option><option value="2" selected>2 · Medium</option><option value="3">3 · Hard</option></select></label>
+          <button id="random-prompt" type="button" disabled>Random prompt</button>
+        </div>
+        <p class="status">Boss always uses hard modifiers; Lunatic mixes all tiers.</p>
+        <p class="status" id="suggestion-status" role="status">Random prompt fills editable text. Each repeat advances the seed.</p>
+        <button id="generate" type="submit" disabled>Generate</button>
     <button id="cancel" type="button" disabled>Cancel</button>
   </form>
   <div aria-label="Example prompts">

@@ -199,6 +199,18 @@ func _run() -> void:
 	for queued in accepted:
 		var suggestion := await _await_result(queued)
 		assert(suggestion.ok and !suggestion.prompt.is_empty())
+	# Named suggestion profiles share the same asynchronous queue and replay.
+	for prompt_profile in range(6):
+		var profile_job := generator.suggest_prompt_async_profile(42, 2, prompt_profile)
+		assert(profile_job > 0)
+		var profile_result := await _await_result(profile_job)
+		assert(profile_result.ok and !profile_result.prompt.is_empty(), str(profile_result.get("error", "profile failed")))
+		assert(profile_result.difficulty == (3 if prompt_profile == 4 else 2))
+		var repeat_job := generator.suggest_prompt_async_profile(42, 2, prompt_profile)
+		var repeated := await _await_result(repeat_job)
+		assert(repeated.ok and repeated.prompt == profile_result.prompt)
+	assert(generator.suggest_prompt_async_profile(42, 2, 6) == -1)
+	assert(generator.suggest_prompt_async_profile(42, 0, 0) == -1)
 	await _test_v2_profile()
 	print("INFERNAL_GDEXTENSION_SMOKE_OK")
 	quit(0)

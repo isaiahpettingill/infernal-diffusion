@@ -419,6 +419,83 @@ fn unfold_extra_arms(body: &Body, clips: &mut [Animation], attacks: &[Attack], p
     }
 }
 
+/// Explicit multiplicity stays readable at rest as well as in combat. Each
+/// native arm has a shoulder and an elbow rotation, and each additional head
+/// has its own cervical motion. Rigid subtree rotations preserve the rest
+/// length of every bone, including attached fingers, horns and equipment.
+fn articulate_explicit_appendages(spec: &MonsterSpec, body: &Body, poses: &mut [Pose]) {
+    let arms: Vec<_> = if enabled(spec, "EXPLICIT_ARMS") && spec.arm_count > 2 {
+        (0..spec.arm_count.min(8))
+            .filter_map(|rank| {
+                let shoulder = body
+                    .nodes
+                    .iter()
+                    .position(|n| n.id == format!("shoulder_{rank}"))?;
+                let elbow = body
+                    .nodes
+                    .iter()
+                    .position(|n| n.id == format!("arm_{rank}"))?;
+                Some((rank, shoulder, elbow))
+            })
+            .collect()
+    } else {
+        vec![]
+    };
+    let necks: Vec<_> = if enabled(spec, "EXPLICIT_HEADS") && spec.heads > 1 {
+        (0..spec.heads.min(5))
+            .filter_map(|rank| {
+                body.nodes
+                    .iter()
+                    .position(|n| n.id == format!("neck_{rank}"))
+                    .map(|neck| (rank, neck))
+            })
+            .collect()
+    } else {
+        vec![]
+    };
+    for pose in poses {
+        if pose.physical_positions.len() != body.nodes.len() || pose.state == "DEATH" {
+            continue;
+        }
+        let attacking =
+            ["ATTACK", "ATTACK_SECONDARY", "SPECIAL_ATTACK"].contains(&pose.state.as_str());
+        // One-shot recovery must return to its neutral key. Looping idle/motion
+        // uses a continuous periodic signal, with independent per-chain phases.
+        let envelope = if attacking {
+            (std::f32::consts::PI * pose.phase).sin().max(0.0)
+        } else {
+            1.0
+        };
+        let clock = pose.phase * std::f32::consts::TAU;
+        for &(rank, shoulder, elbow) in &arms {
+            let phase = rank as f32 * 1.17;
+            transform_subtree(
+                body,
+                pose,
+                shoulder,
+                0.09 * (clock + phase).sin() * envelope,
+                1.0,
+            );
+            transform_subtree(
+                body,
+                pose,
+                elbow,
+                0.08 * (clock + phase + 0.8).sin() * envelope,
+                1.0,
+            );
+        }
+        for &(rank, neck) in &necks {
+            transform_subtree(
+                body,
+                pose,
+                neck,
+                0.045 * (clock + rank as f32 * 1.31).sin() * envelope,
+                1.0,
+            );
+        }
+    }
+}
+
 /// Keep extra tails distinguishable in baked side views. Rotate their whole
 /// connected subtree about the existing torso socket; never stretch a bone.
 fn splay_extra_tails(body: &Body, poses: &mut [Pose]) {
@@ -1252,6 +1329,17 @@ pub fn animate(
     if !enabled(spec, "PROFILE_V2") {
         return (clips, modes, attacks, poses);
     }
+    if super::encounter_visuals::enabled(spec) {
+        super::encounter_visuals::animate(
+            spec,
+            body,
+            &mut clips,
+            &mut modes,
+            &mut attacks,
+            &mut poses,
+        );
+        return (clips, modes, attacks, poses);
+    }
     let lure = enabled(spec, "FRIENDLY_LURE");
     let explicit = enabled(spec, "EXPLICIT_ATTACK");
     let ranged = spec.attack.delivery == "PROJECTILE" || (lure && !explicit);
@@ -1419,9 +1507,10 @@ pub fn animate(
     if enabled(spec, "MUTANT_UNSTABLE") {
         awkward_coordination(body, seed, &mut clips, &mut attacks, &mut poses);
     }
-    if enabled(spec, "FOUR_ARMED") {
+    if enabled(spec, "FOUR_ARMED") && !enabled(spec, "EXPLICIT_ARMS") {
         unfold_extra_arms(body, &mut clips, &attacks, &mut poses);
     }
+    articulate_explicit_appendages(spec, body, &mut poses);
     if enabled(spec, "EXTRA_TAIL") {
         splay_extra_tails(body, &mut poses);
     }
@@ -2178,6 +2267,74 @@ mod tests {
         crate::v2::anatomy::refine(&spec, &mut body, 42);
         crate::v2::grip::prepare_body(&spec, &mut body);
         (spec, body)
+    }
+    #[test]
+    fn explicit_appendages_are_articulated_without_folding_or_bone_stretch() {
+        for prompt in [
+            "three headed dinosaur with eight arms",
+            "three headed t rex with eight arms",
+            "skeleton mermaid with eight arms",
+        ] {
+            let (mut spec, body) = expressive_fixture(prompt, false);
+            assert_eq!(spec.arm_count, 8, "{prompt}");
+            // Explicit counts take precedence over the random mutant folding
+            // behavior, including when the two feature tags are both present.
+            spec.features.push("FOUR_ARMED".into());
+            let (clips, _, attacks, poses) = animate(&spec, &body, 42);
+            validate(&clips, &attacks, &poses).unwrap();
+            validate_rig_extensions(&body, &clips, &poses).unwrap();
+            assert!(!clips
+                .iter()
+                .flat_map(|clip| &clip.events)
+                .any(|e| e.kind == UNFOLD_EVENT));
+            for pose in &poses {
+                assert_eq!(pose.physical_positions.len(), body.nodes.len());
+                for (i, n) in body.nodes.iter().enumerate().filter(|(_, n)| {
+                    matches!(
+                        n.kind.as_str(),
+                        "SHOULDER" | "ARM" | "HAND" | "NECK" | "HEAD"
+                    )
+                }) {
+                    let Some(parent) = n.parent else {
+                        continue;
+                    };
+                    let rest = (n.x - body.nodes[parent].x).hypot(n.y - body.nodes[parent].y);
+                    let p = pose.physical_positions[i];
+                    let q = pose.physical_positions[parent];
+                    assert!(
+                        ((p.0 - q.0).hypot(p.1 - q.1) - rest).abs() < 0.025,
+                        "{prompt} {} {} stretches a fixed bone",
+                        pose.clip_id,
+                        n.id
+                    );
+                }
+            }
+            let idle: Vec<_> = poses.iter().filter(|p| p.clip_id == "idle").collect();
+            for arm in 0..8 {
+                let shoulder = body
+                    .nodes
+                    .iter()
+                    .position(|n| n.id == format!("shoulder_{arm}"))
+                    .unwrap();
+                let elbow = body
+                    .nodes
+                    .iter()
+                    .position(|n| n.id == format!("arm_{arm}"))
+                    .unwrap();
+                let angles: Vec<_> = idle
+                    .iter()
+                    .map(|p| {
+                        let a = p.physical_positions[shoulder];
+                        let b = p.physical_positions[elbow];
+                        (b.1 - a.1).atan2(b.0 - a.0)
+                            - p.physical_positions[body.nodes[shoulder].parent.unwrap()].2
+                    })
+                    .collect();
+                let min = angles.iter().copied().reduce(f32::min).unwrap();
+                let max = angles.iter().copied().reduce(f32::max).unwrap();
+                assert!(max - min > 0.08, "{prompt} arm {arm} is a rigid ornament");
+            }
+        }
     }
     #[test]
     fn expressive_mermaid_and_bilateral_tree_attacks_are_bounded() {

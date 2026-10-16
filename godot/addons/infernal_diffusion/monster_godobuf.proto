@@ -34,7 +34,8 @@ message SpawnInfo {
   uint32 count = 3;
   uint32 max_active = 4;
 }
-// Morphology is already baked at a shared pixel scale; do not scale the atlas again.
+// Morphology is already baked. Apply world_scale once for player-relative world size,
+// never morphology_scale again. Zero world_scale denotes a legacy package.
 message SizeInfo {
   float normalized_size = 1;
   string size_class = 2;
@@ -44,6 +45,10 @@ message SizeInfo {
   uint32 visible_height_px = 6;
   float anchor_x_px = 7;
   float anchor_y_px = 8;
+  float world_scale = 9; // Baked sprite px -> world px (96px reference player).
+  float reference_height_px = 10; // Neutral core mesh, excluding padding/accessories.
+  float target_height_px = 11; // Reference body height after species/style/modifiers.
+  float reference_player_height_px = 12;
 }
 // Deprecated integration surface: demo-AI preferences, never required engine policy.
 message BehaviorInfo {
@@ -175,6 +180,8 @@ message V2Profile {
   SpectralDescriptor spectral = 7;
   HybridRecipeDescriptor hybrid = 8;
   repeated BodyMotionSample body_motion_samples = 9;
+  EncounterDescriptor encounter = 10;
+  repeated string damage_traits = 11; // Engine-tunable defense categories, not numeric balance.
 }
 
 message AttackPatternDescriptor {
@@ -256,4 +263,60 @@ message BodyMotionSample {
 message PosedHurtbox {
   string node_id = 1;
   repeated ColliderView views = 2;
+}
+
+// Declarative capabilities; the engine owns state transitions and physics.
+message EncounterDescriptor {
+  uint32 contract_version = 1;
+  string archetype = 2;
+  SplitDescriptor split = 3;
+  MimicDescriptor mimic = 4;
+  ShieldDescriptor shield = 5;
+  PushedPropDescriptor pushed_prop = 6;
+}
+
+// Declarative capabilities; the engine owns state transitions and physics.
+message SplitDescriptor {
+  uint32 count = 1;
+  uint32 max_generations = 2;
+  uint32 max_offspring = 3;
+  float child_scale = 4;
+  float child_health_fraction = 5;
+  float child_speed_multiplier = 6;
+  uint32 emergence_ms = 7;
+  float separation_px = 8;
+  string emergence_animation_id = 9;
+  string burst_animation_id = 10;
+}
+
+// Declarative capabilities; the engine owns state transitions and physics.
+message MimicDescriptor {
+  string disguise = 1;
+  float trigger_radius = 2;
+  uint32 reveal_ms = 3;
+}
+
+// Declarative capabilities; the engine owns state transitions and physics.
+message ShieldDescriptor {
+  float front_arc_degrees = 1;
+  uint32 bash_windup_ms = 2;
+  uint32 bash_recovery_ms = 3;
+  string guard_animation_id = 4;
+  string bash_animation_id = 5;
+  string recovery_animation_id = 6;
+}
+
+// Declarative capabilities; the engine owns state transitions and physics.
+message PushedPropDescriptor {
+  string kind = 1;
+  string id_suffix = 2;
+  float radius = 3;
+  float health = 4;
+  float push_speed = 5;
+  string coordinate_space = 6;
+  float anchor_x = 7;
+  float anchor_y = 8;
+  string push_animation_id = 9;
+  string recovery_animation_id = 10;
+  string release_event = 11;
 }

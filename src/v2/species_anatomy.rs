@@ -2,6 +2,8 @@
 //! native rest rig, so IK, attachments and damage origins share the same anatomy.
 use super::{has, index, landmark, move_branch, remove_where};
 use crate::{anatomy::Body, parser::MonsterSpec};
+#[path = "dinosaur_anatomy.rs"]
+mod dinosaurs;
 
 pub(super) fn refine(spec: &MonsterSpec, body: &mut Body, seed: u64, s: f32) {
     if spec.body_plan == "HUMANOID"
@@ -72,36 +74,7 @@ pub(super) fn refine(spec: &MonsterSpec, body: &mut Body, seed: u64, s: f32) {
             }
         }
     }
-    if spec.affinity == "STEGO" {
-        for (i, h) in [3.5, 4.6, 5.6, 5.6, 4.6, 3.5].into_iter().enumerate() {
-            if let Some(k) = index(body, &format!("dorsal_plate_{i}")) {
-                body.nodes[k].ry = h * s;
-                body.nodes[k].y = -6.3 * s;
-            }
-        }
-    }
-    if spec.affinity == "TRICERATOPS" {
-        if let Some(h) = index(body, "head_0") {
-            let head = body.nodes[h].clone();
-            for i in 0..3 {
-                if let Some(k) = index(body, &format!("triceratops_horn_{i}")) {
-                    let n = &mut body.nodes[k];
-                    n.angle = 0.0;
-                    n.x = head.x + if i < 2 { s } else { 4.0 * s };
-                    n.y = head.y - if i < 2 { 2.7 * s } else { 0.4 * s };
-                    n.z = Some(if i == 0 {
-                        -2.3 * s
-                    } else if i == 1 {
-                        2.3 * s
-                    } else {
-                        0.0
-                    });
-                    n.rx = 1.4 * s;
-                    n.ry = if i < 2 { 4.5 * s } else { 2.1 * s };
-                }
-            }
-        }
-    }
+    dinosaurs::refine(spec, body, s);
     landmarks(spec, body, s);
     fantasy(spec, body, seed, s);
     if has(spec, "AI_ANATOMY_ECHO") {

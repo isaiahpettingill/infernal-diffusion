@@ -38,10 +38,17 @@ function transfers(result) {
   }
   return [...buffers];
 }
-self.onmessage = async ({ data }) => {
-  const { id, type, prompt, seed, profile = 'v1' } = data || {};
+// Serialize initialization, suggestions, and generation on one explicit queue.
+// Each request handles its own error so a bad request cannot poison later work.
+let queue = Promise.resolve();
+self.onmessage = ({ data }) => {
+  queue = queue.then(() => handleRequest(data));
+  return queue;
+};
+async function handleRequest(data) {
+  const { id, type, prompt, seed, difficulty, prompt_profile = 'default', profile = 'v1' } = data || {};
   if (!Number.isSafeInteger(id)) return;
-  if (type !== 'generate' && type !== 'generate_hybrid' && type !== 'ready') {
+  if (type !== 'generate' && type !== 'generate_hybrid' && type !== 'suggest' && type !== 'ready') {
     self.postMessage({ id, type: 'error', error: serializeError(new Error('Unknown worker request'), 'INVALID_REQUEST') });
     return;
   }
@@ -56,8 +63,16 @@ self.onmessage = async ({ data }) => {
       self.postMessage({ id, type: 'ready', threadCount });
       return;
     }
-    if (typeof prompt !== 'string' || !prompt.trim()) throw new TypeError('Prompt must be a nonempty string');
     if (typeof seed !== 'bigint' || seed < 0n || seed > 18446744073709551615n) throw new RangeError('Seed must be an unsigned 64-bit bigint');
+    if (type === 'suggest') {
+      if (!Number.isInteger(difficulty) || difficulty < 1 || difficulty > 3) throw new RangeError('Difficulty must be 1, 2, or 3');
+      if (typeof prompt_profile !== 'string' || !['default', 'necromancer', 'shaman', 'lunatic', 'boss', 'ocean'].includes(prompt_profile.toLowerCase())) throw new RangeError('Unknown summoner prompt profile');
+      if (typeof api.suggest_prompt !== 'function') throw new Error('This WASM package does not support random prompts; rebuild the generator');
+      const result = api.suggest_prompt(seed, difficulty, prompt_profile.toLowerCase());
+      self.postMessage({ id, type: 'result', result });
+      return;
+    }
+    if (typeof prompt !== 'string' || !prompt.trim()) throw new TypeError('Prompt must be a nonempty string');
     if (profile !== 'v1' && profile !== 'v2') throw new RangeError('Profile must be v1 or v2');
     // Keep V1 compatible with previously built WASM packages. Never silently
     // downgrade an explicit V2 request when paired with an older binary.
@@ -75,6 +90,6 @@ self.onmessage = async ({ data }) => {
     }
     self.postMessage({ id, type: 'result', result }, transfers(result));
   } catch (error) {
-    self.postMessage({ id, type: 'error', error: serializeError(error, 'GENERATION_FAILED') });
+    self.postMessage({ id, type: 'error', error: serializeError(error, type === 'suggest' ? 'SUGGESTION_FAILED' : 'GENERATION_FAILED') });
   }
-};
+}

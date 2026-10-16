@@ -8,7 +8,7 @@ This standalone static-site example runs Rust generation and vocabulary parsing 
 2. From `web/wasm`, run `python3 server.py`.
 3. Open <http://127.0.0.1:8080/>. Do not use `file://`; module workers and WASM fetches require HTTP(S). Production servers must use HTTPS, serve `.wasm` as `application/wasm`, and send `Cross-Origin-Opener-Policy: same-origin` plus `Cross-Origin-Embedder-Policy: require-corp`. The supplied local server sets these headers on every response, including worker scripts, and serves localhost as a secure context. A plain `python -m http.server` is insufficient for this threaded build. Keep the generated `pkg/snippets/` directory; it contains Rayon worker modules.
 
-Enter a prompt and unsigned 64-bit decimal seed, select V1 (default) or V2, then Generate. Example buttons fill the prompt without changing the selected profile. The live heartbeat shows the main thread remains responsive while Rust runs. Sprite, emission, and optional projectile atlases render to canvases, followed by expandable full metadata. Large atlases can briefly cost main-thread time while being painted; generation itself stays in the worker.
+Enter a prompt and unsigned 64-bit decimal seed, select V1 (default) or V2, then Generate. Or choose a separate summoner profile and difficulty (1–3), then click **Random prompt** to fill editable text using the shared Rust generator. Summoner profiles are Default, Necromancer, Shaman, Lunatic, Boss, and Ocean. Boss always uses hard modifiers; Lunatic mixes all tiers. Difficulty remains part of the deterministic input but does not constrain those two profile policies. The first click uses the displayed seed; repeated clicks with unchanged options advance it visibly, wrapping from u64::MAX to zero. Editing the seed (including re-entering the same value), difficulty, or summoner profile resets reroll history, so the next click uses exactly the displayed seed. Profile selection does not change V1/V2, and arbitrary hand-written prompts remain supported. Example buttons fill the prompt without changing the selected profile. The live heartbeat shows the main thread remains responsive while Rust runs. Sprite, emission, and optional projectile atlases render to canvases, followed by expandable full metadata. Large atlases can briefly cost main-thread time while being painted; generation itself stays in the worker.
 
 ## Integrate
 
@@ -16,6 +16,10 @@ Enter a prompt and unsigned 64-bit decimal seed, select V1 (default) or V2, then
 import { MonsterGenerator } from './client.js';
 const generator = new MonsterGenerator();
 const { threadCount } = await generator.ready(); // actual binary + Rayon pool ready
+const prompt = await generator.suggestPrompt('18446744073709551615', 2, {
+  promptProfile: 'ocean', // case-insensitive; defaults to 'default'
+});
+// You can edit this text before generation; suggestion does not render a monster.
 const controller = new AbortController();
 const result = await generator.generate('stormtrooper with a laser blaster', 42n, {
   signal: controller.signal,
@@ -27,11 +31,11 @@ const result = await generator.generate('stormtrooper with a laser blaster', 42n
 generator.dispose();
 ```
 
-Each request has a unique numeric ID. Errors reject the matching promise; initialization errors carry `code: 'WASM_UNAVAILABLE'`. Invalid generator requests carry `code: 'GENERATION_FAILED'`. Unexpected worker crashes reject all pending work, and a later request starts a fresh worker. RGBA ArrayBuffers are transferred rather than copied; the main thread owns returned buffers. Metadata is structured-cloned without trimming fields. uint64 fields may be BigInt; stringify with a replacer when needed.
+Each request has a unique numeric ID. Errors reject the matching promise; initialization errors carry `code: 'WASM_UNAVAILABLE'`. Invalid generator requests carry `code: 'GENERATION_FAILED'`; invalid suggestion requests carry `code: 'SUGGESTION_FAILED'`. The client rejects invalid seeds, difficulties, and profiles before starting a worker. Unexpected worker crashes reject all pending work, and a later request starts a fresh worker. RGBA ArrayBuffers are transferred rather than copied; the main thread owns returned buffers. Metadata is structured-cloned without trimming fields. uint64 fields may be BigInt; stringify with a replacer when needed.
 
 `generator.cancel()` or aborting a pending request terminates the worker and rejects **all** outstanding requests with `AbortError`. Termination also shuts down descendant Rayon workers; no shared pool outlives its owning generator worker. The next request lazily starts a new worker, reloads WASM, and initializes a fresh pool. Synchronous WASM cannot receive cancellation messages while generating. Use separate generator instances if jobs need independent cancellation. Requests on one instance execute sequentially. `dispose()` is permanent; create another instance afterward.
 
-The low-level worker protocol accepts `{id, type: 'ready'}` or `{id, type: 'generate', prompt, seed: bigint}`. Replies are `{id, type: 'ready', threadCount}`, `{id, type: 'result', result}`, or `{id, type: 'error', error: {name, message, code}}`. Generation errors do not intentionally terminate the worker. Extremely large/complex prompts may exhaust browser memory; clients should constrain untrusted workloads and use termination for time limits.
+The low-level worker protocol accepts `{id, type: 'ready'}`, `{id, type: 'generate', prompt, seed: bigint}`, or `{id, type: 'suggest', seed: bigint, difficulty: 1 | 2 | 3, prompt_profile: 'default'}`. Suggestion replies use `{id, type: 'result', result: string}` with no atlas transfer. Requests share one ordered queue, and cancellation/disposal also applies to suggestions. The direct WASM export is `suggest_prompt(seed: bigint, difficulty: number, prompt_profile: string)`. Use the validated client to reject out-of-range seeds before wasm-bindgen converts its u64 argument. Replies are `{id, type: 'ready', threadCount}`, `{id, type: 'result', result}`, or `{id, type: 'error', error: {name, message, code}}`. Generation errors do not intentionally terminate the worker. Extremely large/complex prompts may exhaust browser memory; clients should constrain untrusted workloads and use termination for time limits.
 
 ## Browser tests
 
@@ -77,4 +81,10 @@ use V2; older packages keep working for V1 and reject V2 explicitly.
 See [generation profiles](../../docs/generation-profiles.md).
 
 Run the dependency-free client and worker contract checks with
-`node --test web/wasm/tests/profiles.node.mjs` from the repository root.
+`node --test web/wasm/tests/profiles.node.mjs web/wasm/tests/suggestions.node.mjs web/wasm/tests/prompt-controls.node.mjs` from the repository root.
+
+### Random prompt controls and stale work
+
+Random prompt only changes the editable prompt and, on a reroll, the visible seed. It never starts rendering automatically. Manual prompt edits, preset buttons, seed/difficulty/summoner changes, and starting generation invalidate any outstanding suggestion. Late responses or errors cannot overwrite newer text or clear a newer request’s busy state. Random prompt is disabled while generating or loading WASM; failures leave the text intact and allow a retry. An older binary without `suggest_prompt` reports an explicit rebuild error and still supports its existing generation exports.
+
+See [browser prompt APIs](../../docs/browser-prompts.md) for the matching native HTTP endpoint.

@@ -1,0 +1,440 @@
+{
+  "reference_commit": "6f0c9b31eabfdc9e1b593cf1c3621f75d63dd9f3",
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "libc": [
+    "glibc",
+    "2.41"
+  ],
+  "machine": "x86_64",
+  "compiler": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "specimens": [
+    {
+      "prompt": "wolf",
+      "seed": 42,
+      "files": [
+        {
+          "path": "emission.png",
+          "equal": true,
+          "baseline_sha256": "6e1fcef0564917c1846f82bc9a8ad76461e220bca669f6c01534821fc24a96cf",
+          "candidate_sha256": "6e1fcef0564917c1846f82bc9a8ad76461e220bca669f6c01534821fc24a96cf",
+          "original_host_sha256": "6e1fcef0564917c1846f82bc9a8ad76461e220bca669f6c01534821fc24a96cf",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "monster.pb",
+          "equal": true,
+          "baseline_sha256": "77abbcd97572a8d66cd358f0b1f312a8121ea269886120fda321509b440e16e4",
+          "candidate_sha256": "77abbcd97572a8d66cd358f0b1f312a8121ea269886120fda321509b440e16e4",
+          "original_host_sha256": "77abbcd97572a8d66cd358f0b1f312a8121ea269886120fda321509b440e16e4",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "preview.png",
+          "equal": true,
+          "baseline_sha256": "5daedf192c623eb974656d99939e5439cc74d13673041a61894d65366407674a",
+          "candidate_sha256": "5daedf192c623eb974656d99939e5439cc74d13673041a61894d65366407674a",
+          "original_host_sha256": "5daedf192c623eb974656d99939e5439cc74d13673041a61894d65366407674a",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "sprites.png",
+          "equal": true,
+          "baseline_sha256": "585a698cae1b499c1a902cba6da3c8368619cd1b2a079251c59dcef3a28a9f17",
+          "candidate_sha256": "585a698cae1b499c1a902cba6da3c8368619cd1b2a079251c59dcef3a28a9f17",
+          "original_host_sha256": "585a698cae1b499c1a902cba6da3c8368619cd1b2a079251c59dcef3a28a9f17",
+          "baseline_matches_original_host": true
+        }
+      ]
+    },
+    {
+      "prompt": "beetle",
+      "seed": 42,
+      "files": [
+        {
+          "path": "emission.png",
+          "equal": true,
+          "baseline_sha256": "2021777a26bd046b5d8d6805dafb8a64db4be1e9a2138e9c51ff74326cfeb128",
+          "candidate_sha256": "2021777a26bd046b5d8d6805dafb8a64db4be1e9a2138e9c51ff74326cfeb128",
+          "original_host_sha256": "2021777a26bd046b5d8d6805dafb8a64db4be1e9a2138e9c51ff74326cfeb128",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "monster.pb",
+          "equal": true,
+          "baseline_sha256": "d0459ed70a3a47858b84a5398d4231c886fba82c195291de41b76149e2877b60",
+          "candidate_sha256": "d0459ed70a3a47858b84a5398d4231c886fba82c195291de41b76149e2877b60",
+          "original_host_sha256": "d0459ed70a3a47858b84a5398d4231c886fba82c195291de41b76149e2877b60",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "preview.png",
+          "equal": true,
+          "baseline_sha256": "85e4bc95bfaa99088951b7d19d5496e54f337bca2a10b8ef76aef6b27fe59148",
+          "candidate_sha256": "85e4bc95bfaa99088951b7d19d5496e54f337bca2a10b8ef76aef6b27fe59148",
+          "original_host_sha256": "85e4bc95bfaa99088951b7d19d5496e54f337bca2a10b8ef76aef6b27fe59148",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "sprites.png",
+          "equal": true,
+          "baseline_sha256": "f6c8c132eb367dfa52a8301b886c64f4352878991ad23f5b561f45cc75c491ed",
+          "candidate_sha256": "f6c8c132eb367dfa52a8301b886c64f4352878991ad23f5b561f45cc75c491ed",
+          "original_host_sha256": "f6c8c132eb367dfa52a8301b886c64f4352878991ad23f5b561f45cc75c491ed",
+          "baseline_matches_original_host": true
+        }
+      ]
+    },
+    {
+      "prompt": "spider",
+      "seed": 42,
+      "files": [
+        {
+          "path": "emission.png",
+          "equal": true,
+          "baseline_sha256": "f9a79a3f28885328017acbfa20dfc98d4467a67979c6d2fb16ccd81b0dc43e7c",
+          "candidate_sha256": "f9a79a3f28885328017acbfa20dfc98d4467a67979c6d2fb16ccd81b0dc43e7c",
+          "original_host_sha256": "f9a79a3f28885328017acbfa20dfc98d4467a67979c6d2fb16ccd81b0dc43e7c",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "monster.pb",
+          "equal": true,
+          "baseline_sha256": "16e65347dcbbebaf01b088991abb824de9b5a095cc9af078a52ddbdbf5589bd3",
+          "candidate_sha256": "16e65347dcbbebaf01b088991abb824de9b5a095cc9af078a52ddbdbf5589bd3",
+          "original_host_sha256": "16e65347dcbbebaf01b088991abb824de9b5a095cc9af078a52ddbdbf5589bd3",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "preview.png",
+          "equal": true,
+          "baseline_sha256": "0d1c2b982cacbf709fb63270d34c37d982427c4ca3b23601cbc795fb9152dccc",
+          "candidate_sha256": "0d1c2b982cacbf709fb63270d34c37d982427c4ca3b23601cbc795fb9152dccc",
+          "original_host_sha256": "0d1c2b982cacbf709fb63270d34c37d982427c4ca3b23601cbc795fb9152dccc",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "sprites.png",
+          "equal": true,
+          "baseline_sha256": "ad7e609a8b33435c17f7ade352e008eee726af6dfdd7d69fb6b70258db64e16f",
+          "candidate_sha256": "ad7e609a8b33435c17f7ade352e008eee726af6dfdd7d69fb6b70258db64e16f",
+          "original_host_sha256": "ad7e609a8b33435c17f7ade352e008eee726af6dfdd7d69fb6b70258db64e16f",
+          "baseline_matches_original_host": true
+        }
+      ]
+    },
+    {
+      "prompt": "orc",
+      "seed": 42,
+      "files": [
+        {
+          "path": "emission.png",
+          "equal": true,
+          "baseline_sha256": "031b504b287b740f8d35f2a4b7f2cf5fad482d179be4c2318e5631e41f22c392",
+          "candidate_sha256": "031b504b287b740f8d35f2a4b7f2cf5fad482d179be4c2318e5631e41f22c392",
+          "original_host_sha256": "031b504b287b740f8d35f2a4b7f2cf5fad482d179be4c2318e5631e41f22c392",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "monster.pb",
+          "equal": true,
+          "baseline_sha256": "1f7f98fd549b89fe86cc9880a9677af7cc969c5c144c6eb13e648a338666ee16",
+          "candidate_sha256": "1f7f98fd549b89fe86cc9880a9677af7cc969c5c144c6eb13e648a338666ee16",
+          "original_host_sha256": "1f7f98fd549b89fe86cc9880a9677af7cc969c5c144c6eb13e648a338666ee16",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "preview.png",
+          "equal": true,
+          "baseline_sha256": "3160d9121960d80443b58bd343c5aa6f9bbbb601c5444e2c4c28859ac5345497",
+          "candidate_sha256": "3160d9121960d80443b58bd343c5aa6f9bbbb601c5444e2c4c28859ac5345497",
+          "original_host_sha256": "3160d9121960d80443b58bd343c5aa6f9bbbb601c5444e2c4c28859ac5345497",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "sprites.png",
+          "equal": true,
+          "baseline_sha256": "7ab0d5370e77616f57c8355ecae28e60cd98ccfae439862c2657c6b9e63d0f0a",
+          "candidate_sha256": "7ab0d5370e77616f57c8355ecae28e60cd98ccfae439862c2657c6b9e63d0f0a",
+          "original_host_sha256": "7ab0d5370e77616f57c8355ecae28e60cd98ccfae439862c2657c6b9e63d0f0a",
+          "baseline_matches_original_host": true
+        }
+      ]
+    },
+    {
+      "prompt": "dragon",
+      "seed": 42,
+      "files": [
+        {
+          "path": "emission.png",
+          "equal": true,
+          "baseline_sha256": "fe8d85887b18391798fb9622ca329787a4f48d7b475f8476960a0754c0283150",
+          "candidate_sha256": "fe8d85887b18391798fb9622ca329787a4f48d7b475f8476960a0754c0283150",
+          "original_host_sha256": "fe8d85887b18391798fb9622ca329787a4f48d7b475f8476960a0754c0283150",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "monster.pb",
+          "equal": true,
+          "baseline_sha256": "1f0bb304e6de217583fbe1d637d1675361dc5d5d802da63f08dfc93bcded932a",
+          "candidate_sha256": "1f0bb304e6de217583fbe1d637d1675361dc5d5d802da63f08dfc93bcded932a",
+          "original_host_sha256": "1f0bb304e6de217583fbe1d637d1675361dc5d5d802da63f08dfc93bcded932a",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "preview.png",
+          "equal": true,
+          "baseline_sha256": "a66004af275412f536107cb9ace7e059bd90cee5a07a909df9733c3a19e76891",
+          "candidate_sha256": "a66004af275412f536107cb9ace7e059bd90cee5a07a909df9733c3a19e76891",
+          "original_host_sha256": "a66004af275412f536107cb9ace7e059bd90cee5a07a909df9733c3a19e76891",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "sprites.png",
+          "equal": true,
+          "baseline_sha256": "33b9ffa928f8205602dcf8663ef28f142f65ea398b2bf3077254e8d77d2a7fbf",
+          "candidate_sha256": "33b9ffa928f8205602dcf8663ef28f142f65ea398b2bf3077254e8d77d2a7fbf",
+          "original_host_sha256": "33b9ffa928f8205602dcf8663ef28f142f65ea398b2bf3077254e8d77d2a7fbf",
+          "baseline_matches_original_host": true
+        }
+      ]
+    },
+    {
+      "prompt": "mammoth",
+      "seed": 42,
+      "files": [
+        {
+          "path": "emission.png",
+          "equal": true,
+          "baseline_sha256": "2492817db57c7aa593f46f8d382b67a1f6ba7122a9286fe7d0f7521237edbcfa",
+          "candidate_sha256": "2492817db57c7aa593f46f8d382b67a1f6ba7122a9286fe7d0f7521237edbcfa",
+          "original_host_sha256": "2492817db57c7aa593f46f8d382b67a1f6ba7122a9286fe7d0f7521237edbcfa",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "monster.pb",
+          "equal": true,
+          "baseline_sha256": "532955dc64d936268741010197037bd3797fa4eecf7ca48d29f22dab652ea612",
+          "candidate_sha256": "532955dc64d936268741010197037bd3797fa4eecf7ca48d29f22dab652ea612",
+          "original_host_sha256": "532955dc64d936268741010197037bd3797fa4eecf7ca48d29f22dab652ea612",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "preview.png",
+          "equal": true,
+          "baseline_sha256": "68c93cd2a77a9989904106118ee0d501e9e737403480fd4aa13e0f3e84e5fe49",
+          "candidate_sha256": "68c93cd2a77a9989904106118ee0d501e9e737403480fd4aa13e0f3e84e5fe49",
+          "original_host_sha256": "68c93cd2a77a9989904106118ee0d501e9e737403480fd4aa13e0f3e84e5fe49",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "sprites.png",
+          "equal": true,
+          "baseline_sha256": "174fb043b2b052b609f62c9071a979e43551843ef4425b17a354e79ab063143f",
+          "candidate_sha256": "174fb043b2b052b609f62c9071a979e43551843ef4425b17a354e79ab063143f",
+          "original_host_sha256": "174fb043b2b052b609f62c9071a979e43551843ef4425b17a354e79ab063143f",
+          "baseline_matches_original_host": true
+        }
+      ]
+    },
+    {
+      "prompt": "serpent",
+      "seed": 42,
+      "files": [
+        {
+          "path": "emission.png",
+          "equal": true,
+          "baseline_sha256": "983ca0c6df78f73fccff137ad8a62aed4cb195d012eb82253bf984739810feae",
+          "candidate_sha256": "983ca0c6df78f73fccff137ad8a62aed4cb195d012eb82253bf984739810feae",
+          "original_host_sha256": "983ca0c6df78f73fccff137ad8a62aed4cb195d012eb82253bf984739810feae",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "monster.pb",
+          "equal": true,
+          "baseline_sha256": "d59cf0ae329aee9683a3c825896a997b7abe948cbb02391bf8f88228c7c2f2dc",
+          "candidate_sha256": "d59cf0ae329aee9683a3c825896a997b7abe948cbb02391bf8f88228c7c2f2dc",
+          "original_host_sha256": "d59cf0ae329aee9683a3c825896a997b7abe948cbb02391bf8f88228c7c2f2dc",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "preview.png",
+          "equal": true,
+          "baseline_sha256": "54401014f306f93bfd97a495f3c2e381281c6ed28b4337b73eb80d6e26e420a8",
+          "candidate_sha256": "54401014f306f93bfd97a495f3c2e381281c6ed28b4337b73eb80d6e26e420a8",
+          "original_host_sha256": "54401014f306f93bfd97a495f3c2e381281c6ed28b4337b73eb80d6e26e420a8",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "sprites.png",
+          "equal": true,
+          "baseline_sha256": "6b08e7bd5d9dc88cd848f9172df4f7501f6fee43399d725d7b3e846eba996530",
+          "candidate_sha256": "6b08e7bd5d9dc88cd848f9172df4f7501f6fee43399d725d7b3e846eba996530",
+          "original_host_sha256": "6b08e7bd5d9dc88cd848f9172df4f7501f6fee43399d725d7b3e846eba996530",
+          "baseline_matches_original_host": true
+        }
+      ]
+    },
+    {
+      "prompt": "slime",
+      "seed": 42,
+      "files": [
+        {
+          "path": "emission.png",
+          "equal": true,
+          "baseline_sha256": "fde19e76b70f25f999f440407b25798723a6efcdd7b2c30929aad7aec2c46dfc",
+          "candidate_sha256": "fde19e76b70f25f999f440407b25798723a6efcdd7b2c30929aad7aec2c46dfc",
+          "original_host_sha256": "fde19e76b70f25f999f440407b25798723a6efcdd7b2c30929aad7aec2c46dfc",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "monster.pb",
+          "equal": true,
+          "baseline_sha256": "df893e25dfc02ef538d72cabc983e302cce9ae082df532a0f4f5a829e9aab6c6",
+          "candidate_sha256": "df893e25dfc02ef538d72cabc983e302cce9ae082df532a0f4f5a829e9aab6c6",
+          "original_host_sha256": "df893e25dfc02ef538d72cabc983e302cce9ae082df532a0f4f5a829e9aab6c6",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "preview.png",
+          "equal": true,
+          "baseline_sha256": "693c601181175441d7beb4c883100b00492b8186327143dd698cdaf5b725ef32",
+          "candidate_sha256": "693c601181175441d7beb4c883100b00492b8186327143dd698cdaf5b725ef32",
+          "original_host_sha256": "693c601181175441d7beb4c883100b00492b8186327143dd698cdaf5b725ef32",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "sprites.png",
+          "equal": true,
+          "baseline_sha256": "17897c38420fed45600abaddee0b2f7a07dd248eb3249861811144448380fe45",
+          "candidate_sha256": "17897c38420fed45600abaddee0b2f7a07dd248eb3249861811144448380fe45",
+          "original_host_sha256": "17897c38420fed45600abaddee0b2f7a07dd248eb3249861811144448380fe45",
+          "baseline_matches_original_host": true
+        }
+      ]
+    },
+    {
+      "prompt": "snail",
+      "seed": 42,
+      "files": [
+        {
+          "path": "emission.png",
+          "equal": true,
+          "baseline_sha256": "5044224e708896ecb206791d298fa8a33237583dd8aa817f7f79d25df7a32d5d",
+          "candidate_sha256": "5044224e708896ecb206791d298fa8a33237583dd8aa817f7f79d25df7a32d5d",
+          "original_host_sha256": "5044224e708896ecb206791d298fa8a33237583dd8aa817f7f79d25df7a32d5d",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "monster.pb",
+          "equal": true,
+          "baseline_sha256": "1ba52a15f8a1010504c3f7ef7df91ce4e06ab03f72acbc9702f98e72c7cafb2e",
+          "candidate_sha256": "1ba52a15f8a1010504c3f7ef7df91ce4e06ab03f72acbc9702f98e72c7cafb2e",
+          "original_host_sha256": "1ba52a15f8a1010504c3f7ef7df91ce4e06ab03f72acbc9702f98e72c7cafb2e",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "preview.png",
+          "equal": true,
+          "baseline_sha256": "7d931de4a816d63975cdb8a8c18b8e738302f373f500118fa04f326ecab5f197",
+          "candidate_sha256": "7d931de4a816d63975cdb8a8c18b8e738302f373f500118fa04f326ecab5f197",
+          "original_host_sha256": "7d931de4a816d63975cdb8a8c18b8e738302f373f500118fa04f326ecab5f197",
+          "baseline_matches_original_host": true
+        },
+        {
+          "path": "sprites.png",
+          "equal": true,
+          "baseline_sha256": "49a3b293fe0b3e385734651f043c996d607cc6ec040c59d8c7d4f2662b700874",
+          "candidate_sha256": "49a3b293fe0b3e385734651f043c996d607cc6ec040c59d8c7d4f2662b700874",
+          "original_host_sha256": "49a3b293fe0b3e385734651f043c996d607cc6ec040c59d8c7d4f2662b700874",
+          "baseline_matches_original_host": true
+        }
+      ]
+    },
+    {
+      "prompt": "stormtrooper",
+      "seed": 42,
+      "files": [
+        {
+          "path": "emission.png",
+          "equal": true,
+          "baseline_sha256": "b3a1589d4002475f3edc8d963ae3cab538b1cdd9e667aa1d51400d5fad2c3232",
+          "candidate_sha256": "b3a1589d4002475f3edc8d963ae3cab538b1cdd9e667aa1d51400d5fad2c3232",
+          "original_host_sha256": null,
+          "baseline_matches_original_host": null
+        },
+        {
+          "path": "monster.pb",
+          "equal": true,
+          "baseline_sha256": "9091e0c93d9c417f676b8b6d8e33912d923fc0ba3438af62117de64d9778547c",
+          "candidate_sha256": "9091e0c93d9c417f676b8b6d8e33912d923fc0ba3438af62117de64d9778547c",
+          "original_host_sha256": null,
+          "baseline_matches_original_host": null
+        },
+        {
+          "path": "preview.png",
+          "equal": true,
+          "baseline_sha256": "82e27835cf93b894a0535a7a263c02b8d86788912684efde473eb4d013b2be78",
+          "candidate_sha256": "82e27835cf93b894a0535a7a263c02b8d86788912684efde473eb4d013b2be78",
+          "original_host_sha256": null,
+          "baseline_matches_original_host": null
+        },
+        {
+          "path": "projectiles.png",
+          "equal": true,
+          "baseline_sha256": "f483514ac0e3398d86f43d0ab5ecfc8c6cedab44d0d91bb0fcd68eca185fe52b",
+          "candidate_sha256": "f483514ac0e3398d86f43d0ab5ecfc8c6cedab44d0d91bb0fcd68eca185fe52b",
+          "original_host_sha256": null,
+          "baseline_matches_original_host": null
+        },
+        {
+          "path": "sprites.png",
+          "equal": true,
+          "baseline_sha256": "73c9e948a455817018f6b22feb027ca29f0aff2140913fdd5ba5a1282d22a92b",
+          "candidate_sha256": "73c9e948a455817018f6b22feb027ca29f0aff2140913fdd5ba5a1282d22a92b",
+          "original_host_sha256": null,
+          "baseline_matches_original_host": null
+        }
+      ]
+    },
+    {
+      "prompt": "humanoid",
+      "seed": 42,
+      "files": [
+        {
+          "path": "emission.png",
+          "equal": true,
+          "baseline_sha256": "2021777a26bd046b5d8d6805dafb8a64db4be1e9a2138e9c51ff74326cfeb128",
+          "candidate_sha256": "2021777a26bd046b5d8d6805dafb8a64db4be1e9a2138e9c51ff74326cfeb128",
+          "original_host_sha256": null,
+          "baseline_matches_original_host": null
+        },
+        {
+          "path": "monster.pb",
+          "equal": true,
+          "baseline_sha256": "f549a58105b9160ae57856002f999507ace7d1eaa10d4e99b022ca6b16774584",
+          "candidate_sha256": "f549a58105b9160ae57856002f999507ace7d1eaa10d4e99b022ca6b16774584",
+          "original_host_sha256": null,
+          "baseline_matches_original_host": null
+        },
+        {
+          "path": "preview.png",
+          "equal": true,
+          "baseline_sha256": "2df332bdba22d9f20aa44d2aaa6f75e5697ff8d13a81a9a77ac9e57b9a32f3ec",
+          "candidate_sha256": "2df332bdba22d9f20aa44d2aaa6f75e5697ff8d13a81a9a77ac9e57b9a32f3ec",
+          "original_host_sha256": null,
+          "baseline_matches_original_host": null
+        },
+        {
+          "path": "sprites.png",
+          "equal": true,
+          "baseline_sha256": "40e7250221ec3302fe76ffe7c0142fc9f7440bca1cbfa68f7b23413bc11a6afa",
+          "candidate_sha256": "40e7250221ec3302fe76ffe7c0142fc9f7440bca1cbfa68f7b23413bc11a6afa",
+          "original_host_sha256": null,
+          "baseline_matches_original_host": null
+        }
+      ]
+    }
+  ],
+  "passed": true,
+  "differences": []
+}

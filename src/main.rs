@@ -94,7 +94,7 @@ fn main() {
         }
         return;
     }
-    if args.len() == 4 && args[1] == "suggest" {
+    if (4..=5).contains(&args.len()) && args[1] == "suggest" {
         let seed: u64 = args[2].parse().unwrap_or_else(|_| {
             eprintln!("seed must be an unsigned integer");
             std::process::exit(2)
@@ -103,7 +103,19 @@ fn main() {
             eprintln!("difficulty must be 1, 2, or 3");
             std::process::exit(2)
         });
-        match infernal_diffusion::prompt::random_prompt(seed, difficulty) {
+        let prompt_profile = args
+            .get(4)
+            .map_or("default", String::as_str)
+            .parse::<infernal_diffusion::prompt::PromptProfile>()
+            .unwrap_or_else(|error| {
+                eprintln!("{error}");
+                std::process::exit(2)
+            });
+        match infernal_diffusion::prompt::random_prompt_with_profile(
+            seed,
+            difficulty,
+            prompt_profile,
+        ) {
             Ok(prompt) => println!("{prompt}"),
             Err(error) => {
                 eprintln!("{error}");
@@ -263,7 +275,7 @@ fn main() {
         eprintln!("       infernal validate <package-dir>");
         eprintln!("       infernal inspect <package-dir>");
         eprintln!("       infernal parse <prompt> [bert-model-dir]");
-        eprintln!("       infernal suggest <seed> <difficulty-1-to-3>");
+        eprintln!("       infernal suggest <seed> <difficulty-1-to-3> [default|necromancer|shaman|lunatic|boss|ocean]");
         eprintln!("       infernal arena-suggest <run-seed> <round>");
         eprintln!("       infernal bake3d <prompt> <seed> <output-dir> [bert-model-dir] [--profile v1|v2]");
         eprintln!("       infernal bake2d <prompt> <seed> <output-dir> [bert-model-dir]");

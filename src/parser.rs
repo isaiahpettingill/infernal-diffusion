@@ -6,6 +6,14 @@ pub struct MonsterSpec {
     pub body_plan: String,
     pub affinity: String,
     pub size: f32,
+    /// Absolute world-space body height. Overrides species, cute and text modifiers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub world_height_px: Option<f32>,
+    #[serde(
+        default,
+        skip_serializing_if = "crate::world_scale::SizeModifier::is_normal"
+    )]
+    pub world_size_modifier: crate::world_scale::SizeModifier,
     pub bulk: f32,
     pub limb_count: u8,
     pub arm_count: u8,
@@ -381,6 +389,97 @@ fn contains_word(words: &[&str], needle: &str) -> bool {
     words.contains(&needle)
 }
 
+/// Exact, clause-local count intent shared by the native and vocabulary paths.
+/// Counts bind to the immediately following body part, so “three heads and
+/// eight arms” cannot accidentally turn into three arms. Hyphens are word
+/// separators in the vocabulary lexer, including numeric “3-headed” forms.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct ExplicitCounts {
+    pub heads: Option<u8>,
+    pub arms: Option<u8>,
+    pub legs: Option<u8>,
+    pub tails: Option<u8>,
+}
+
+impl ExplicitCounts {
+    fn from_words(words: &[&str]) -> Self {
+        let mut result = Self::default();
+        for pair in words.windows(2) {
+            let target = match pair[1] {
+                "head" | "heads" | "headed" => &mut result.heads,
+                "arm" | "arms" | "armed" => &mut result.arms,
+                "leg" | "legs" | "legged" | "limb" | "limbs" => &mut result.legs,
+                "tail" | "tails" | "tailed" => &mut result.tails,
+                _ => continue,
+            };
+            let count = match pair[0] {
+                "zero" | "no" => 0,
+                "one" => 1,
+                "two" => 2,
+                "three" => 3,
+                "four" => 4,
+                "five" => 5,
+                "six" => 6,
+                "seven" => 7,
+                "eight" => 8,
+                "nine" => 9,
+                "ten" => 10,
+                "eleven" => 11,
+                "twelve" => 12,
+                "thirteen" => 13,
+                "fourteen" => 14,
+                "fifteen" => 15,
+                "sixteen" => 16,
+                "seventeen" => 17,
+                "eighteen" => 18,
+                "nineteen" => 19,
+                "twenty" => 20,
+                "hundred" => 100,
+                digits if digits.chars().all(|c| c.is_ascii_digit()) => {
+                    // Keep impossible counts invalid instead of silently losing
+                    // intent on u8 overflow. Public generation validates bounds.
+                    digits.parse::<u8>().unwrap_or(u8::MAX)
+                }
+                _ => continue,
+            };
+            // A later adjacent request is the local correction to an earlier one.
+            *target = Some(count);
+        }
+        result
+    }
+
+    pub(crate) fn from_prompt(prompt: &str) -> Self {
+        let lower = prompt.to_lowercase();
+        let words: Vec<_> = lower
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|word| !word.is_empty())
+            .collect();
+        Self::from_words(&words)
+    }
+
+    pub(crate) fn apply_v2(self, spec: &mut MonsterSpec) {
+        for (count, value, feature) in [
+            (self.heads, &mut spec.heads, "EXPLICIT_HEADS"),
+            (self.arms, &mut spec.arm_count, "EXPLICIT_ARMS"),
+            (self.legs, &mut spec.limb_count, "EXPLICIT_LEGS"),
+        ] {
+            if let Some(count) = count {
+                *value = count;
+                if !spec.features.iter().any(|f| f == feature) {
+                    spec.features.push(feature.into());
+                }
+            }
+        }
+        if self.arms.is_some_and(|count| count != 4) {
+            // A classifier's topology hint cannot contradict an exact count.
+            spec.features.retain(|f| f != "FOUR_ARMED");
+        }
+        if self.tails.is_some() && !spec.features.iter().any(|f| f == "EXPLICIT_TAILS") {
+            spec.features.push("EXPLICIT_TAILS".into());
+        }
+    }
+}
+
 fn edit_distance(left: &str, right: &str) -> usize {
     let mut previous: Vec<usize> = (0..=right.len()).collect();
     for (i, a) in left.bytes().enumerate() {
@@ -532,6 +631,14 @@ fn parse_vocabulary_clause(prompt: &str) -> MonsterSpec {
             !modifier_affinity(affinity) && !(has_stormtrooper && *affinity == "HUMANOID")
         })
         .copied()
+        // Size adjectives never replace a named slime/skeleton/spectral species,
+        // even though those nouns may also act as material modifiers.
+        .or_else(|| {
+            subject
+                .iter()
+                .find(|(_, _, (_, _, affinity))| *affinity != "GIANT")
+                .copied()
+        })
         .or_else(|| subject.first().copied())
         .or_else(|| {
             selected
@@ -609,12 +716,15 @@ fn parse_vocabulary_clause(prompt: &str) -> MonsterSpec {
         }
     }
     let mut part_scales = BTreeMap::new();
+    let mut world_size_modifier = crate::world_scale::SizeModifier::Normal;
     let mut large_creature = false;
     let mut small_creature = false;
     for (index, word) in words.iter().enumerate() {
         let factor = if ["giant", "huge", "colossal", "massive"].contains(word) {
             1.8
-        } else if ["tiny", "small", "little"].contains(word) {
+        } else if ["large", "big"].contains(word) {
+            1.4
+        } else if ["tiny", "small", "little", "mini", "miniature"].contains(word) {
             0.65
         } else {
             continue;
@@ -658,6 +768,7 @@ fn parse_vocabulary_clause(prompt: &str) -> MonsterSpec {
             })
             .unwrap_or("CREATURE");
         if target == "CREATURE" {
+            world_size_modifier = crate::world_scale::SizeModifier::from_word(word);
             if factor > 1.0 {
                 large_creature = true;
             } else {
@@ -826,6 +937,9 @@ fn parse_vocabulary_clause(prompt: &str) -> MonsterSpec {
         materials = vec!["ARMOR_WHITE".into()];
     }
     let mut features = Vec::new();
+    if contains_word(&words, "cute") || contains_word(&words, "chibi") {
+        features.push("CHIBI".into());
+    }
     for (word, feature) in [
         ("horned", "HORN"),
         ("horns", "HORN"),
@@ -1070,39 +1184,27 @@ fn parse_vocabulary_clause(prompt: &str) -> MonsterSpec {
     } else {
         0
     };
-    for (word, count) in [
-        ("six", 6),
-        ("eight", 8),
-        ("four", 4),
-        ("three", 3),
-        ("one", 1),
-    ] {
-        if contains_word(&words, word) {
-            if contains_word(&words, "arms") || contains_word(&words, "armed") {
-                arm_count = count;
-            } else if words.iter().any(|w| ["legs", "limbs"].contains(w)) {
-                limb_count = count;
-            }
-        }
+    let counts = ExplicitCounts::from_words(&words);
+    if let Some(count) = counts.arms {
+        arm_count = count;
+    }
+    if let Some(count) = counts.legs {
+        limb_count = count;
     }
     let many_heads = words.iter().any(|w| ["heads", "headed"].contains(w));
-    let heads = if many_heads {
-        [("five", 5), ("four", 4), ("three", 3), ("two", 2)]
-            .iter()
-            .find(|(word, _)| contains_word(&words, word))
-            .map(|(_, count)| *count)
-            .unwrap_or(
-                if contains_word(&words, "multi") || contains_word(&words, "multiple") {
-                    3
-                } else {
-                    1
-                },
-            )
-    } else if ["HYDRA", "CERBERUS", "TYPHON"].contains(&affinity) {
-        3
-    } else {
-        1
-    };
+    let heads = counts.heads.unwrap_or_else(|| {
+        if many_heads {
+            if contains_word(&words, "multi") || contains_word(&words, "multiple") {
+                3
+            } else {
+                1
+            }
+        } else if ["HYDRA", "CERBERUS", "TYPHON"].contains(&affinity) {
+            3
+        } else {
+            1
+        }
+    });
     let base_confidence = if found.is_some() {
         0.87
     } else if typo_match.is_some() {
@@ -1126,6 +1228,8 @@ fn parse_vocabulary_clause(prompt: &str) -> MonsterSpec {
         body_plan: body_plan.into(),
         affinity: affinity.into(),
         size,
+        world_height_px: None,
+        world_size_modifier,
         bulk,
         limb_count,
         arm_count,

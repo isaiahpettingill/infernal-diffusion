@@ -2,6 +2,9 @@
 pub mod anatomy;
 pub mod attack_tracks;
 pub mod combat;
+pub mod damage_traits;
+pub mod encounter_visuals;
+pub mod encounters;
 pub mod grip;
 pub mod hybrid;
 pub mod prompt_normalization;
@@ -43,11 +46,29 @@ impl std::str::FromStr for GenerationProfile {
     }
 }
 
-/// V2-only vocabulary extensions leave both legacy parsers untouched.
+/// V2 semantic extensions share the exact count intent from both parser paths.
 pub fn interpret(mut spec: MonsterSpec, prompt: &str) -> MonsterSpec {
     if let Some(normalized) = prompt_normalization::normalize_mount(prompt) {
         return normalized;
     }
+    // Keep every modifier on its owning clause in ordinary riding grammar as
+    // well as mount-first requests. The legacy parser already supplies the tree.
+    let lower = prompt.to_lowercase();
+    if spec.mount.is_some() {
+        if let Some((rider_clause, mount_clause)) = lower.split_once(" riding ") {
+            let mut mount = spec.mount.take().unwrap();
+            let lower = crate::parser::mount_spec(&spec, &mount);
+            let lower = interpret(lower, mount_clause);
+            mount.body_plan = lower.body_plan.clone();
+            mount.affinity = lower.affinity.clone();
+            mount.spec = Some(Box::new(lower));
+            let mut rider = interpret(spec, rider_clause);
+            rider.mount = Some(mount);
+            return rider;
+        }
+    }
+    let counts = crate::parser::ExplicitCounts::from_prompt(prompt);
+    counts.apply_v2(&mut spec);
     let lower = prompt.to_lowercase();
     let words: Vec<_> = lower
         .split(|c: char| !c.is_alphanumeric())
@@ -61,9 +82,7 @@ pub fn interpret(mut spec: MonsterSpec, prompt: &str) -> MonsterSpec {
         spec.arm_count = 2;
         spec.confidence = 1.0;
     }
-    let explicit_legs = words
-        .windows(2)
-        .any(|pair| ["legs", "limbs"].contains(&pair[1]));
+    let explicit_legs = counts.legs.is_some();
     if has("lobster") {
         spec.affinity = "LOBSTER".into();
         spec.body_plan = "ARACHNID".into();
@@ -95,7 +114,7 @@ pub fn interpret(mut spec: MonsterSpec, prompt: &str) -> MonsterSpec {
         spec.body_plan = "FUNGUS".into();
         spec.materials = vec!["WOOD".into()];
     }
-    if has("cute") || has("chibi") {
+    if (has("cute") || has("chibi")) && !spec.features.iter().any(|f| f == "CHIBI") {
         spec.features.push("CHIBI".into());
     }
     if [
@@ -110,33 +129,6 @@ pub fn interpret(mut spec: MonsterSpec, prompt: &str) -> MonsterSpec {
     .any(|w| has(w))
     {
         spec.features.push("FRIENDLY_LURE".into());
-    }
-    if words.windows(2).any(|pair| {
-        ["legs", "limbs"].contains(&pair[1])
-            && (pair[0].parse::<u8>().is_ok()
-                || [
-                    "zero", "one", "two", "three", "four", "five", "six", "eight", "ten", "twelve",
-                    "no",
-                ]
-                .contains(&pair[0]))
-    }) {
-        spec.features.push("EXPLICIT_LEGS".into());
-    }
-    for (nouns, feature) in [
-        (&["arm", "arms"][..], "EXPLICIT_ARMS"),
-        (&["tail", "tails"][..], "EXPLICIT_TAILS"),
-    ] {
-        if words.windows(2).any(|pair| {
-            nouns.contains(&pair[1])
-                && (pair[0].parse::<u8>().is_ok()
-                    || [
-                        "zero", "one", "two", "three", "four", "five", "six", "eight", "ten",
-                        "twelve", "no",
-                    ]
-                    .contains(&pair[0]))
-        }) {
-            spec.features.push(feature.into());
-        }
     }
     if [
         "shoots",
@@ -194,7 +186,12 @@ pub fn interpret(mut spec: MonsterSpec, prompt: &str) -> MonsterSpec {
         spec.arm_count = 2;
         spec.confidence = 1.0;
     }
-    recipe_extensions::interpret(spec, prompt)
+    let spec = recipe_extensions::interpret(spec, prompt);
+    let mut spec = encounters::interpret(spec, prompt);
+    // Explicit user counts win over species, hybrid and modifier defaults.
+    // Reapplying also protects intent if a future recipe changes a count.
+    counts.apply_v2(&mut spec);
+    spec
 }
 
 pub fn prepare(spec: &mut MonsterSpec) {
@@ -328,6 +325,8 @@ pub fn describe(
         spectral: spectral::describe(spec, animations),
         hybrid: describe_hybrid(spec),
         body_motion_samples: vec![],
+        encounter: encounters::describe(spec),
+        damage_traits: damage_traits::describe(spec),
         categories: vec![
             spec.body_plan.clone(),
             if friendly {
@@ -391,14 +390,28 @@ pub fn describe(
                 lure_animation_id: combat::LURE_CLIP.into(),
                 reveal_animation_id: combat::REVEAL_CLIP.into(),
                 trigger: "TARGET_WITHIN_RADIUS".into(),
-                trigger_radius: combat::LURE_RADIUS,
+                trigger_radius: if spec.features.iter().any(|f| f == "OBJECT_MIMIC") {
+                    110.0
+                } else {
+                    combat::LURE_RADIUS
+                },
                 attack_id: primary.map_or_else(String::new, |a| a.id.clone()),
-                effect: "HEARTS".into(),
+                effect: if spec.features.iter().any(|f| f == "OBJECT_MIMIC") {
+                    "OBJECT_DISGUISE"
+                } else {
+                    "HEARTS"
+                }
+                .into(),
                 harmless: true,
                 telegraph_ms: combat::REVEAL_DURATION_MS,
                 distant_state: "LURE".into(),
                 revealed_state: "ATTACK".into(),
-                reset_policy: "RETURN_TO_LURE".into(),
+                reset_policy: if spec.features.iter().any(|f| f == "OBJECT_MIMIC") {
+                    "STAY_REVEALED"
+                } else {
+                    "RETURN_TO_LURE"
+                }
+                .into(),
             })
         } else {
             None
@@ -605,6 +618,8 @@ pub fn validate_profile(monster: &proto::Monster) -> Result<(), Error> {
             return Err(invalid());
         }
     }
+    encounters::validate(monster).map_err(|_| invalid())?;
+    damage_traits::validate(&profile.damage_traits).map_err(|_| invalid())?;
     spectral::validate(monster).map_err(|_| invalid())?;
     validate_hybrid(monster, profile).map_err(|_| invalid())?;
     attack_tracks::validate(monster).map_err(|_| invalid())?;
@@ -631,6 +646,16 @@ pub fn validate_profile(monster: &proto::Monster) -> Result<(), Error> {
         return Err(invalid());
     }
     if let Some(lure) = &profile.lure {
+        let mimic = profile
+            .encounter
+            .as_ref()
+            .is_some_and(|e| e.archetype == "OBJECT_MIMIC");
+        let lure_event = if mimic {
+            "OBJECT_DISGUISE"
+        } else {
+            "LURE_HEARTS"
+        };
+        let lure_event_time = if mimic { 0 } else { 240 };
         let lure_clip = monster
             .animations
             .iter()
@@ -650,10 +675,15 @@ pub fn validate_profile(monster: &proto::Monster) -> Result<(), Error> {
             || lure.trigger != "TARGET_WITHIN_RADIUS"
             || !lure.trigger_radius.is_finite()
             || !(1.0..=1000.0).contains(&lure.trigger_radius)
-            || lure.effect != "HEARTS"
+            || lure.effect != if mimic { "OBJECT_DISGUISE" } else { "HEARTS" }
             || lure.distant_state != "LURE"
             || lure.revealed_state != "ATTACK"
-            || lure.reset_policy != "RETURN_TO_LURE"
+            || lure.reset_policy
+                != if mimic {
+                    "STAY_REVEALED"
+                } else {
+                    "RETURN_TO_LURE"
+                }
             || !(120..=5000).contains(&lure.telegraph_ms)
             || reveal_duration != lure.telegraph_ms
             || !monster.attacks.iter().any(|a| a.id == lure.attack_id)
@@ -667,7 +697,7 @@ pub fn validate_profile(monster: &proto::Monster) -> Result<(), Error> {
             || !lure_clip
                 .events
                 .iter()
-                .any(|e| e.kind == "LURE_HEARTS" && e.reference_id == lure_clip.id)
+                .any(|e| e.kind == lure_event && e.reference_id == lure_clip.id)
             || !reveal
                 .events
                 .iter()
@@ -685,7 +715,7 @@ pub fn validate_profile(monster: &proto::Monster) -> Result<(), Error> {
                 clip.events.iter().any(|e| {
                     e.reference_id != clip.id
                         || match (clip.semantic_state.as_str(), e.kind.as_str()) {
-                            ("LURE", "LURE_HEARTS") => e.time_ms != 240,
+                            ("LURE", kind) if kind == lure_event => e.time_ms != lure_event_time,
                             ("REVEAL", "REVEAL") => e.time_ms != 0,
                             ("REVEAL", "REVEAL_COMPLETE") => e.time_ms != lure.telegraph_ms,
                             _ => true,

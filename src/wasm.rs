@@ -65,6 +65,21 @@ pub fn generate_hybrid_json(recipe_json: &str, seed: u64) -> Result<JsValue, JsV
     serialize_generated(generated)
 }
 
+/// Suggest editable monster text using the shared Rust summoner vocabulary.
+/// Prompt profiles are independent of the V1/V2 monster generation profile.
+/// A floating-point argument avoids wasm-bindgen's silent narrowing to u8.
+#[wasm_bindgen]
+pub fn suggest_prompt(seed: u64, difficulty: f64, prompt_profile: &str) -> Result<String, JsValue> {
+    if !difficulty.is_finite() || difficulty.fract() != 0.0 || !(1.0..=3.0).contains(&difficulty) {
+        return Err(js_error("difficulty must be 1, 2, or 3"));
+    }
+    let profile = prompt_profile
+        .parse::<crate::prompt::PromptProfile>()
+        .map_err(|error| js_error(&error.to_string()))?;
+    crate::prompt::random_prompt_with_profile(seed, difficulty as u8, profile)
+        .map_err(|error| js_error(&error.to_string()))
+}
+
 fn serialize_generated(generated: crate::GeneratedMonster) -> Result<JsValue, JsValue> {
     let output = Output {
         packages: generated

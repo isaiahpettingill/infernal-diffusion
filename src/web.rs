@@ -11,6 +11,7 @@ use std::{
 
 const INDEX: &str = include_str!("../web/index.html");
 const SCRIPT: &str = include_str!("../web/app.js");
+const PROMPT_CONTROLS: &str = include_str!("../web/wasm/prompt-controls.js");
 const STYLE: &str = include_str!("../web/style.css");
 
 fn response(stream: &mut TcpStream, status: &str, content_type: &str, body: &[u8]) {
@@ -106,7 +107,7 @@ fn monster_json(monster: &Monster, asset_base: &str) -> Value {
             "id": p.id, "kind": p.kind, "frameWidth": p.frame_width,
             "frameHeight": p.frame_height, "columns": p.columns,
             "firstFrame": p.first_frame, "frameCount": p.frame_count,
-            "frameDuration": p.frame_duration_ms,
+            "frameDuration": p.frame_duration_ms, "collisionRadius": p.collision_radius,
         })).collect::<Vec<_>>(),
         "animations": monster.animations.iter().map(|a| json!({
             "id": a.id, "state": a.semantic_state, "loop": a.looped,
@@ -120,6 +121,20 @@ fn monster_json(monster: &Monster, asset_base: &str) -> Value {
         })).collect::<Vec<_>>(),
         "attacks": monster.attacks.iter().map(|a| json!({
             "id": a.id, "delivery": a.delivery, "element": a.element,
+            "originNode": a.origin_node,
+            "originViews": monster.colliders.iter().find(|c| c.node_id == a.origin_node)
+                .map(|c| c.views.iter().map(|v| json!({
+                    "direction": v.direction_index, "x": v.x, "y": v.y, "radius": v.radius,
+                })).collect::<Vec<_>>()).unwrap_or_default(),
+            "motionSamples": monster.v2_profile.as_ref()
+                .and_then(|profile| profile.attack_patterns.iter().find(|p| p.attack_id == a.id))
+                .map(|pattern| pattern.motion_samples.iter().map(|sample| json!({
+                    "time": sample.time_ms, "frame": sample.sprite_frame_id,
+                    "node": sample.node_id, "active": sample.active,
+                    "views": sample.views.iter().map(|v| json!({
+                        "direction": v.direction_index, "x": v.x, "y": v.y, "radius": v.radius,
+                    })).collect::<Vec<_>>(),
+                })).collect::<Vec<_>>()).unwrap_or_default(),
             "damage": a.damage, "range": a.range, "cooldown": a.cooldown_ms,
             "telegraph": a.telegraph_ms, "animation": a.animation_id,
             "projectile": a.projectile_id,
@@ -154,6 +169,9 @@ fn monster_json(monster: &Monster, asset_base: &str) -> Value {
             "normalized": s.normalized_size, "class": s.size_class,
             "visibleWidth": s.visible_width_px, "visibleHeight": s.visible_height_px,
             "anchorX": s.anchor_x_px, "anchorY": s.anchor_y_px,
+            "worldScale": s.world_scale, "pixelsPerUnit": s.pixels_per_unit,
+            "referenceHeight": s.reference_height_px, "targetHeight": s.target_height_px,
+            "referencePlayerHeight": s.reference_player_height_px,
         })),
     })
 }
@@ -241,7 +259,7 @@ fn package_dir_with_parser(
 ) -> (String, PathBuf) {
     let mut digest = Sha256::new();
     // Never reuse vocabulary packages in a BERT-enabled server, or vice versa.
-    digest.update(b"arena-parser-cache-v1:");
+    digest.update(b"arena-world-scale-cache-v3:");
     digest.update(parser.as_bytes());
     digest.update([0]);
     digest.update(env!("CARGO_PKG_VERSION").as_bytes());
@@ -257,7 +275,7 @@ fn package_dir_with_parser(
     }
     // Keep the generation profiles separate as well as the parser builds.
     if profile == crate::GenerationProfile::V2 {
-        digest.update(b"generation-profile:v2");
+        digest.update(b"generation-profile:v2-recipes@3");
     }
     digest.update(prompt.as_bytes());
     digest.update(seed.to_le_bytes());
@@ -277,6 +295,40 @@ fn request_profile(input: &Value) -> Result<crate::GenerationProfile, &'static s
         Some(Value::String(value)) if value == "v2" => Ok(crate::GenerationProfile::V2),
         _ => Err("profile must be v1 or v2"),
     }
+}
+
+// Strings preserve all 64 bits when the caller is JavaScript. Integer JSON
+// values remain accepted for existing native clients; floating-point values do not.
+fn request_seed(input: &Value) -> Result<u64, &'static str> {
+    let seed = match input.get("seed") {
+        Some(Value::String(value))
+            if !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()) =>
+        {
+            value.parse::<u64>().ok()
+        }
+        Some(Value::Number(value)) => value.as_u64(),
+        _ => None,
+    };
+    seed.ok_or("seed must be an unsigned 64-bit integer or decimal string")
+}
+
+fn suggest(input: &Value) -> Result<Value, String> {
+    let seed = request_seed(input).map_err(str::to_owned)?;
+    let difficulty = input
+        .get("difficulty")
+        .and_then(Value::as_u64)
+        .filter(|value| (1..=3).contains(value))
+        .ok_or("difficulty must be 1, 2, or 3")? as u8;
+    let profile = match input.get("prompt_profile") {
+        None => crate::prompt::PromptProfile::default(),
+        Some(Value::String(value)) => value
+            .parse::<crate::prompt::PromptProfile>()
+            .map_err(|error| error.to_string())?,
+        _ => return Err("prompt_profile must be a profile name".into()),
+    };
+    let prompt = crate::prompt::random_prompt_with_profile(seed, difficulty, profile)
+        .map_err(|error| error.to_string())?;
+    Ok(json!({"prompt": prompt, "seed": seed.to_string(), "difficulty": difficulty}))
 }
 
 fn handle(mut stream: TcpStream, root: Arc<PathBuf>, generation_lock: Arc<Mutex<()>>) {
@@ -305,6 +357,27 @@ fn handle(mut stream: TcpStream, root: Arc<PathBuf>, generation_lock: Arc<Mutex<
             "text/javascript; charset=utf-8",
             SCRIPT.as_bytes(),
         ),
+        ("GET", "/prompt-controls.js") => response(
+            &mut stream,
+            "200 OK",
+            "text/javascript; charset=utf-8",
+            PROMPT_CONTROLS.as_bytes(),
+        ),
+        ("POST", "/api/suggest") => {
+            let input: Value = match serde_json::from_slice(&body) {
+                Ok(value) => value,
+                Err(_) => return error(&mut stream, "400 Bad Request", "invalid JSON"),
+            };
+            match suggest(&input) {
+                Ok(value) => response(
+                    &mut stream,
+                    "200 OK",
+                    "application/json; charset=utf-8",
+                    value.to_string().as_bytes(),
+                ),
+                Err(message) => error(&mut stream, "400 Bad Request", &message),
+            }
+        }
         ("GET", "/style.css") => response(
             &mut stream,
             "200 OK",
@@ -327,12 +400,9 @@ fn handle(mut stream: TcpStream, root: Arc<PathBuf>, generation_lock: Arc<Mutex<
                     "prompt must be 1–4096 bytes",
                 );
             }
-            let Some(seed) = input.get("seed").and_then(Value::as_u64) else {
-                return error(
-                    &mut stream,
-                    "400 Bad Request",
-                    "seed must be an unsigned integer",
-                );
+            let seed = match request_seed(&input) {
+                Ok(seed) => seed,
+                Err(message) => return error(&mut stream, "400 Bad Request", message),
             };
             let format = match input
                 .get("format")
@@ -435,6 +505,170 @@ pub fn serve(port: u16, output_root: &Path) -> std::io::Result<()> {
 mod tests {
     use super::*;
     use crate::{GenerationProfile, PackageFormat};
+
+    #[test]
+    fn suggestions_share_core_profiles_and_preserve_u64_seeds() {
+        for profile in crate::prompt::PromptProfile::ALL {
+            for difficulty in 1..=3 {
+                let result = suggest(&json!({
+                    "seed": u64::MAX.to_string(), "difficulty": difficulty,
+                    "prompt_profile": profile.as_str().to_ascii_uppercase(),
+                }))
+                .unwrap();
+                assert_eq!(result["seed"], u64::MAX.to_string());
+                assert_eq!(
+                    result["prompt"],
+                    crate::prompt::random_prompt_with_profile(u64::MAX, difficulty, profile)
+                        .unwrap()
+                );
+            }
+        }
+        assert_eq!(
+            suggest(&json!({"seed": 42, "difficulty": 2})).unwrap()["prompt"],
+            crate::prompt::random_prompt(42, 2).unwrap()
+        );
+    }
+
+    #[test]
+    fn suggestion_inputs_are_strict_and_generation_profile_is_independent() {
+        for seed in [
+            json!(-1),
+            json!(1.5),
+            json!(null),
+            json!(true),
+            json!(""),
+            json!("+1"),
+            json!(" 1"),
+            json!("1e2"),
+            json!("18446744073709551616"),
+        ] {
+            assert!(suggest(&json!({"seed": seed, "difficulty": 2})).is_err());
+        }
+        assert_eq!(request_seed(&json!({"seed": u64::MAX})).unwrap(), u64::MAX);
+        assert_eq!(
+            request_seed(&json!({"seed": "18446744073709551615"})).unwrap(),
+            u64::MAX
+        );
+        for difficulty in [
+            json!(0),
+            json!(4),
+            json!(-1),
+            json!(257),
+            json!(1.5),
+            json!(null),
+            json!("2"),
+        ] {
+            assert!(suggest(&json!({"seed": "42", "difficulty": difficulty})).is_err());
+        }
+        for profile in [json!("v2"), json!(""), json!(null), json!(42)] {
+            assert!(
+                suggest(&json!({"seed": "42", "difficulty": 2, "prompt_profile": profile}))
+                    .is_err()
+            );
+        }
+        assert!(suggest(&json!({"seed": "42"})).is_err());
+        assert!(suggest(&json!({"difficulty": 2})).is_err());
+        let v1 = suggest(&json!({"seed": "42", "difficulty": 2, "profile": "v1"})).unwrap();
+        let v2 = suggest(&json!({"seed": "42", "difficulty": 2, "profile": "v2"})).unwrap();
+        assert_eq!(v1, v2);
+    }
+
+    #[test]
+    fn suggestion_http_route_returns_text_and_rejects_bad_requests() {
+        fn post(body: &str) -> String {
+            let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+            let address = listener.local_addr().unwrap();
+            let root = tempfile::tempdir().unwrap();
+            let root_path = Arc::new(root.path().to_path_buf());
+            let handler = std::thread::spawn(move || {
+                let (stream, _) = listener.accept().unwrap();
+                handle(stream, root_path, Arc::new(Mutex::new(())));
+            });
+            let mut stream = TcpStream::connect(address).unwrap();
+            write!(
+                stream,
+                "POST /api/suggest HTTP/1.1\r\nHost: localhost\r\nContent-Length: {}\r\n\r\n{}",
+                body.len(),
+                body
+            )
+            .unwrap();
+            let mut response = String::new();
+            stream.read_to_string(&mut response).unwrap();
+            handler.join().unwrap();
+            assert_eq!(
+                std::fs::read_dir(root.path()).unwrap().count(),
+                0,
+                "suggestions must not render or create packages"
+            );
+            response
+        }
+        let response =
+            post(r#"{"seed":"18446744073709551615","difficulty":3,"prompt_profile":"ocean"}"#);
+        assert!(response.starts_with("HTTP/1.1 200 OK"));
+        let output: Value =
+            serde_json::from_str(response.split("\r\n\r\n").nth(1).unwrap()).unwrap();
+        assert_eq!(output["seed"], "18446744073709551615");
+        assert!(output["prompt"].as_str().unwrap().len() > 5);
+        for body in [
+            "{",
+            r#"{"seed":"-1","difficulty":2}"#,
+            r#"{"seed":"1","difficulty":2,"prompt_profile":"bad"}"#,
+        ] {
+            assert!(post(body).starts_with("HTTP/1.1 400 Bad Request"));
+        }
+    }
+
+    #[test]
+    fn web_adapter_preserves_world_scale_and_baked_coordinates() {
+        let monster = Monster {
+            sprites: Some(crate::proto::SpriteSet {
+                frame_width: 256,
+                frame_height: 256,
+                ..Default::default()
+            }),
+            gameplay: Some(Default::default()),
+            size: Some(crate::proto::SizeInfo {
+                world_scale: 0.5,
+                pixels_per_unit: 1.5,
+                reference_height_px: 128.0,
+                target_height_px: 64.0,
+                reference_player_height_px: 96.0,
+                anchor_x_px: 128.0,
+                anchor_y_px: 145.0,
+                ..Default::default()
+            }),
+            colliders: vec![crate::proto::Collider {
+                node_id: "mouth".into(),
+                hurtbox: false,
+                views: vec![crate::proto::ColliderView {
+                    direction_index: 0,
+                    x: 140.0,
+                    y: 105.0,
+                    radius: 5.0,
+                }],
+                ..Default::default()
+            }],
+            attacks: vec![crate::proto::Attack {
+                id: "spit".into(),
+                origin_node: "mouth".into(),
+                range: 190.0,
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let output = monster_json(&monster, "/asset/test");
+        assert_eq!(output["size"]["worldScale"], 0.5);
+        assert_eq!(output["size"]["pixelsPerUnit"], 1.5);
+        assert_eq!(output["size"]["referenceHeight"], 128.0);
+        assert_eq!(output["size"]["targetHeight"], 64.0);
+        assert_eq!(output["size"]["referencePlayerHeight"], 96.0);
+        assert_eq!(output["size"]["anchorX"], 128.0);
+        assert_eq!(output["sprites"]["frameWidth"], 256);
+        assert_eq!(output["attacks"][0]["range"], 190.0);
+        assert_eq!(output["attacks"][0]["originViews"][0]["x"], 140.0);
+        assert_eq!(output["attacks"][0]["originViews"][0]["radius"], 5.0);
+        assert_eq!(output["colliders"].as_array().unwrap().len(), 0);
+    }
 
     #[test]
     fn web_profile_defaults_to_v1_and_rejects_invalid_values() {

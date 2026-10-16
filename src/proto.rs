@@ -82,6 +82,15 @@ pub struct SizeInfo {
     pub anchor_x_px: f32,
     #[prost(float, tag = "8")]
     pub anchor_y_px: f32,
+    /// Baked sprite pixels to world pixels; apply once, never per frame.
+    #[prost(float, tag = "9")]
+    pub world_scale: f32,
+    #[prost(float, tag = "10")]
+    pub reference_height_px: f32,
+    #[prost(float, tag = "11")]
+    pub target_height_px: f32,
+    #[prost(float, tag = "12")]
+    pub reference_player_height_px: f32,
 }
 #[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
@@ -399,6 +408,11 @@ pub struct V2Profile {
     pub hybrid: Option<HybridRecipeDescriptor>,
     #[prost(message, repeated, tag = "9")]
     pub body_motion_samples: Vec<BodyMotionSample>,
+    #[prost(message, optional, tag = "10")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encounter: Option<EncounterDescriptor>,
+    #[prost(string, repeated, tag = "11")]
+    pub damage_traits: Vec<String>,
 }
 
 #[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
@@ -551,4 +565,110 @@ pub struct PosedHurtbox {
     pub node_id: String,
     #[prost(message, repeated, tag = "2")]
     pub views: Vec<ColliderView>,
+}
+
+/// Versioned declarative encounter data. The consuming engine owns physics and AI.
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct EncounterDescriptor {
+    #[prost(uint32, tag = "1")]
+    pub contract_version: u32,
+    #[prost(string, tag = "2")]
+    pub archetype: String,
+    #[prost(message, optional, tag = "3")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub split: Option<SplitDescriptor>,
+    #[prost(message, optional, tag = "4")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mimic: Option<MimicDescriptor>,
+    #[prost(message, optional, tag = "5")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shield: Option<ShieldDescriptor>,
+    #[prost(message, optional, tag = "6")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pushed_prop: Option<PushedPropDescriptor>,
+}
+
+/// Versioned declarative encounter data. The consuming engine owns physics and AI.
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct SplitDescriptor {
+    #[prost(uint32, tag = "1")]
+    pub count: u32,
+    #[prost(uint32, tag = "2")]
+    pub max_generations: u32,
+    #[prost(uint32, tag = "3")]
+    pub max_offspring: u32,
+    #[prost(float, tag = "4")]
+    pub child_scale: f32,
+    #[prost(float, tag = "5")]
+    pub child_health_fraction: f32,
+    #[prost(float, tag = "6")]
+    pub child_speed_multiplier: f32,
+    #[prost(uint32, tag = "7")]
+    pub emergence_ms: u32,
+    #[prost(float, tag = "8")]
+    pub separation_px: f32,
+    #[prost(string, tag = "9")]
+    pub emergence_animation_id: String,
+    #[prost(string, tag = "10")]
+    pub burst_animation_id: String,
+}
+
+/// Versioned declarative encounter data. The consuming engine owns physics and AI.
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct MimicDescriptor {
+    #[prost(string, tag = "1")]
+    pub disguise: String,
+    #[prost(float, tag = "2")]
+    pub trigger_radius: f32,
+    #[prost(uint32, tag = "3")]
+    pub reveal_ms: u32,
+}
+
+/// Versioned declarative encounter data. The consuming engine owns physics and AI.
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct ShieldDescriptor {
+    #[prost(float, tag = "1")]
+    pub front_arc_degrees: f32,
+    #[prost(uint32, tag = "2")]
+    pub bash_windup_ms: u32,
+    #[prost(uint32, tag = "3")]
+    pub bash_recovery_ms: u32,
+    #[prost(string, tag = "4")]
+    pub guard_animation_id: String,
+    #[prost(string, tag = "5")]
+    pub bash_animation_id: String,
+    #[prost(string, tag = "6")]
+    pub recovery_animation_id: String,
+}
+
+/// Versioned declarative encounter data. The consuming engine owns physics and AI.
+#[derive(Clone, PartialEq, Message, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct PushedPropDescriptor {
+    #[prost(string, tag = "1")]
+    pub kind: String,
+    #[prost(string, tag = "2")]
+    pub id_suffix: String,
+    #[prost(float, tag = "3")]
+    pub radius: f32,
+    #[prost(float, tag = "4")]
+    pub health: f32,
+    #[prost(float, tag = "5")]
+    pub push_speed: f32,
+    #[prost(string, tag = "6")]
+    pub coordinate_space: String,
+    #[prost(float, tag = "7")]
+    pub anchor_x: f32,
+    #[prost(float, tag = "8")]
+    pub anchor_y: f32,
+    #[prost(string, tag = "9")]
+    pub push_animation_id: String,
+    #[prost(string, tag = "10")]
+    pub recovery_animation_id: String,
+    #[prost(string, tag = "11")]
+    pub release_event: String,
 }

@@ -84,6 +84,14 @@ public sealed class SizeInfo
     public float AnchorXPx { get; set; }
     [CborProperty(TextName = "anchor_y_px")]
     public float AnchorYPx { get; set; }
+    [CborProperty(TextName = "world_scale")]
+    public float WorldScale { get; set; }
+    [CborProperty(TextName = "reference_height_px")]
+    public float ReferenceHeightPx { get; set; }
+    [CborProperty(TextName = "target_height_px")]
+    public float TargetHeightPx { get; set; }
+    [CborProperty(TextName = "reference_player_height_px")]
+    public float ReferencePlayerHeightPx { get; set; }
 }
 
 public sealed class BehaviorInfo
@@ -394,6 +402,10 @@ public sealed class V2Profile
     public HybridRecipeDescriptor? Hybrid { get; set; }
     [CborProperty(TextName = "body_motion_samples")]
     public List<BodyMotionSample> BodyMotionSamples { get; set; } = new();
+    [CborProperty(TextName = "encounter")]
+    public EncounterDescriptor? Encounter { get; set; }
+    [CborProperty(TextName = "damage_traits")]
+    public List<string> DamageTraits { get; set; } = new();
 }
 
 public sealed class AttackPatternDescriptor
@@ -538,4 +550,96 @@ public sealed class PosedHurtbox
     public string NodeID { get; set; } = "";
     [CborProperty(TextName = "views")]
     public List<ColliderView> Views { get; set; } = new();
+}
+
+public sealed class EncounterDescriptor
+{
+    [CborProperty(TextName = "contract_version")]
+    public uint ContractVersion { get; set; }
+    [CborProperty(TextName = "archetype")]
+    public string Archetype { get; set; } = "";
+    [CborProperty(TextName = "split")]
+    public SplitDescriptor? Split { get; set; }
+    [CborProperty(TextName = "mimic")]
+    public MimicDescriptor? Mimic { get; set; }
+    [CborProperty(TextName = "shield")]
+    public ShieldDescriptor? Shield { get; set; }
+    [CborProperty(TextName = "pushed_prop")]
+    public PushedPropDescriptor? PushedProp { get; set; }
+}
+
+public sealed class SplitDescriptor
+{
+    [CborProperty(TextName = "count")]
+    public uint Count { get; set; }
+    [CborProperty(TextName = "max_generations")]
+    public uint MaxGenerations { get; set; }
+    [CborProperty(TextName = "max_offspring")]
+    public uint MaxOffspring { get; set; }
+    [CborProperty(TextName = "child_scale")]
+    public float ChildScale { get; set; }
+    [CborProperty(TextName = "child_health_fraction")]
+    public float ChildHealthFraction { get; set; }
+    [CborProperty(TextName = "child_speed_multiplier")]
+    public float ChildSpeedMultiplier { get; set; }
+    [CborProperty(TextName = "emergence_ms")]
+    public uint EmergenceMs { get; set; }
+    [CborProperty(TextName = "separation_px")]
+    public float SeparationPx { get; set; }
+    [CborProperty(TextName = "emergence_animation_id")]
+    public string EmergenceAnimationID { get; set; } = "";
+    [CborProperty(TextName = "burst_animation_id")]
+    public string BurstAnimationID { get; set; } = "";
+}
+
+public sealed class MimicDescriptor
+{
+    [CborProperty(TextName = "disguise")]
+    public string Disguise { get; set; } = "";
+    [CborProperty(TextName = "trigger_radius")]
+    public float TriggerRadius { get; set; }
+    [CborProperty(TextName = "reveal_ms")]
+    public uint RevealMs { get; set; }
+}
+
+public sealed class ShieldDescriptor
+{
+    [CborProperty(TextName = "front_arc_degrees")]
+    public float FrontArcDegrees { get; set; }
+    [CborProperty(TextName = "bash_windup_ms")]
+    public uint BashWindupMs { get; set; }
+    [CborProperty(TextName = "bash_recovery_ms")]
+    public uint BashRecoveryMs { get; set; }
+    [CborProperty(TextName = "guard_animation_id")]
+    public string GuardAnimationID { get; set; } = "";
+    [CborProperty(TextName = "bash_animation_id")]
+    public string BashAnimationID { get; set; } = "";
+    [CborProperty(TextName = "recovery_animation_id")]
+    public string RecoveryAnimationID { get; set; } = "";
+}
+
+public sealed class PushedPropDescriptor
+{
+    [CborProperty(TextName = "kind")]
+    public string Kind { get; set; } = "";
+    [CborProperty(TextName = "id_suffix")]
+    public string IDSuffix { get; set; } = "";
+    [CborProperty(TextName = "radius")]
+    public float Radius { get; set; }
+    [CborProperty(TextName = "health")]
+    public float Health { get; set; }
+    [CborProperty(TextName = "push_speed")]
+    public float PushSpeed { get; set; }
+    [CborProperty(TextName = "coordinate_space")]
+    public string CoordinateSpace { get; set; } = "";
+    [CborProperty(TextName = "anchor_x")]
+    public float AnchorX { get; set; }
+    [CborProperty(TextName = "anchor_y")]
+    public float AnchorY { get; set; }
+    [CborProperty(TextName = "push_animation_id")]
+    public string PushAnimationID { get; set; } = "";
+    [CborProperty(TextName = "recovery_animation_id")]
+    public string RecoveryAnimationID { get; set; } = "";
+    [CborProperty(TextName = "release_event")]
+    public string ReleaseEvent { get; set; } = "";
 }

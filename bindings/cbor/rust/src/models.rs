@@ -52,6 +52,10 @@ pub struct SizeInfo {
     pub visible_height_px: u32,
     pub anchor_x_px: f32,
     pub anchor_y_px: f32,
+    pub world_scale: f32,
+    pub reference_height_px: f32,
+    pub target_height_px: f32,
+    pub reference_player_height_px: f32,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -261,6 +265,8 @@ pub struct V2Profile {
     pub spectral: Option<SpectralDescriptor>,
     pub hybrid: Option<HybridRecipeDescriptor>,
     pub body_motion_samples: Vec<BodyMotionSample>,
+    pub encounter: Option<EncounterDescriptor>,
+    pub damage_traits: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -360,4 +366,65 @@ pub struct BodyMotionSample {
 pub struct PosedHurtbox {
     pub node_id: String,
     pub views: Vec<ColliderView>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct EncounterDescriptor {
+    pub contract_version: u32,
+    pub archetype: String,
+    pub split: Option<SplitDescriptor>,
+    pub mimic: Option<MimicDescriptor>,
+    pub shield: Option<ShieldDescriptor>,
+    pub pushed_prop: Option<PushedPropDescriptor>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SplitDescriptor {
+    pub count: u32,
+    pub max_generations: u32,
+    pub max_offspring: u32,
+    pub child_scale: f32,
+    pub child_health_fraction: f32,
+    pub child_speed_multiplier: f32,
+    pub emergence_ms: u32,
+    pub separation_px: f32,
+    pub emergence_animation_id: String,
+    pub burst_animation_id: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MimicDescriptor {
+    pub disguise: String,
+    pub trigger_radius: f32,
+    pub reveal_ms: u32,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ShieldDescriptor {
+    pub front_arc_degrees: f32,
+    pub bash_windup_ms: u32,
+    pub bash_recovery_ms: u32,
+    pub guard_animation_id: String,
+    pub bash_animation_id: String,
+    pub recovery_animation_id: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PushedPropDescriptor {
+    pub kind: String,
+    pub id_suffix: String,
+    pub radius: f32,
+    pub health: f32,
+    pub push_speed: f32,
+    pub coordinate_space: String,
+    pub anchor_x: f32,
+    pub anchor_y: f32,
+    pub push_animation_id: String,
+    pub recovery_animation_id: String,
+    pub release_event: String,
 }
