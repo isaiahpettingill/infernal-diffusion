@@ -28,6 +28,7 @@ function arena() {
     fetch: async () => { throw new Error('network is not used in combat tests'); },
     Math, Number, Set,
   });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'wasm/prompt-controls.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8'), context);
   const state = vm.runInContext('state', context);
   state.monster = {

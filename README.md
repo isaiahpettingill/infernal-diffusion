@@ -58,6 +58,13 @@ WASM thread pool and deterministic vocabulary parsing instead of BERT. See
 [the runnable browser demo and build instructions](web/wasm/README.md).
 The WASM CI builds an optimized wasm32 artifact and tests actual worker generation.
 
+## Random monster prompts
+
+The playgrounds offer a separate summoner-profile selector and seeded **Random prompt**
+control: **Default**, **Necromancer**, **Shaman**, **Lunatic**, **Boss** and **Ocean**.
+Default now covers the broad bestiary at every difficulty. Suggestions remain editable,
+and V1/V2 is still an independent generation choice. See [profile behavior and APIs](docs/random-prompts.md).
+
 ## Generate a monster
 
 ```sh

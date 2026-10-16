@@ -75,6 +75,20 @@ export class MonsterGenerator {
     return this._request('generate', { prompt, seed, profile }, signal);
   }
 
+  /** Editable prompt text, composed by Rust. Summoner profiles do not select V1/V2. */
+  suggestPrompt(seed = 0n, difficulty = 2, { signal, promptProfile = 'default' } = {}) {
+    try {
+      if (typeof seed === 'number' && !Number.isSafeInteger(seed)) throw new RangeError('Numeric seed must be a safe integer; use bigint or decimal text for larger seeds');
+      if (!['bigint', 'number', 'string'].includes(typeof seed) || (typeof seed === 'string' && !/^\d+$/.test(seed))) throw new TypeError('Seed must be an unsigned integer');
+      seed = BigInt(seed);
+      if (seed < 0n || seed > 18446744073709551615n) throw new RangeError('Seed must fit an unsigned 64-bit integer');
+      if (!Number.isInteger(difficulty) || difficulty < 1 || difficulty > 3) throw new RangeError('Difficulty must be 1, 2, or 3');
+      if (typeof promptProfile !== 'string' || !['default', 'necromancer', 'shaman', 'lunatic', 'boss', 'ocean'].includes(promptProfile.toLowerCase())) throw new RangeError('Unknown summoner prompt profile');
+      promptProfile = promptProfile.toLowerCase();
+    } catch (error) { return Promise.reject(error); }
+    return this._request('suggest', { seed, difficulty, prompt_profile: promptProfile }, signal);
+  }
+
   /** Validated HybridRecipe object or JSON text. Always V2; no prompt parser. */
   generateHybrid(recipe, seed = 0n, { signal } = {}) {
     let prompt;

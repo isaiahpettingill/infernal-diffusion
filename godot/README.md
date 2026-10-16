@@ -243,3 +243,5 @@ Existing generation methods remain V1. Use
 to select V2 for one request. Unknown profile values are rejected; an older core
 without V2 support reports a failed job rather than silently falling back.
 See [generation profiles](../docs/generation-profiles.md) for the full API contract.
+
+Named summoner profiles are also available via `suggest_prompt_async_profile(seed, difficulty, PROMPT_OCEAN)`; [all six profiles and compatibility details](../docs/random-prompts.md). Rebuild both extension and core for this additive API.

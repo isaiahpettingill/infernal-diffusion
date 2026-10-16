@@ -20,6 +20,17 @@ const char *infernal_cpu_kernel_name(void);
 /* Deterministic, recipe-aware NPC speech. Difficulty is 1..3.
    The returned string is freed with infernal_free_string. */
 char *infernal_random_prompt(uint64_t seed, uint32_t difficulty, char **error_out);
+/* Summoner vocabulary profiles; separate from V1/V2 generation profiles.
+   Boss always receives hard-tier armor and elemental ranged attacks. */
+#define INFERNAL_PROMPT_DEFAULT 0u
+#define INFERNAL_PROMPT_NECROMANCER 1u
+#define INFERNAL_PROMPT_SHAMAN 2u
+#define INFERNAL_PROMPT_LUNATIC 3u
+#define INFERNAL_PROMPT_BOSS 4u
+#define INFERNAL_PROMPT_OCEAN 5u
+/* Additive optional ABI-1 symbol. Unknown profiles return NULL + error_out. */
+char *infernal_random_prompt_profile(uint64_t seed, uint32_t difficulty,
+                                     uint32_t prompt_profile, char **error_out);
 /* One-based round; difficulty rises after rounds 3 and 6. The monster seed
    is safe to pass to Godot's signed 64-bit generation API. */
 char *infernal_arena_prompt(uint64_t run_seed, uint32_t round,

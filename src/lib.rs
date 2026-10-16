@@ -2148,6 +2148,20 @@ pub unsafe extern "C" fn infernal_random_prompt(
     difficulty: u32,
     error_out: *mut *mut c_char,
 ) -> *mut c_char {
+    infernal_random_prompt_profile(seed, difficulty, 0, error_out)
+}
+
+#[no_mangle]
+/// Named summoner policy, independent of V1/V2 generation. IDs are 0..5.
+/// # Safety
+/// `error_out`, when non-null, must point to writable pointer storage. Free the
+/// returned string and any error with `infernal_free_string`.
+pub unsafe extern "C" fn infernal_random_prompt_profile(
+    seed: u64,
+    difficulty: u32,
+    prompt_profile: u32,
+    error_out: *mut *mut c_char,
+) -> *mut c_char {
     if !error_out.is_null() {
         *error_out = std::ptr::null_mut();
     }
@@ -2155,7 +2169,10 @@ pub unsafe extern "C" fn infernal_random_prompt(
         if !(1..=3).contains(&difficulty) {
             return Err(prompt::PromptError::InvalidDifficulty.to_string());
         }
-        prompt::random_prompt(seed, difficulty as u8).map_err(|error| error.to_string())
+        let profile =
+            prompt::PromptProfile::try_from(prompt_profile).map_err(|error| error.to_string())?;
+        prompt::random_prompt_with_profile(seed, difficulty as u8, profile)
+            .map_err(|error| error.to_string())
     }) {
         Ok(Ok(value)) => CString::new(value).unwrap_or_default().into_raw(),
         other => {

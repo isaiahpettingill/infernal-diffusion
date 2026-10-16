@@ -48,6 +48,17 @@ func bake_prop_async(mesh_path: String, options: Dictionary = {}) -> int:
 func suggest_prompt_async(seed: int, difficulty: int) -> int:
 	return _generator.suggest_prompt_async(seed, difficulty, _library_dir())
 
+## Summoner vocabulary policy, independent of generation PROFILE_V1/PROFILE_V2.
+const PROMPT_DEFAULT := 0
+const PROMPT_NECROMANCER := 1
+const PROMPT_SHAMAN := 2
+const PROMPT_LUNATIC := 3
+const PROMPT_BOSS := 4
+const PROMPT_OCEAN := 5
+
+func suggest_prompt_async_profile(seed: int, difficulty: int, prompt_profile: int) -> int:
+	return _generator.suggest_prompt_async_profile(seed, difficulty, prompt_profile, _library_dir())
+
 func suggest_arena_prompt_async(run_seed: int, round: int) -> int:
 	return _generator.suggest_arena_prompt_async(run_seed, round, _library_dir())
 

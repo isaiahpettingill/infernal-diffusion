@@ -1,10 +1,22 @@
+import './prompt-controls.js';
 import { MonsterGenerator } from './client.js';
 const generator = new MonsterGenerator();
 const $ = (id) => document.getElementById(id);
 let ticks = 0;
 setInterval(() => { $('heartbeat').textContent = String(++ticks); }, 100);
 let busy = false;
-function setBusy(value) { busy = value; $('generate').disabled = value; $('cancel').disabled = !value; }
+let initialized = false;
+const promptControls = new InfernalPromptControls({
+  prompt: $('prompt'), seed: $('seed'), difficulty: $('difficulty'), profile: $('prompt-profile'),
+  button: $('random-prompt'), status: $('suggestion-status'), disabled: true,
+  suggest: (seed, difficulty, promptProfile) => generator.suggestPrompt(seed, difficulty, { promptProfile }),
+});
+function setBusy(value) {
+  busy = value;
+  $('generate').disabled = value || !initialized;
+  $('cancel').disabled = !value;
+  promptControls.setDisabled(value || !initialized);
+}
 function atlasView(label, atlas) {
   if (!atlas) return document.createTextNode('');
   const section = document.createElement('section');
@@ -41,7 +53,7 @@ function show(result) {
 }
 $('form').addEventListener('submit', async (event) => {
   event.preventDefault();
-  if (busy) return;
+  if (busy || !initialized) return;
   setBusy(true);
   $('status').textContent = 'Generating in worker… The heartbeat stays responsive.';
   const started = performance.now();
@@ -54,14 +66,18 @@ $('form').addEventListener('submit', async (event) => {
   } finally { setBusy(false); }
 });
 document.querySelectorAll('[data-prompt]').forEach(button => {
-  button.addEventListener('click', () => { $('prompt').value = button.dataset.prompt; });
+  button.addEventListener('click', () => { promptControls.invalidate('Example selected.'); $('prompt').value = button.dataset.prompt; });
 });
 $('cancel').addEventListener('click', () => generator.cancel());
-window.addEventListener('pagehide', () => generator.dispose());
+window.addEventListener('pagehide', event => {
+  if (event.persisted) { promptControls.invalidate(); generator.cancel(); }
+  else { promptControls.dispose(); generator.dispose(); }
+});
 try {
   const { threadCount } = await generator.ready();
   $('status').textContent = 'Ready';
   $('status').title = `Rayon pool initialized with ${threadCount} workers`;
-  $('generate').disabled = false;
+  initialized = true;
+  setBusy(false);
 }
 catch (error) { $('status').textContent = error.message; }

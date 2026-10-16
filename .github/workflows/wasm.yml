@@ -50,6 +50,7 @@ jobs:
             web/wasm/worker.js
             web/wasm/index.html
             web/wasm/demo.js
+            web/wasm/prompt-controls.js
             web/wasm/server.py
             web/wasm/README.md
           if-no-files-found: error

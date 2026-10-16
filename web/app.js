@@ -237,16 +237,36 @@ function setupMonster(monster, sheet, projectileSheet) {
   resetFight();
 }
 
+let generating = false;
+const promptControls = new InfernalPromptControls({
+  prompt: $('prompt'), seed: $('seed'), difficulty: $('difficulty'), profile: $('prompt-profile'),
+  button: $('random-prompt'), status: $('suggestion-status'),
+  suggest: async (seed, difficulty, prompt_profile) => {
+    const response = await fetch('/api/suggest', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seed: seed.toString(), difficulty, prompt_profile }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+    return result.prompt;
+  },
+});
+
 async function generate(event) {
   event.preventDefault();
+  if (generating) return;
   const prompt = $('prompt').value.trim();
-  const seed = Number($('seed').value);
+  let seed;
+  try { seed = InfernalPromptControls.seed($('seed').value).toString(); }
+  catch (error) { setStatus(error.message); return; }
   const format = $('package-format').value;
   const profile = $('profile').value;
-  if (!prompt || !Number.isSafeInteger(seed) || seed < 0) {
-    setStatus('Enter a prompt and a nonnegative integer seed.');
+  if (!prompt) {
+    setStatus('Enter a monster prompt.');
     return;
   }
+  generating = true;
+  promptControls.setDisabled(true);
   $('generate').disabled = true;
   setStatus('Building anatomy, physics, animations, and the sprite atlas…');
   try {
@@ -282,6 +302,8 @@ async function generate(event) {
   } catch (error) {
     setStatus(`Generation failed: ${error.message}`);
   } finally {
+    generating = false;
+    promptControls.setDisabled(false);
     $('generate').disabled = false;
   }
 }
@@ -1093,8 +1115,12 @@ function tick(timestamp) {
 }
 
 $('generator').addEventListener('submit', generate);
+window.addEventListener('pagehide', event => {
+  if (event.persisted) promptControls.invalidate();
+  else promptControls.dispose();
+});
 for (const button of document.querySelectorAll('[data-prompt]')) {
-  button.addEventListener('click', () => { $('prompt').value = button.dataset.prompt; $('prompt').focus(); });
+  button.addEventListener('click', () => { promptControls.invalidate('Example selected.'); $('prompt').value = button.dataset.prompt; $('prompt').focus(); });
 }
 $('viewer-mode').addEventListener('click', () => setMode('viewer'));
 $('fight-mode').addEventListener('click', () => setMode('fight'));
