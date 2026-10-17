@@ -152,6 +152,38 @@ pub fn generate_hybrid_json(recipe_json: &str, seed: u64) -> Result<JsValue, JsV
     serialize_generated(generated)
 }
 
+/// Opt-in packed textures; logical sprite coordinates remain unchanged.
+#[wasm_bindgen]
+pub fn generate_monster_compact_progress(
+    prompt: &str,
+    seed: u64,
+    profile: &str,
+    callback: js_sys::Function,
+) -> Result<JsValue, JsValue> {
+    with_progress(callback, || {
+        let profile = profile
+            .parse::<crate::GenerationProfile>()
+            .map_err(|e| js_error(&e.to_string()))?;
+        let generated = crate::generate_in_memory_compact_with_profile(prompt, seed, profile)
+            .map_err(|e| js_error(&e.to_string()))?;
+        serialize_generated(generated)
+    })
+}
+
+#[wasm_bindgen]
+pub fn generate_hybrid_compact_progress(
+    recipe_json: &str,
+    seed: u64,
+    callback: js_sys::Function,
+) -> Result<JsValue, JsValue> {
+    with_progress(callback, || {
+        let recipe = serde_json::from_str(recipe_json).map_err(|e| js_error(&e.to_string()))?;
+        let generated = crate::generate_hybrid_in_memory_compact(&recipe, seed)
+            .map_err(|e| js_error(&e.to_string()))?;
+        serialize_generated(generated)
+    })
+}
+
 /// Suggest editable monster text using the shared Rust summoner vocabulary.
 /// Prompt profiles are independent of the V1/V2 monster generation profile.
 /// A floating-point argument avoids wasm-bindgen's silent narrowing to u8.

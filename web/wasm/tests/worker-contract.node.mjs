@@ -10,7 +10,7 @@ const modelInfo = {
 };
 const phases = ['parsing', 'building', 'rendering', 'packaging'];
 
-async function worker({ threaded = false, isolated = false, initializationError, generationError } = {}) {
+async function worker({ threaded = false, isolated = false, initializationError, generationError, compact = false } = {}) {
   const calls = [], messages = [];
   const info = { ...modelInfo, threaded };
   const result = { packages: [] };
@@ -45,6 +45,14 @@ async function worker({ threaded = false, isolated = false, initializationError,
     },
     suggest_prompt: () => 'a small goblin',
   };
+  if (compact) {
+    api.generate_monster_compact_progress = (prompt, seed, profile, progress) => {
+      calls.push(['compact', prompt, seed, profile]); progress('complete',1,1); return result;
+    };
+    api.generate_hybrid_compact_progress = (prompt, seed, progress) => {
+      calls.push(['compact-hybrid',prompt,seed]); progress('complete',1,1); return result;
+    };
+  }
   if (threaded) api.initThreadPool = async count => { calls.push(['pool', count]); };
   const source = (await readFile(new URL('../worker.js', import.meta.url), 'utf8'))
     .replace("await import('./pkg/infernal_diffusion.js')", '__api');
@@ -281,4 +289,24 @@ test('request timeouts terminate all queued work and a later request restarts', 
     w.onmessage({ data: { id: w.messages[0].id, type: 'ready', threadCount: 1, ...modelInfo } });
     assert.deepEqual(await next, { threadCount: 1, ...modelInfo });
   } finally { f.cleanup(); }
+});
+
+
+test('compact storage is explicit and keeps profiles, full seeds and hybrid routing', async () => {
+  const w = await worker({compact:true});
+  await w.send({id:1,type:'generate',prompt:'shade humanoid',seed:18446744073709551615n,profile:'v2',compact:true});
+  await w.send({id:2,type:'generate_hybrid',prompt:'{}',seed:42n,profile:'v2',compact:true,progress:true});
+  assert.ok(w.calls.some(c=>c[0]==='compact' && c[2]===18446744073709551615n && c[3]==='v2'));
+  assert.ok(w.calls.some(c=>c[0]==='compact-hybrid'));
+  assert.equal(w.messages.filter(m=>m.id===1 && m.type==='progress').length,0);
+  assert.equal(w.messages.filter(m=>m.type==='result').length,2);
+});
+
+test('compact requests never silently fall back to incompatible dense or V1 generation', async () => {
+  const old = await worker();
+  await old.send({id:1,type:'generate',prompt:'ogre',seed:42n,compact:true});
+  assert.match(old.messages.at(-1).error.message,/compact atlases/);
+  const modern=await worker({compact:true});
+  await modern.send({id:1,type:'generate_hybrid',prompt:'{}',seed:42n,profile:'v1',compact:true});
+  assert.match(modern.messages.at(-1).error.message,/requires V2/);
 });

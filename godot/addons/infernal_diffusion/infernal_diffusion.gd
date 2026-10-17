@@ -74,6 +74,36 @@ func release_in_memory(object_job_id: int) -> bool:
 static func image_from_rgba(atlas: Dictionary) -> Image:
 	return Image.create_from_data(atlas.width, atlas.height, false, Image.FORMAT_RGBA8, atlas.rgba)
 
+## Logical IDs remain unchanged in compact atlases. Margins restore the original
+## virtual canvas so Sprite2D/AnimatedSprite2D centering, flipping and anchors agree.
+static func frame_texture(monster: Dictionary, atlas: Texture2D, frame_id: int, direction_index: int = 0) -> AtlasTexture:
+	if atlas == null or frame_id < 0 or direction_index < 0: return null
+	var data: Dictionary = monster.get("sprites", {})
+	var tile := Vector2i(int(data.get("frame_width", 0)), int(data.get("frame_height", 0)))
+	if tile.x <= 0 or tile.y <= 0: return null
+	var id := frame_id + direction_index * int(data.get("direction_stride", 0))
+	var columns := maxi(1, int(data.get("columns", 1)))
+	var region := Rect2i((id % columns) * tile.x, (id / columns as int) * tile.y, tile.x, tile.y)
+	var offset := Vector2i.ZERO
+	var regions: Array = data.get("frame_regions", [])
+	if not regions.is_empty():
+		if id >= regions.size(): return null
+		var entry: Dictionary = regions[id]
+		region = Rect2i(int(entry.get("x", -1)), int(entry.get("y", -1)), int(entry.get("width", 0)), int(entry.get("height", 0)))
+		offset = Vector2i(int(entry.get("offset_x", -1)), int(entry.get("offset_y", -1)))
+	elif int(monster.get("format_version", 0)) >= 8:
+		return null
+	if not region.has_area() or offset.x < 0 or offset.y < 0 \
+			or not Rect2i(Vector2i.ZERO, Vector2i(atlas.get_width(), atlas.get_height())).encloses(region) \
+			or not Rect2i(Vector2i.ZERO, tile).encloses(Rect2i(offset, region.size)):
+		return null
+	var texture := AtlasTexture.new()
+	texture.atlas = atlas
+	texture.region = Rect2(region)
+	texture.margin = Rect2(Vector2(offset), Vector2(tile - region.size))
+	texture.filter_clip = true
+	return texture
+
 func poll_result() -> Dictionary:
 	var result := _generator.poll_result()
 	for package: Dictionary in result.get("packages", []):

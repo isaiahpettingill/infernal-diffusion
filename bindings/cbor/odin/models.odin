@@ -102,6 +102,16 @@ SpriteSet :: struct {
     direction_angles_deg: []f32,
     direction_stride: u32,
     render_mode: string,
+    frame_regions: []FrameRegion,
+}
+
+FrameRegion :: struct {
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    offset_x: u32,
+    offset_y: u32,
 }
 
 PhysicsInfo :: struct {

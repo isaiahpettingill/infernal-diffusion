@@ -100,8 +100,14 @@ async function handleRequest(data) {
     if (type !== 'generate_hybrid' && profile === 'v2' && typeof api.generate_monster_with_profile !== 'function') {
       throw new Error('This WASM package does not support V2; rebuild the generator');
     }
+    if (type === 'generate_hybrid' && profile !== 'v2') throw new RangeError('Structured hybrid generation requires V2');
+    if (data.compact !== undefined && typeof data.compact !== 'boolean') throw new TypeError('compact must be a boolean');
     let result;
-    if (type === 'generate_hybrid') {
+    if (data.compact === true) {
+      const generate = type === 'generate_hybrid' ? api.generate_hybrid_compact_progress : api.generate_monster_compact_progress;
+      if (typeof generate !== 'function') throw new Error('This WASM package does not support compact atlases; rebuild the generator');
+      result = type === 'generate_hybrid' ? generate(prompt, seed, progress) : generate(prompt, seed, profile, progress);
+    } else if (type === 'generate_hybrid') {
       if (profile !== 'v2') throw new RangeError('Structured hybrid generation requires V2');
       if (typeof api.generate_hybrid_json !== 'function') throw new Error('This WASM package does not support structured hybrids; rebuild the generator');
       result = data.progress === true && typeof api.generate_hybrid_json_progress === 'function'

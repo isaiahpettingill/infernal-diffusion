@@ -1,0 +1,379 @@
+{
+  "host": "Node real WASM; no browser/GPU timing implied",
+  "compact": false,
+  "peakRssBytes": 1094844416,
+  "samples": [
+    {
+      "name": "slime",
+      "prompt": "small ice slime",
+      "profile": "v1",
+      "seed": 42,
+      "compact": false,
+      "computeMs": 1340,
+      "rssBytes": 396582912,
+      "packages": [
+        {
+          "path": ".",
+          "frames": 480,
+          "uniqueFrames": 310,
+          "virtualFrame": [
+            72,
+            72
+          ],
+          "visiblePixels": 207065,
+          "visibleBoundsPixels": 308812,
+          "spriteBytes": 10036224,
+          "emissionBytes": 10036224,
+          "projectileBytes": 0,
+          "packedDimensions": [
+            1584,
+            1584
+          ],
+          "logicalPixelsSha256": "d3373bdee2d0978cb2764534ac345719f38c036e883b4f3beff387e10c424cd2",
+          "gameplaySha256": "9dfb192be6b666ce377ca9f9302a756ed267569abdc6c925d570ce99c4f4a596",
+          "emissionEmpty": true
+        }
+      ]
+    },
+    {
+      "name": "slime",
+      "prompt": "small ice slime",
+      "profile": "v2",
+      "seed": 42,
+      "compact": false,
+      "computeMs": 395,
+      "rssBytes": 398548992,
+      "packages": [
+        {
+          "path": ".",
+          "frames": 480,
+          "uniqueFrames": 308,
+          "virtualFrame": [
+            72,
+            72
+          ],
+          "visiblePixels": 178857,
+          "visibleBoundsPixels": 278726,
+          "spriteBytes": 10036224,
+          "emissionBytes": 10036224,
+          "projectileBytes": 0,
+          "packedDimensions": [
+            1584,
+            1584
+          ],
+          "logicalPixelsSha256": "54c9b1517e140e9c9d4fba359b4056677494aa11206485fe5a45004a68b017dc",
+          "gameplaySha256": "bb5ec32ae6e8f7556a7c67ebf521f80b39b567367a5eb3e48a126e2e2590c0c1",
+          "emissionEmpty": true
+        }
+      ]
+    },
+    {
+      "name": "orc",
+      "prompt": "orc with a sword",
+      "profile": "v1",
+      "seed": 42,
+      "compact": false,
+      "computeMs": 1075,
+      "rssBytes": 592142336,
+      "packages": [
+        {
+          "path": ".",
+          "frames": 568,
+          "uniqueFrames": 439,
+          "virtualFrame": [
+            136,
+            136
+          ],
+          "visiblePixels": 645868,
+          "visibleBoundsPixels": 1621657,
+          "spriteBytes": 42614784,
+          "emissionBytes": 42614784,
+          "projectileBytes": 0,
+          "packedDimensions": [
+            3264,
+            3264
+          ],
+          "logicalPixelsSha256": "9b41c36b362aa024234bf440f8b990cb5fcdd19e2e77e6b9e47f26cb2721ab17",
+          "gameplaySha256": "c275a44fd305aef531074769a0da8bade8e3d5320926f5e5672493a64d3e28a3",
+          "emissionEmpty": true
+        }
+      ]
+    },
+    {
+      "name": "orc",
+      "prompt": "orc with a sword",
+      "profile": "v2",
+      "seed": 42,
+      "compact": false,
+      "computeMs": 1424,
+      "rssBytes": 556994560,
+      "packages": [
+        {
+          "path": ".",
+          "frames": 568,
+          "uniqueFrames": 440,
+          "virtualFrame": [
+            104,
+            104
+          ],
+          "visiblePixels": 586879,
+          "visibleBoundsPixels": 1210646,
+          "spriteBytes": 24920064,
+          "emissionBytes": 24920064,
+          "projectileBytes": 0,
+          "packedDimensions": [
+            2496,
+            2496
+          ],
+          "logicalPixelsSha256": "2082d44817e24d0925d8cd144872ecdcbe6f700b96f8ffb64f2acc6896107938",
+          "gameplaySha256": "9f0015fd59462555f28e3b179608284da111a0edd68a95cb384c6c2becd2c5ba",
+          "emissionEmpty": true
+        }
+      ]
+    },
+    {
+      "name": "complex",
+      "prompt": "giant orc riding a giant spider that shoots fire",
+      "profile": "v1",
+      "seed": 42,
+      "compact": false,
+      "computeMs": 5597,
+      "rssBytes": 997658624,
+      "packages": [
+        {
+          "path": "./companions/rider",
+          "frames": 568,
+          "uniqueFrames": 438,
+          "virtualFrame": [
+            104,
+            104
+          ],
+          "visiblePixels": 768636,
+          "visibleBoundsPixels": 1681527,
+          "spriteBytes": 24920064,
+          "emissionBytes": 24920064,
+          "projectileBytes": 0,
+          "packedDimensions": [
+            2496,
+            2496
+          ],
+          "logicalPixelsSha256": "35aa53a6bea653a18f909f71bd53dc816b458152500d275e10e11bf9767bec3d",
+          "gameplaySha256": "b62adb7915e001d5beeeaca6e877f185116d625a761241f3aa03145c927703e4",
+          "emissionEmpty": false
+        },
+        {
+          "path": "./companions/mount",
+          "frames": 640,
+          "uniqueFrames": 489,
+          "virtualFrame": [
+            128,
+            128
+          ],
+          "visiblePixels": 1056229,
+          "visibleBoundsPixels": 2614497,
+          "spriteBytes": 42598400,
+          "emissionBytes": 42598400,
+          "projectileBytes": 9216,
+          "packedDimensions": [
+            3328,
+            3200
+          ],
+          "logicalPixelsSha256": "f3a7e3e186e0f23b63471557383b369571a7f4d2b3a4725ae2c3b5081a48daa9",
+          "gameplaySha256": "661234843dab17df00402663388a68ff57abf386aab0b0aeb524540918f5fc86",
+          "emissionEmpty": false
+        },
+        {
+          "path": ".",
+          "frames": 640,
+          "uniqueFrames": 501,
+          "virtualFrame": [
+            152,
+            152
+          ],
+          "visiblePixels": 1606100,
+          "visibleBoundsPixels": 4497069,
+          "spriteBytes": 60070400,
+          "emissionBytes": 60070400,
+          "projectileBytes": 0,
+          "packedDimensions": [
+            3952,
+            3800
+          ],
+          "logicalPixelsSha256": "066e3d97f7e210db6395828685d40f91a363943e466a847a5f14f037a23618f7",
+          "gameplaySha256": "6ab0046d2251e4dd21b3613a4baa8aee3ac4ff4f66d2bd7793c639e43905af2d",
+          "emissionEmpty": false
+        }
+      ]
+    },
+    {
+      "name": "complex",
+      "prompt": "giant orc riding a giant spider that shoots fire",
+      "profile": "v2",
+      "seed": 42,
+      "compact": false,
+      "computeMs": 7808,
+      "rssBytes": 1094844416,
+      "packages": [
+        {
+          "path": "./companions/rider",
+          "frames": 568,
+          "uniqueFrames": 440,
+          "virtualFrame": [
+            112,
+            112
+          ],
+          "visiblePixels": 689547,
+          "visibleBoundsPixels": 1299978,
+          "spriteBytes": 28901376,
+          "emissionBytes": 28901376,
+          "projectileBytes": 0,
+          "packedDimensions": [
+            2688,
+            2688
+          ],
+          "logicalPixelsSha256": "6ee24f0e61b5cadf7618163c9f3b1b13561372d35bb2cbb62fb18a6707659d13",
+          "gameplaySha256": "0284762933dc1036d3d2893b4ee7b661a8ff15954893b169b23a37cd0c394360",
+          "emissionEmpty": true
+        },
+        {
+          "path": "./companions/mount",
+          "frames": 760,
+          "uniqueFrames": 485,
+          "virtualFrame": [
+            136,
+            136
+          ],
+          "visiblePixels": 1169285,
+          "visibleBoundsPixels": 3063737,
+          "spriteBytes": 58003456,
+          "emissionBytes": 58003456,
+          "projectileBytes": 9216,
+          "packedDimensions": [
+            3808,
+            3808
+          ],
+          "logicalPixelsSha256": "0e94f85db7aa89d5eb9ac8c002c55f09f7058fd5e796ad9fc24143328073436c",
+          "gameplaySha256": "0aa5bab9263fc1ee08f1ce7569c4f347d3e31e73616caa6629c4954b567ec7d3",
+          "emissionEmpty": true
+        },
+        {
+          "path": ".",
+          "frames": 640,
+          "uniqueFrames": 496,
+          "virtualFrame": [
+            152,
+            152
+          ],
+          "visiblePixels": 1552504,
+          "visibleBoundsPixels": 4798568,
+          "spriteBytes": 60070400,
+          "emissionBytes": 60070400,
+          "projectileBytes": 0,
+          "packedDimensions": [
+            3952,
+            3800
+          ],
+          "logicalPixelsSha256": "77cc8b5e7b53fdb5878728b5ac42ea091e3b359817086af22941e52aba7a25a5",
+          "gameplaySha256": "4649b33b9e003338a09e2fe249218e5c6180f14dcd9d446daf0e12ce5ec94162",
+          "emissionEmpty": true
+        }
+      ]
+    },
+    {
+      "name": "shade",
+      "prompt": "shade humanoid",
+      "profile": "v1",
+      "seed": 42,
+      "compact": false,
+      "computeMs": 857,
+      "rssBytes": 842190848,
+      "packages": [
+        {
+          "path": ".",
+          "frames": 568,
+          "uniqueFrames": 438,
+          "virtualFrame": [
+            96,
+            96
+          ],
+          "visiblePixels": 626111,
+          "visibleBoundsPixels": 1318151,
+          "spriteBytes": 21233664,
+          "emissionBytes": 21233664,
+          "projectileBytes": 0,
+          "packedDimensions": [
+            2304,
+            2304
+          ],
+          "logicalPixelsSha256": "f6a5657d854b12d6980878217ee600bf49350d410d6d52cba481fc415688f5a6",
+          "gameplaySha256": "3e5a985191949291bef695f5a3e58f6a36ca5f9ba3c6c72dfb25cbbc67376a8b",
+          "emissionEmpty": true
+        }
+      ]
+    },
+    {
+      "name": "shade",
+      "prompt": "shade humanoid",
+      "profile": "v2",
+      "seed": 42,
+      "compact": false,
+      "computeMs": 1711,
+      "rssBytes": 846647296,
+      "packages": [
+        {
+          "path": ".",
+          "frames": 528,
+          "uniqueFrames": 434,
+          "virtualFrame": [
+            104,
+            104
+          ],
+          "visiblePixels": 545962,
+          "visibleBoundsPixels": 1250193,
+          "spriteBytes": 22886656,
+          "emissionBytes": 22886656,
+          "projectileBytes": 0,
+          "packedDimensions": [
+            2392,
+            2392
+          ],
+          "logicalPixelsSha256": "cd3851de9a9107b35dee3c3200a64c64608a1536b11475109c262ee7e68c5f5e",
+          "gameplaySha256": "3646e5cb06cd45f0e8c18ed42452c202dd75c957aee6152548c8b06bbe2ff608",
+          "emissionEmpty": true
+        }
+      ]
+    },
+    {
+      "name": "hybrid",
+      "prompt": "{\"schema_version\":1,\"upper_body\":\"STORMTROOPER\",\"lower_body\":\"SPIDER\",\"head\":\"FISH\",\"lower_limb_count\":8,\"upper_arm_count\":2}",
+      "profile": "v2",
+      "seed": 42,
+      "compact": false,
+      "computeMs": 2503,
+      "rssBytes": 887910400,
+      "packages": [
+        {
+          "path": ".",
+          "frames": 728,
+          "uniqueFrames": 501,
+          "virtualFrame": [
+            120,
+            120
+          ],
+          "visiblePixels": 1054691,
+          "visibleBoundsPixels": 3115782,
+          "spriteBytes": 41990400,
+          "emissionBytes": 41990400,
+          "projectileBytes": 9216,
+          "packedDimensions": [
+            3240,
+            3240
+          ],
+          "logicalPixelsSha256": "1f12dee0f49ff1f99eb077f3e07ce08fe8441f450e51ef56df3d798bbeb9acb0",
+          "gameplaySha256": "4c66aac20e2b20a6a62ab7571da6e82138a65998588902732065dbeb4208df22",
+          "emissionEmpty": true
+        }
+      ]
+    }
+  ]
+}

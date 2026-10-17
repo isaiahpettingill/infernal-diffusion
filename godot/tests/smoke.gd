@@ -5,6 +5,24 @@ const MonsterPb = preload("res://addons/infernal_diffusion/monster_pb.gd")
 
 var generator: InfernalDiffusion
 
+func _assert_compact_atlas(package: Dictionary) -> void:
+	var monster: Dictionary = package.monster
+	var sprites: Dictionary = monster.sprites
+	assert(monster.format_version == 8, "new native core must select compact memory generation")
+	assert(sprites.frame_regions.size() == sprites.frame_count)
+	var atlas := ImageTexture.create_from_image(Infernal.image_from_rgba(package.sprites))
+	for direction in sprites.direction_angles_deg.size():
+		for clip: Dictionary in monster.animations:
+			for frame: Dictionary in clip.frames:
+				var texture := Infernal.frame_texture(monster, atlas, frame.sprite_frame_id, direction)
+				assert(texture != null, "all logical animation/direction frames must be addressable")
+				assert(texture.get_width() == sprites.frame_width and texture.get_height() == sprites.frame_height)
+	if str(sprites.emission_file).is_empty():
+		assert(package.emission.width == 1 and package.emission.height == 1)
+		assert(package.emission.rgba == PackedByteArray([0, 0, 0, 0]))
+	else:
+		assert(package.emission.width == package.sprites.width and package.emission.height == package.sprites.height)
+
 func _initialize() -> void:
 	# GDScript assertions stop their coroutine, not SceneTree; bound failure runs.
 	create_timer(120.0).timeout.connect(func() -> void:
@@ -94,10 +112,12 @@ func _test_v2_profile() -> void:
 	var monster := MonsterPb.InfernalMonster.new()
 	assert(monster.from_bytes(FileAccess.get_file_as_bytes(path.path_join("monster.pb"))) == MonsterPb.PB_ERR.NO_ERRORS)
 	assert(monster.has_v2_profile() and monster.get_v2_profile().get_profile_version() == 1)
+	assert(monster.get_sprites().get_frame_regions().is_empty(), "direct disk generation preserves its legacy grid")
 	var job := generator.generate_in_memory_async_profile("wolf", 42, Infernal.PROFILE_V2)
 	var result := await _await_result(job)
 	assert(result.ok, str(result.get("error", "V2 memory generation failed")))
 	assert(result.packages.back().monster.v2_profile.profile_version == 1)
+	for package: Dictionary in result.packages: _assert_compact_atlas(package)
 	var saved := await _await_result(generator.save_in_memory_async_format(job, path, Infernal.FORMAT_CBOR))
 	assert(saved.ok, str(saved.get("error", "V2 CBOR save failed")))
 	assert(FileAccess.file_exists(path.path_join("monster.cbor")))
@@ -107,6 +127,7 @@ func _test_v2_profile() -> void:
 	var hybrid := await _await_result(hybrid_job)
 	assert(hybrid.ok, str(hybrid.get("error", "structured hybrid failed")))
 	assert(hybrid.packages.back().monster.v2_profile.profile_version == 1)
+	for package: Dictionary in hybrid.packages: _assert_compact_atlas(package)
 	var invalid_recipe := recipe.duplicate()
 	invalid_recipe.schema_version = 99
 	var invalid := await _await_result(generator.generate_hybrid_async(invalid_recipe, 42))
@@ -132,6 +153,7 @@ func _run() -> void:
 	assert(result.ok, str(result.get("error", "generation failed")))
 	assert(!result.packages.is_empty())
 	var root: Dictionary = result.packages.back()
+	for package: Dictionary in result.packages: _assert_compact_atlas(package)
 	assert(root.monster.get("v2_profile") == null, "default generation must remain V1")
 	var profile: Dictionary = root.locomotion
 	assert(profile.contract_version == 1)
@@ -157,6 +179,8 @@ func _run() -> void:
 	assert(saved.ok, str(saved.get("error", "save failed")))
 	var monster := MonsterPb.InfernalMonster.new()
 	assert(monster.from_bytes(FileAccess.get_file_as_bytes(path.path_join("monster.pb"))) == MonsterPb.PB_ERR.NO_ERRORS)
+	assert(monster.get_sprites().get_frame_regions().size() == root.monster.sprites.frame_count, "saved compact protobuf preserves every logical region")
+	assert(Image.load_from_file(ProjectSettings.globalize_path(path.path_join("sprites.png"))).get_data() == root.sprites.rgba, "saved compact atlas preserves exact RGBA bytes")
 	assert(monster.get_movement_modes()[0].get_category() == root.monster.movement_modes[0].category)
 	assert(monster.get_movement_modes()[0].get_modifiers() == root.monster.movement_modes[0].modifiers)
 	var cbor := await _await_result(generator.save_in_memory_async_format(job, path, Infernal.FORMAT_CBOR))

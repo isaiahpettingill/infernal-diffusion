@@ -86,6 +86,12 @@ message SpriteSet {
   repeated float direction_angles_deg = 8;
   uint32 direction_stride = 9;
   string render_mode = 10;
+  repeated FrameRegion frame_regions = 11;
+}
+message FrameRegion {
+  uint32 x = 1; uint32 y = 2;
+  uint32 width = 3; uint32 height = 4;
+  uint32 offset_x = 5; uint32 offset_y = 6;
 }
 message PhysicsInfo {
   float mass = 1;

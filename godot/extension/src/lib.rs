@@ -576,6 +576,7 @@ type GenerateObject = unsafe extern "C" fn(*const c_char, u64, *mut *mut c_char)
 type GenerateObjectProfile =
     unsafe extern "C" fn(*const c_char, u64, u32, *mut *mut c_char) -> *mut c_void;
 type FreeObject = unsafe extern "C" fn(*mut c_void);
+type ObjectCompact = unsafe extern "C" fn(*mut c_void, *mut *mut c_char) -> i32;
 type ObjectCount = unsafe extern "C" fn(*const c_void) -> u32;
 type ObjectPath = unsafe extern "C" fn(*const c_void, u32) -> *mut c_char;
 type ObjectPixels = unsafe extern "C" fn(
@@ -628,8 +629,11 @@ struct Backend {
     free: FreeString,
     generate_object: GenerateObject,
     generate_object_profile: Option<GenerateObjectProfile>,
+    generate_object_profile_compact: Option<GenerateObjectProfile>,
     generate_hybrid_json: Option<GenerateObject>,
+    generate_hybrid_json_compact: Option<GenerateObject>,
     free_object: FreeObject,
+    object_compact: Option<ObjectCompact>,
     object_count: ObjectCount,
     object_path: ObjectPath,
     object_pixels: ObjectPixels,
@@ -734,9 +738,27 @@ fn load_backend(library_dir: &Path) -> Result<Backend, String> {
                     .ok()
                     .map(|symbol| *symbol)
             },
+            generate_hybrid_json_compact: unsafe {
+                library
+                    .get::<GenerateObject>(b"infernal_generate_hybrid_json_compact")
+                    .ok()
+                    .map(|symbol| *symbol)
+            },
             generate_object_profile: unsafe {
                 library
                     .get::<GenerateObjectProfile>(b"infernal_generate_in_memory_profile")
+                    .ok()
+                    .map(|symbol| *symbol)
+            },
+            generate_object_profile_compact: unsafe {
+                library
+                    .get::<GenerateObjectProfile>(b"infernal_generate_in_memory_profile_compact")
+                    .ok()
+                    .map(|symbol| *symbol)
+            },
+            object_compact: unsafe {
+                library
+                    .get::<ObjectCompact>(b"infernal_object_compact")
                     .ok()
                     .map(|symbol| *symbol)
             },
@@ -878,12 +900,32 @@ fn run_job(
     }
     if job.output_dir.is_none() || job.profile == 2 {
         let mut error_ptr: *mut c_char = std::ptr::null_mut();
+        let compact_generation = job.output_dir.is_none()
+            && if matches!(job.command, Command::GenerateHybrid) {
+                active.generate_hybrid_json_compact.is_some()
+            } else {
+                active.generate_object_profile_compact.is_some()
+            };
         let object = if matches!(job.command, Command::GenerateHybrid) {
-            let Some(generate) = active.generate_hybrid_json else {
+            let generator = if compact_generation {
+                active.generate_hybrid_json_compact
+            } else {
+                active.generate_hybrid_json
+            };
+            let Some(generate) = generator else {
                 result.error = "loaded generator library does not support structured hybrids; rebuild and copy the core library".into();
                 return result;
             };
             unsafe { generate(prompt.as_ptr(), job.seed, &mut error_ptr) }
+        } else if compact_generation {
+            unsafe {
+                (active.generate_object_profile_compact.unwrap())(
+                    prompt.as_ptr(),
+                    job.seed,
+                    job.profile,
+                    &mut error_ptr,
+                )
+            }
         } else if job.profile == 1 {
             unsafe { (active.generate_object)(prompt.as_ptr(), job.seed, &mut error_ptr) }
         } else if let Some(generate) = active.generate_object_profile {
@@ -927,6 +969,17 @@ fn run_job(
                 };
             }
             return result;
+        }
+        // Opt in only for in-memory consumption. Older ABI-1 libraries retain
+        // their uniform-grid payload; disk generation keeps its legacy format.
+        if !compact_generation {
+            if let Err(error) =
+                unsafe { compact_object(active.object_compact, object, active.free) }
+            {
+                result.error = error;
+                unsafe { (active.free_object)(object) };
+                return result;
+            }
         }
         result.packages = unsafe { read_packages(active, object) }.unwrap_or_else(|error| {
             result.error = error;
@@ -1148,6 +1201,28 @@ unsafe fn read_image(
     })
 }
 
+unsafe fn compact_object(
+    compact: Option<ObjectCompact>,
+    object: *mut c_void,
+    free: FreeString,
+) -> Result<(), String> {
+    let Some(compact) = compact else {
+        return Ok(());
+    };
+    let mut error_ptr = std::ptr::null_mut();
+    let code = compact(object, &mut error_ptr);
+    let message = copy_error(error_ptr, free);
+    if code == 0 {
+        Ok(())
+    } else {
+        Err(if message.is_empty() {
+            "monster atlas compaction failed".into()
+        } else {
+            message
+        })
+    }
+}
+
 unsafe fn read_packages(
     active: &Backend,
     object: *const c_void,
@@ -1230,6 +1305,45 @@ fn tiers() -> Vec<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    unsafe extern "C" fn free_test_string(value: *mut c_char) {
+        if !value.is_null() {
+            drop(CString::from_raw(value));
+        }
+    }
+    unsafe extern "C" fn compact_ok(_object: *mut c_void, _error: *mut *mut c_char) -> i32 {
+        0
+    }
+    unsafe extern "C" fn compact_error(_object: *mut c_void, error: *mut *mut c_char) -> i32 {
+        *error = CString::new("invalid packed atlas").unwrap().into_raw();
+        -1
+    }
+    unsafe extern "C" fn compact_empty_error(
+        _object: *mut c_void,
+        _error: *mut *mut c_char,
+    ) -> i32 {
+        -1
+    }
+    #[test]
+    fn compaction_is_optional_and_reports_failures() {
+        unsafe {
+            assert!(compact_object(None, std::ptr::null_mut(), free_test_string).is_ok());
+            assert!(
+                compact_object(Some(compact_ok), std::ptr::null_mut(), free_test_string).is_ok()
+            );
+            assert_eq!(
+                compact_object(Some(compact_error), std::ptr::null_mut(), free_test_string),
+                Err("invalid packed atlas".into())
+            );
+            assert_eq!(
+                compact_object(
+                    Some(compact_empty_error),
+                    std::ptr::null_mut(),
+                    free_test_string
+                ),
+                Err("monster atlas compaction failed".into())
+            );
+        }
+    }
     #[test]
     fn profiles_are_explicit_and_bounded() {
         assert!(valid_profile(1));

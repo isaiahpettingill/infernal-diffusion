@@ -188,6 +188,24 @@ public sealed class SpriteSet
     public uint DirectionStride { get; set; }
     [CborProperty(TextName = "render_mode")]
     public string RenderMode { get; set; } = "";
+    [CborProperty(TextName = "frame_regions")]
+    public List<FrameRegion> FrameRegions { get; set; } = new();
+}
+
+public sealed class FrameRegion
+{
+    [CborProperty(TextName = "x")]
+    public uint X { get; set; }
+    [CborProperty(TextName = "y")]
+    public uint Y { get; set; }
+    [CborProperty(TextName = "width")]
+    public uint Width { get; set; }
+    [CborProperty(TextName = "height")]
+    public uint Height { get; set; }
+    [CborProperty(TextName = "offset_x")]
+    public uint OffsetX { get; set; }
+    [CborProperty(TextName = "offset_y")]
+    public uint OffsetY { get; set; }
 }
 
 public sealed class PhysicsInfo

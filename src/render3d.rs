@@ -2608,37 +2608,69 @@ pub fn cpu_kernel_name() -> &'static str {
 }
 
 /// Shared 2x coverage reduction; keeps the established monster alpha contract.
+#[allow(clippy::chunks_exact_to_as_chunks)] // Keep the audited streaming reduction unchanged.
 pub(crate) fn downsample(high: &RgbaImage) -> RgbaImage {
     let width = high.width() / 2;
     let height = high.height() / 2;
     let mut low = RgbaImage::new(width, height);
-    for y in 0..height {
-        for x in 0..width {
-            let samples = [
-                high.get_pixel(2 * x, 2 * y),
-                high.get_pixel(2 * x + 1, 2 * y),
-                high.get_pixel(2 * x, 2 * y + 1),
-                high.get_pixel(2 * x + 1, 2 * y + 1),
-            ];
-            let count = samples.iter().filter(|p| p[3] > 0).count();
-            if count < 2 {
-                continue;
+    if width == 0 || height == 0 {
+        return low;
+    }
+    let source_stride = high.width() as usize * 4;
+    let target_stride = width as usize * 4;
+    // Visit each source pixel once. Transparent samples do not participate in
+    // either the divisor or any color/alpha sum, including nonzero hidden RGB.
+    for (source, target) in high
+        .as_raw()
+        .chunks_exact(source_stride * 2)
+        .zip(low.as_mut().chunks_exact_mut(target_stride))
+    {
+        let (top, bottom) = source.split_at(source_stride);
+        for ((top, bottom), target) in top
+            .chunks_exact(8)
+            .zip(bottom.chunks_exact(8))
+            .zip(target.chunks_exact_mut(4))
+        {
+            let mut sums = [0u16; 4];
+            let mut count = 0u16;
+            for pixel in [&top[..4], &top[4..], &bottom[..4], &bottom[4..]] {
+                if pixel[3] != 0 {
+                    count += 1;
+                    for channel in 0..4 {
+                        sums[channel] += pixel[channel] as u16;
+                    }
+                }
             }
-            let mut rgba = [0u8; 4];
-            for channel in 0..4 {
-                rgba[channel] = (samples
-                    .iter()
-                    .filter(|p| p[3] > 0)
-                    .map(|p| p[channel] as u32)
-                    .sum::<u32>()
-                    / count as u32) as u8;
+            if count >= 2 {
+                for channel in 0..4 {
+                    target[channel] = (sums[channel] / count) as u8;
+                }
             }
-            low.put_pixel(x, y, Rgba(rgba));
         }
     }
     low
 }
 
+/// A direction keeps its raster buffers and exact RGB lookup for the whole
+/// sheet. The palette is fixed within a sheet; no cache crosses palette changes.
+struct FrameScratch {
+    high: RgbaImage,
+    depths: Vec<f32>,
+    nearest: std::collections::HashMap<[u8; 3], [u8; 3]>,
+}
+
+impl FrameScratch {
+    fn new(size: u32) -> Self {
+        let high_size = size * 2;
+        Self {
+            high: RgbaImage::new(high_size, high_size),
+            depths: vec![f32::NEG_INFINITY; high_size as usize * high_size as usize],
+            nearest: std::collections::HashMap::new(),
+        }
+    }
+}
+
+#[cfg(test)]
 fn frame_with_stats_mode(
     triangles: &[Triangle],
     pose: &Pose,
@@ -2648,29 +2680,48 @@ fn frame_with_stats_mode(
     nearest: &mut std::collections::HashMap<[u8; 3], [u8; 3]>,
     coherent: bool,
 ) -> (RgbaImage, [std::time::Duration; 3]) {
+    let mut scratch = FrameScratch::new(size);
+    std::mem::swap(nearest, &mut scratch.nearest);
+    let result = frame_with_scratch(triangles, pose, angle, palette, &mut scratch, coherent);
+    std::mem::swap(nearest, &mut scratch.nearest);
+    result
+}
+
+fn frame_with_scratch(
+    triangles: &[Triangle],
+    pose: &Pose,
+    angle: f32,
+    palette: &[[u8; 4]],
+    scratch: &mut FrameScratch,
+    coherent: bool,
+) -> (RgbaImage, [std::time::Duration; 3]) {
     let phase_started = Instant::now();
-    let high_size = size * 2;
-    let mut high = RgbaImage::new(high_size, high_size);
-    let mut depths = vec![f32::NEG_INFINITY; (high_size * high_size) as usize];
-    let camera = Camera::new(angle, high_size, 2.0);
+    let FrameScratch {
+        high,
+        depths,
+        nearest,
+    } = scratch;
+    high.as_mut().fill(0);
+    depths.fill(f32::NEG_INFINITY);
+    let camera = Camera::new(angle, high.width(), 2.0);
     if coherent {
-        rasterize_mesh(triangles, &mut high, &mut depths, camera);
+        rasterize_mesh(triangles, high, depths, camera);
     } else {
         let kernel = rasterizer().0;
         unsafe {
-            kernel(triangles, &mut high, &mut depths, camera);
+            kernel(triangles, high, depths, camera);
         }
     }
     let raster_time = phase_started.elapsed();
     let phase_started = Instant::now();
-    let mut low = downsample(&high);
+    let mut low = downsample(high);
     let downsample_time = phase_started.elapsed();
     let phase_started = Instant::now();
     render::quantize_cached(&mut low, palette, nearest);
     if pose.state == "DEATH" {
+        let opacity = render::death_opacity(pose);
         for pixel in low.pixels_mut() {
-            pixel[3] =
-                render::quantized_alpha((pixel[3] as f32 * render::death_opacity(pose)) as u8);
+            pixel[3] = render::quantized_alpha((pixel[3] as f32 * opacity) as u8);
         }
     }
     (low, [raster_time, downsample_time, phase_started.elapsed()])
@@ -2740,6 +2791,73 @@ fn render_pool() -> Option<&'static rayon::ThreadPool> {
     .as_ref()
 }
 
+// Fingerprint only actual raster inputs, never animation labels or approximate
+// positions. A hash match is verified against every bit before a frame is reused.
+fn triangle_bits(triangle: &Triangle) -> [u32; 21] {
+    let mut bits = [0; 21];
+    for (index, point) in [
+        triangle.a,
+        triangle.b,
+        triangle.c,
+        triangle.local[0],
+        triangle.local[1],
+        triangle.local[2],
+    ]
+    .iter()
+    .enumerate()
+    {
+        bits[index * 3] = point.x.to_bits();
+        bits[index * 3 + 1] = point.y.to_bits();
+        bits[index * 3 + 2] = point.z.to_bits();
+    }
+    bits[18] = u32::from_le_bytes(triangle.color);
+    bits[19] = triangle.texture as u32;
+    bits[20] = triangle.seed;
+    bits
+}
+
+fn alpha_signature(pose: &Pose) -> [u32; 3] {
+    [
+        u32::from(pose.state == "DEATH"),
+        render::death_opacity(pose).to_bits(),
+        u32::from(pose.state == "PHASE"),
+    ]
+}
+
+fn scene_fingerprint(triangles: &[Triangle], pose: &Pose) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hash = std::collections::hash_map::DefaultHasher::new();
+    alpha_signature(pose).hash(&mut hash);
+    triangles.len().hash(&mut hash);
+    for triangle in triangles {
+        triangle_bits(triangle).hash(&mut hash);
+    }
+    hash.finish()
+}
+
+fn scenes_equal(left: &[Triangle], right: &[Triangle]) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(a, b)| triangle_bits(a) == triangle_bits(b))
+}
+
+fn copy_sheet_frame(sheet: &mut RgbaImage, source: u32, target: u32, size: u32, columns: u32) {
+    let row_bytes = size as usize * 4;
+    let stride = sheet.width() as usize * 4;
+    let source_start =
+        (source / columns * size) as usize * stride + (source % columns * size) as usize * 4;
+    let target_start =
+        (target / columns * size) as usize * stride + (target % columns * size) as usize * 4;
+    let pixels = sheet.as_mut();
+    for row in 0..size as usize {
+        let from = source_start + row * stride;
+        let to = target_start + row * stride;
+        pixels.copy_within(from..from + row_bytes, to);
+    }
+}
+
 pub fn sheet(
     spec: &MonsterSpec,
     body: &Body,
@@ -2759,35 +2877,62 @@ pub fn sheet(
     let rows = total.div_ceil(columns);
     let palette = scene_palette(spec, body, seed);
     let mut output = RgbaImage::new(columns * size, rows * size);
+    let mut scratch: Vec<_> = ANGLES_DEG.iter().map(|_| FrameScratch::new(size)).collect();
+    let coherent = visual_v2(spec);
+    let mut rendered_scenes: std::collections::HashMap<u64, Vec<usize>> =
+        std::collections::HashMap::new();
+    let mut reused_frames = 0usize;
     for (index, pose) in poses.iter().enumerate() {
         crate::report_progress("rendering", index, poses.len());
         let phase_started = Instant::now();
         let triangles = scene(spec, body, pose, seed);
+        let fingerprint = scene_fingerprint(&triangles, pose);
+        // Retain only pose indices, rather than every large triangle array. The
+        // uncommon match regenerates its candidate for collision-safe equality.
+        let previous = rendered_scenes.get(&fingerprint).and_then(|candidates| {
+            candidates.iter().copied().find(|&candidate| {
+                alpha_signature(pose) == alpha_signature(&poses[candidate])
+                    && scenes_equal(&triangles, &scene(spec, body, &poses[candidate], seed))
+            })
+        });
         scene_time += phase_started.elapsed();
-        let make_frame = |(direction, degrees): (usize, &f32)| {
+        if let Some(previous) = previous {
+            for direction in 0..ANGLES_DEG.len() as u32 {
+                let offset = direction * poses.len() as u32;
+                copy_sheet_frame(
+                    &mut output,
+                    offset + previous as u32,
+                    offset + index as u32,
+                    size,
+                    columns,
+                );
+            }
+            reused_frames += ANGLES_DEG.len();
+            continue;
+        }
+        rendered_scenes.entry(fingerprint).or_default().push(index);
+        let make_frame = |(direction, scratch): (usize, &mut FrameScratch)| {
             let phase_started = Instant::now();
-            let mut nearest = std::collections::HashMap::new();
-            let (mut frame, stages) = frame_with_stats_mode(
+            let (mut frame, stages) = frame_with_scratch(
                 &triangles,
                 pose,
-                size,
-                degrees.to_radians(),
+                ANGLES_DEG[direction].to_radians(),
                 &palette,
-                &mut nearest,
-                visual_v2(spec),
+                scratch,
+                coherent,
             );
             v2_finish_alpha(spec, pose, &mut frame);
             (direction, frame, stages, phase_started.elapsed())
         };
         #[cfg(all(target_arch = "wasm32", feature = "wasm-threads"))]
-        let frames: Vec<_> = ANGLES_DEG.par_iter().enumerate().map(make_frame).collect();
+        let frames: Vec<_> = scratch.par_iter_mut().enumerate().map(make_frame).collect();
         #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        let frames: Vec<_> = ANGLES_DEG.iter().enumerate().map(make_frame).collect();
+        let frames: Vec<_> = scratch.iter_mut().enumerate().map(make_frame).collect();
         #[cfg(not(target_arch = "wasm32"))]
         let frames: Vec<_> = if let Some(pool) = render_pool() {
-            pool.install(|| ANGLES_DEG.par_iter().enumerate().map(make_frame).collect())
+            pool.install(|| scratch.par_iter_mut().enumerate().map(make_frame).collect())
         } else {
-            ANGLES_DEG.iter().enumerate().map(make_frame).collect()
+            scratch.iter_mut().enumerate().map(make_frame).collect()
         };
         for (direction, frame, stages, duration) in frames {
             for (total, stage) in stage_times.iter_mut().zip(stages) {
@@ -2811,7 +2956,7 @@ pub fn sheet(
     crate::report_progress("rendering", poses.len(), poses.len());
     let color_count = render::color_count(&output) as u32;
     if profile {
-        eprintln!("infernal profile: sprite_size={size} poses={} scene={:.1}ms raster={:.1}ms downsample={:.1}ms quantize={:.1}ms frame={:.1}ms sheet_total={:.1}ms", poses.len(), scene_time.as_secs_f64() * 1000.0, stage_times[0].as_secs_f64() * 1000.0, stage_times[1].as_secs_f64() * 1000.0, stage_times[2].as_secs_f64() * 1000.0, frame_time.as_secs_f64() * 1000.0, started.elapsed().as_secs_f64() * 1000.0);
+        eprintln!("infernal profile: sprite_size={size} poses={} scene={:.1}ms raster={:.1}ms downsample={:.1}ms quantize={:.1}ms frame={:.1}ms sheet_total={:.1}ms reused_frames={reused_frames}", poses.len(), scene_time.as_secs_f64() * 1000.0, stage_times[0].as_secs_f64() * 1000.0, stage_times[1].as_secs_f64() * 1000.0, stage_times[2].as_secs_f64() * 1000.0, frame_time.as_secs_f64() * 1000.0, started.elapsed().as_secs_f64() * 1000.0);
     }
     (output, columns, color_count)
 }
@@ -2893,6 +3038,120 @@ mod tests {
     use super::*;
     use rand::SeedableRng;
     use rand_chacha::ChaCha8Rng;
+    #[test]
+    fn downsample_matches_original_for_every_coverage_mask_and_odd_dimensions() {
+        fn original(high: &RgbaImage) -> RgbaImage {
+            let mut low = RgbaImage::new(high.width() / 2, high.height() / 2);
+            for y in 0..low.height() {
+                for x in 0..low.width() {
+                    let samples = [
+                        high.get_pixel(x * 2, y * 2),
+                        high.get_pixel(x * 2 + 1, y * 2),
+                        high.get_pixel(x * 2, y * 2 + 1),
+                        high.get_pixel(x * 2 + 1, y * 2 + 1),
+                    ];
+                    let count = samples.iter().filter(|p| p[3] > 0).count();
+                    if count >= 2 {
+                        let mut rgba = [0; 4];
+                        for channel in 0..4 {
+                            rgba[channel] = (samples
+                                .iter()
+                                .filter(|p| p[3] > 0)
+                                .map(|p| p[channel] as u32)
+                                .sum::<u32>()
+                                / count as u32) as u8;
+                        }
+                        low.put_pixel(x, y, Rgba(rgba));
+                    }
+                }
+            }
+            low
+        }
+        let mut rng = ChaCha8Rng::seed_from_u64(381);
+        for width in [0, 1, 2, 3, 8, 17, 64] {
+            for height in [0, 1, 2, 3, 8, 17, 64] {
+                for mask in 0..16 {
+                    let high = RgbaImage::from_fn(width, height, |x, y| {
+                        let alpha = if mask & (1 << ((y % 2) * 2 + x % 2)) == 0 {
+                            0
+                        } else {
+                            rng.random_range(1..=255)
+                        };
+                        Rgba([rng.random(), rng.random(), rng.random(), alpha])
+                    });
+                    assert_eq!(
+                        downsample(&high),
+                        original(&high),
+                        "{width}x{height} mask {mask}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn reused_scenes_keep_all_directions_and_postprocess_alpha_exact() {
+        let mut spec = crate::parser::parse_vocabulary("wolf");
+        for features in [vec![], vec!["PROFILE_V2", "GHOST"]] {
+            spec.features = features.into_iter().map(str::to_owned).collect();
+            let body = crate::anatomy::build(&spec, &mut ChaCha8Rng::seed_from_u64(42));
+            let (_, _, _, poses) = crate::animation::make(&spec, &body);
+            let mut repeated = vec![poses[0].clone(); 5];
+            repeated[2].state = "PHASE".into();
+            repeated[3].state = "DEATH".into();
+            repeated[3].motion_archetype = "FLOATING".into();
+            repeated[3].phase = 0.75;
+            let (atlas, columns, _) = sheet(&spec, &body, &repeated, 96, 42);
+            let palette = scene_palette(&spec, &body, 42);
+            for (index, pose) in repeated.iter().enumerate() {
+                for (direction, degrees) in ANGLES_DEG.iter().enumerate() {
+                    let (mut expected, _) = frame_with_stats_mode(
+                        &scene(&spec, &body, pose, 42),
+                        pose,
+                        96,
+                        degrees.to_radians(),
+                        &palette,
+                        &mut std::collections::HashMap::new(),
+                        visual_v2(&spec),
+                    );
+                    v2_finish_alpha(&spec, pose, &mut expected);
+                    let frame_id = direction as u32 * repeated.len() as u32 + index as u32;
+                    let actual = image::imageops::crop_imm(
+                        &atlas,
+                        frame_id % columns * 96,
+                        frame_id / columns * 96,
+                        96,
+                        96,
+                    )
+                    .to_image();
+                    assert_eq!(actual, expected, "pose {index}, direction {direction}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn scene_comparison_checks_texture_coordinates_seed_and_float_bits() {
+        let spec = crate::parser::parse_vocabulary("wolf");
+        let body = crate::anatomy::build(&spec, &mut ChaCha8Rng::seed_from_u64(42));
+        let (_, _, _, poses) = crate::animation::make(&spec, &body);
+        let triangles = scene(&spec, &body, &poses[0], 42);
+        assert!(scenes_equal(&triangles, &triangles));
+        let mut changed = triangles.clone();
+        changed[0].seed ^= 1;
+        assert!(!scenes_equal(&triangles, &changed));
+        changed = triangles.clone();
+        changed[0].local[0].x = f32::from_bits(changed[0].local[0].x.to_bits() ^ 1);
+        assert!(!scenes_equal(&triangles, &changed));
+        changed = triangles.clone();
+        changed[0].texture = if changed[0].texture == TextureKind::None {
+            TextureKind::Fur
+        } else {
+            TextureKind::None
+        };
+        assert!(!scenes_equal(&triangles, &changed));
+    }
+
     fn visual_signature(triangles: &[Triangle]) -> Vec<u32> {
         triangles
             .iter()
