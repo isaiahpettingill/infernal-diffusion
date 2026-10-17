@@ -2,6 +2,14 @@
 # Full seeded V1/V2 pipeline with the bundled open-source Candle BERT encoder.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# Keep local bundles on the optimizer used by WASM CI. Binaryen 133 with
+# --all-features emits imports rejected by the supported Node/Chromium engines.
+# Fail before the expensive Rust build rather than shipping an unusable bundle.
+command -v wasm-bindgen >/dev/null || { echo "Install wasm-bindgen-cli matching Cargo.lock (see web/wasm/README.md)." >&2; exit 1; }
+if ! command -v wasm-opt >/dev/null || ! [[ "$(wasm-opt --version)" =~ version[[:space:]]130([[:space:]]|$) ]]; then
+  echo "Browser builds require Binaryen 130, matching WASM CI; see web/wasm/README.md." >&2
+  exit 1
+fi
 THREADED="${WASM_THREADED:-0}"
 FEATURES=simd128,bulk-memory
 export RUSTUP_TOOLCHAIN="${WASM_TOOLCHAIN:-stable}"
@@ -30,7 +38,7 @@ python3 - "$THREADED" "$FEATURES" "$RUSTUP_TOOLCHAIN" <<'PY'
 import hashlib, json, pathlib, subprocess, sys
 root = pathlib.Path('web/wasm')
 model = pathlib.Path('models/bert-mini/model.safetensors')
-info = {'target':'wasm32-unknown-unknown', 'rustFeatures':sys.argv[2], 'optimization':'-O3 --all-features', 'toolchain':sys.argv[3], 'portable':sys.argv[1]!='1', 'threads':sys.argv[1]=='1', 'bert':True, 'backend':'candle', 'model':'google/bert_uncased_L-2_H-128_A-2', 'modelSha256':hashlib.sha256(model.read_bytes()).hexdigest()}
+info = {'target':'wasm32-unknown-unknown', 'rustFeatures':sys.argv[2], 'optimization':'-O3 --all-features', 'toolchain':sys.argv[3], 'liveGenerationBudgetVersion':1, 'portable':sys.argv[1]!='1', 'threads':sys.argv[1]=='1', 'bert':True, 'backend':'candle', 'model':'google/bert_uncased_L-2_H-128_A-2', 'modelSha256':hashlib.sha256(model.read_bytes()).hexdigest()}
 (root/'pkg/build-info.json').write_text(json.dumps(info, indent=2)+'\n')
 files = [root/'client.js', root/'worker.js', *sorted((root/'pkg').rglob('*'))]
 manifest = {'schema_version':1, 'revision':subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(), 'source_dirty':bool(subprocess.check_output(['git', 'status', '--porcelain'], text=True).strip()), 'model':{'id':info['model'], 'embedded':True, 'sha256':info['modelSha256'], 'license':'Apache-2.0'}, 'artifacts':[{'path':str(p.relative_to(root)), 'sha256':hashlib.sha256(p.read_bytes()).hexdigest(), 'size_bytes':p.stat().st_size} for p in files if p.is_file()]}
