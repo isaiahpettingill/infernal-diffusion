@@ -57,6 +57,12 @@ pub fn initialize_model() -> Result<String, JsValue> {
     ))
 }
 
+/// Capability of the actual loaded WASM, independent of package build labels.
+#[wasm_bindgen]
+pub fn live_generation_budget_version() -> u32 {
+    crate::infernal_live_budget_version()
+}
+
 #[wasm_bindgen]
 pub fn generator_info() -> Result<JsValue, JsValue> {
     serde_json::json!({
@@ -64,6 +70,7 @@ pub fn generator_info() -> Result<JsValue, JsValue> {
         "parser": "candle-bert-prototypes-v2",
         "bundledModel": cfg!(feature = "bert"),
         "threaded": cfg!(feature = "wasm-threads"),
+        "liveGenerationBudgetVersion": live_generation_budget_version(),
         "modelSha256": "7fb69ad9f6866d8983183c930e33828f326470bf6ad8bbb2ad4ed957a92e9414"
     })
     .serialize(&serde_wasm_bindgen::Serializer::json_compatible())

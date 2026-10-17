@@ -17,7 +17,8 @@ cargo run --release --no-default-features -- "friendly frog that sprays acid" 42
 [explicit hybrid recipes](docs/hybrid-recipes.md), [spectral damage/phasing rules](docs/spectral-contract.md),
 [posed attack-origin tracks](docs/attack-origin-tracks.md),
 [typed encounter contracts](docs/encounter-contract.md),
-[player-relative V1/V2 world sizes](docs/world-scaling.md), and the
+[player-relative V1/V2 world sizes](docs/world-scaling.md),
+[live generation admission budgets](docs/generation-budgets.md), and the
 [shared V1/V2 water navigation correction](docs/aquatic-animation.md).
 
 V2 includes refined humanoid faces and merfolk hair, seeded extra limbs/tails,

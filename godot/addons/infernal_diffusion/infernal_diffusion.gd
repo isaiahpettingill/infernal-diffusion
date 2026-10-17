@@ -18,6 +18,11 @@ static func _library_dir() -> String:
 		library_dir = OS.get_executable_path().get_base_dir()
 	return library_dir
 
+## Background gameplay must require this handshake, not just compact symbols.
+## Both an older shim and a newer shim loading an older core return false.
+func supports_live_generation_budget() -> bool:
+	return _generator.has_method("supports_live_generation_budget") and bool(_generator.call("supports_live_generation_budget", _library_dir()))
+
 func generate_async(prompt: String, seed: int, output_dir: String) -> int:
 	return _generator.generate_async(prompt, seed, ProjectSettings.globalize_path(output_dir), _library_dir())
 
