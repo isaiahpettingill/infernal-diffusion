@@ -2,6 +2,14 @@
 # Full seeded V1/V2 pipeline with the bundled open-source Candle BERT encoder.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# Keep local bundles on the optimizer used by WASM CI. Binaryen 133 with
+# --all-features emits imports rejected by the supported Node/Chromium engines.
+# Fail before the expensive Rust build rather than shipping an unusable bundle.
+command -v wasm-bindgen >/dev/null || { echo "Install wasm-bindgen-cli matching Cargo.lock (see web/wasm/README.md)." >&2; exit 1; }
+if ! command -v wasm-opt >/dev/null || ! [[ "$(wasm-opt --version)" =~ version[[:space:]]130([[:space:]]|$) ]]; then
+  echo "Browser builds require Binaryen 130, matching WASM CI; see web/wasm/README.md." >&2
+  exit 1
+fi
 THREADED="${WASM_THREADED:-0}"
 FEATURES=simd128,bulk-memory
 export RUSTUP_TOOLCHAIN="${WASM_TOOLCHAIN:-stable}"
