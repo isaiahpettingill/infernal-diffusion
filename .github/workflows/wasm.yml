@@ -4,6 +4,11 @@ on:
     paths: ["src/**", "assets/**", "models/**", "Cargo.toml", "Cargo.lock", "tools/build_wasm.sh", "web/wasm/**", ".github/workflows/wasm.yml"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish approved portable demo to Pages (leave false until final user go-ahead)'
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -64,6 +69,7 @@ jobs:
             web/wasm/worker.js
             web/wasm/index.html
             web/wasm/demo.js
+            web/wasm/play/
             web/wasm/prompt-controls.js
             web/wasm/server.py
             web/wasm/README.md
@@ -77,5 +83,35 @@ jobs:
         if: always()
         with:
           name: playground-browser-evidence-threads-${{ matrix.threaded }}
-          path: web/wasm/test-results/**/playground-v2.png
+          path: |
+            web/wasm/test-results/**/playground-v2.png
+            web/wasm/test-results/**/playable-monster.png
           if-no-files-found: ignore
+
+  deploy-approved-demo:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
+    needs: wasm
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: infernal-wasm32-bert-threads-0
+          path: site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - name: Publish approved demo
+        id: deploy
+        uses: actions/deploy-pages@v4
+

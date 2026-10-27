@@ -28,9 +28,10 @@ the user gives the final go-ahead.
 
 Browser generation additionally requires the real generated `web/wasm/pkg/`
 bundle. Missing BERT/WASM reports an error, never a fake generated monster.
-CI builds a portable artifact but does not deploy automatically. A separate
-manual Pages deployment may be added after review; preserve existing site routes.
+The existing WASM workflow packages this route and its real-browser screenshot.
+Pages deployment is manual, main-only, and defaults to publish=false. Do not
+select publish=true without the final user go-ahead; no automatic deployment.
 
-Known limitations: synthesized audio/Rust audio core not yet implemented; no
-local real-WASM/browser run yet; special combat primitives above; no final
+Known limitations: synthesized audio/Rust audio core not yet implemented; real portable and threaded WASM browser CI passed at 9b0e6c0; local browser
+execution remains unavailable; special combat primitives above; no final
 artistic/audio tuning. Native/WASM float identity is not promised.
