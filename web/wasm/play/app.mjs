@@ -27,6 +27,7 @@ function paint(){ctx.fillStyle='#191f2c';ctx.fillRect(0,0,1000,500);ctx.fillStyl
   const m=session.monster,s=m.sprites,id=frameAt(session.clip,session.clock)+direction(m)*(s.direction_stride||0),region=s.frame_regions?.[id],z=scale(m),a=anchor(m);ctx.save();ctx.imageSmoothingEnabled=false;ctx.translate(Math.round(session.x),Math.round(session.y));ctx.scale(session.facing,1);
   const r=region||{x:(id%s.columns)*s.frame_width,y:Math.floor(id/s.columns)*s.frame_height,width:s.frame_width,height:s.frame_height,offset_x:0,offset_y:0};ctx.drawImage(sheet,r.x,r.y,r.width,r.height,(r.offset_x-a.x)*z,(r.offset_y-a.y)*z,r.width*z,r.height*z);ctx.restore();
   ctx.fillStyle='#ffba75';for(const p of session.shots){ctx.beginPath();ctx.arc(p.x,p.y,Math.min(p.radius,25),0,Math.PI*2);ctx.fill();}
+  canvas.dataset.x=String(session.x);canvas.dataset.animation=session.clip.id;
   $('damage').textContent=`Dummy ${d.hp} / 1000 · Total damage ${d.total} · ${session.feedback}`;
 }
 function frame(now){const dt=last?Math.min((now-last)/1000,.05):0;last=now;if(session&&!busy&&!document.hidden){const move=Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'));tick(session,dt,{move,jump:keys.has('Space')});keys.delete('Space');}paint();requestAnimationFrame(frame);}requestAnimationFrame(frame);
