@@ -22,7 +22,8 @@
       "v2": "usually transformed",
       "alternatives": [
         "occasional bang/pop",
-        "bubbles underwater"
+        "bubbles underwater",
+        "licensed pronunciations of death or ouch in various languages"
       ],
       "avoid": "prolonged distress, harsh repeated screams",
       "humanoid": "Higher normalized Wilhelm weight, especially transformed variants matching voice policy",
@@ -101,6 +102,13 @@
       "style": "band-limited radio/walkie-talkie, soft distortion and subtle bounded static",
       "exclude": "film dialogue or actor imitation",
       "availability": "exact recordings still being verified"
+    },
+    "phoneme": {
+      "bases": [
+        "licensed schwa /ə/ recordings"
+      ],
+      "source_kind": "phoneme",
+      "style": "neutral vocal seed for grunt/murmur/garbled speech with bounded pitch, resonance and rhythm"
     }
   },
   "candidates": [

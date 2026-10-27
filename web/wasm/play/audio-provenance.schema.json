@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/isaiahpettingill/infernal-diffusion/audio-provenance-v1",
+  "title": "Infernal generated audio source provenance v1",
+  "type": "object",
+  "required": ["schema_version", "kind", "sources"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "kind": {"const": "infernal.audio.provenance"},
+    "sources": {"type": "array", "maxItems": 4096, "items": {"$ref": "#/$defs/source"}},
+    "banks": {"type": "array", "maxItems": 4096, "items": {"$ref": "#/$defs/output"}},
+    "outputs": {"type": "array", "maxItems": 4096, "items": {"$ref": "#/$defs/output"}},
+    "used_bank_ids": {"$ref": "#/$defs/ids"},
+    "used_output_ids": {"$ref": "#/$defs/ids"}
+  },
+  "$defs": {
+    "text": {"type": "string", "maxLength": 8192},
+    "credit": {"oneOf": [{"$ref": "#/$defs/text"}, {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/text"}}]},
+    "ids": {"type": "array", "maxItems": 4096, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 256}},
+    "source": {
+      "type": "object",
+      "required": ["id", "title", "source_url", "license_id", "license_url"],
+      "anyOf": [{"required": ["artist"]}, {"required": ["author"]}],
+      "properties": {
+        "id": {"type": "string", "minLength": 1, "maxLength": 256},
+        "title": {"$ref": "#/$defs/text"},
+        "artist": {"$ref": "#/$defs/credit"},
+        "author": {"$ref": "#/$defs/credit"},
+        "source_url": {"type": "string", "format": "uri", "maxLength": 8192},
+        "license_id": {"$ref": "#/$defs/text"},
+        "license_url": {"type": "string", "format": "uri", "maxLength": 8192},
+        "attribution": {"$ref": "#/$defs/text"},
+        "changes": {"$ref": "#/$defs/credit"},
+        "source_kind": {"enum": ["word", "phoneme", "animal", "foley", "music", "other"]}
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["id", "source_ids", "license_review"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1, "maxLength": 256},
+        "title": {"$ref": "#/$defs/text"},
+        "source_ids": {"$ref": "#/$defs/ids"},
+        "license_review": {"enum": ["pending", "approved", "blocked"]},
+        "effective_license_id": {"$ref": "#/$defs/text"},
+        "effective_license_url": {"type": "string", "format": "uri", "maxLength": 8192}
+      }
+    }
+  }
+}
