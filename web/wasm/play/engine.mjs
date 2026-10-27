@@ -48,12 +48,13 @@ function hit(s,amount,id){if(s.dummy.hp<=0)return;s.dummy.last=Math.max(0,amount
 function circleDummy(s,x,y,r){const d=s.dummy;return Math.hypot(x-clamp(x,d.x-22,d.x+22),y-clamp(y,d.y-100,d.y))<=r;}
 function step(s,a,p,key){
   const o=origin(s,a,p.at_ms||0), kind=p.primitive;
+  if(['TELEGRAPH','COOLDOWN','RECOVER','WAIT'].includes(kind))return;
   if(kind==='SPAWN_PROJECTILE'){
     const speed=length(s.monster,p.speed||180), count=clamp(p.count||1,1,16), spread=(p.spread_deg||0)*Math.PI/180;
     for(let i=0;i<count;i++){const angle=(s.facing<0?Math.PI:0)+(count>1?(i/(count-1)-.5)*spread:0);s.shots.push({x:o.x,y:o.y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,radius:Math.max(2,length(s.monster,p.radius||3)),life:3,damage:a.damage,id:a.id});}
   } else if(['SWIPE','BITE','THRUST','SLAM','HIT','STRIKE','CONTACT'].includes(kind)){
     const reach=Math.max(o.radius,length(s.monster,p.radius||a.range||20));
-    if(!s.action.hit.has(a.id)&&circleDummy(s,o.x,o.y,reach)&& (s.dummy.x-s.x)*s.facing>=-22){hit(s,a.damage,a.id);s.action.hit.add(a.id);}else s.feedback=`${a.id}: miss`;
+    if(!s.action.hit.has(a.id)&&circleDummy(s,o.x,o.y,reach)&& (s.dummy.x-s.x)*s.facing>=-22){hit(s,a.damage,a.id);s.action.hit.add(a.id);}else if(!s.action.hit.has(a.id)) s.feedback=`${a.id}: miss (${Math.round(o.x)}, ${Math.round(o.y)}; reach ${Math.round(reach)})`;
   } else if(['DASH','LEAP','SWOOP','BURROW','DODGE'].includes(kind)){
     s.action.motion={start:s.x,at:p.at_ms||0,duration:Math.max(1,p.duration_ms||300),distance:Math.min(300,length(s.monster,(p.speed||100))*(p.duration_ms||300)/1000),kind};
   } else if(kind==='TELEPORT'){s.x=clamp(s.x+s.facing*160,40,960);}

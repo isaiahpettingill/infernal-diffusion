@@ -12,7 +12,9 @@ test('real generated monster can move, exercise animations and damage a dummy',a
   await page.locator('#prompt').focus();
   await page.keyboard.down('d');await page.waitForTimeout(250);await page.keyboard.up('d');
   expect(Number(await canvas.getAttribute('data-x'))).toBe(initial);
-  await canvas.focus();await page.keyboard.down('d');await page.waitForTimeout(2200);await page.keyboard.up('d');
+  await canvas.focus();await page.keyboard.down('d');
+  await page.waitForFunction(()=>Number(document.querySelector('#arena').dataset.x)>=695);
+  await page.keyboard.up('d');
   expect(Number(await canvas.getAttribute('data-x'))).toBeGreaterThan(initial+300);
   // The actual generated attack clips, not an artificial damage hook.
   const attack=page.locator('#animations button').filter({hasText:/attack/i}).first();
