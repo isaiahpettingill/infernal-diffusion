@@ -70,7 +70,7 @@ export function tick(s,dt,input={}) {
       const steps=a.steps?.length?a.steps:[{primitive:a.delivery==='PROJECTILE'?'SPAWN_PROJECTILE':'HIT',at_ms:a.telegraph_ms||0}];
       steps.forEach((p,i)=>{const key=`${a.id}:${i}`;if(!s.action.done.has(key)&&(p.at_ms||0)<=s.clock){s.action.done.add(key);step(s,a,p,key);}});
     }
-    const motion=s.action.motion;if(motion){const p=clamp((s.clock-motion.at)/motion.duration,0,1);s.x=clamp(motion.start+s.facing*motion.distance*p,40,960);if(['LEAP','SWOOP'].includes(motion.kind))s.y=FLOOR-Math.sin(p*Math.PI)*100;}
+    const motion=s.action.motion;if(motion){const p=clamp((s.clock-motion.at)/motion.duration,0,1);const travel=motion.kind==='DODGE'?(p<.45?-motion.distance*p/.45:-motion.distance+motion.distance*1.4*(p-.45)/.55):motion.distance*p;s.x=clamp(motion.start+s.facing*travel,40,960);if(['LEAP','SWOOP'].includes(motion.kind))s.y=FLOOR-Math.sin(p*Math.PI)*100;}
     if(s.clock>=duration(s.clip))s.action=null;
   }
   if(input.move && !s.action && !s.monster.tags?.includes('ANCHORED')) {s.facing=Math.sign(input.move);s.x=clamp(s.x+input.move*180*dt,40,960);s.manual=false;}
