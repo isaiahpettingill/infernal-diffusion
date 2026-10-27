@@ -1,0 +1,19 @@
+name: Monster playground prototype
+on:
+  pull_request:
+    paths: ['web/wasm/play/**', '.github/workflows/monster-playground.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test web/wasm/play/engine.test.mjs
+      - run: node --check web/wasm/play/app.mjs
+# Deliberately no deployment job. Publication is awaiting the user's sound
+# curation and explicit go-ahead; existing WASM workflow builds the real bundle.
