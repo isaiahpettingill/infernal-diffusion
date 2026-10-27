@@ -163,3 +163,23 @@ test('audio declaration has separate stable seed domain and does not mutate visu
   assert.equal(audioRecipe(m, '9007199254740993', 'v2').death.variation, 'transform-usually');
   assert.deepEqual(m, original);
 });
+
+
+import {voicePolicy} from './engine.mjs';
+test('overlapping playful traits apply only one restrained pitch stage',()=>{
+  const p=voicePolicy(['HUMANOID','MERMAID','CHIBI','ANIME_GIRL']);
+  assert.equal(p.pitchStages,1);assert.equal(p.register,'restrained-chipmunk');assert.equal(p.watery,true);assert.equal(p.wordBias,'increased');
+});
+test('radio and 80s coloration compose with deterministic precedence and shared limits',()=>{
+  assert.equal(voicePolicy(['ROBOT','SPECTRAL']).coloration,'metallic-flanger');
+  const radio=voicePolicy(['STORMTROOPER','ROBOT','CHIBI']);
+  assert.equal(radio.coloration,'radio');assert.equal(radio.pitchStages,1);assert.equal(radio.reverbTailBudget,'included');
+  assert.equal(voicePolicy(['GHOST']).coloration,'airy-80s');
+  assert.equal(voicePolicy(['HITLER']).wordBank,'harmless-unrelated-words');
+});
+
+test('humanoids prefer transformed Wilhelm with source-level repetition limits',()=>{
+  const a=audioRecipe({id:'h',tags:['HUMANOID','CHIBI','ROBOT']},'42','v1');
+  assert.equal(a.death.weight,'increased-normalized');assert.equal(a.death.variation,'transform-usually');
+  assert.equal(a.death.cooldownGroup,audioRecipe({id:'other',tags:[]},'2','v2').death.cooldownGroup);
+});
