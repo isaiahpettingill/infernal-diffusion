@@ -1,0 +1,18 @@
+name: Monster playground prototype
+on:
+  pull_request:
+    paths: ['web/wasm/play/**', '.github/workflows/monster-playground.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test web/wasm/play/*.test.mjs
+      - run: node --check web/wasm/play/app.mjs
+# Deployment is the manually approved Pages job in the WASM workflow.

@@ -1,0 +1,188 @@
+{
+  "schema": 1,
+  "status": "curation-in-progress-not-enabled",
+  "publication": "requires-final-user-go-ahead",
+  "shared": {
+    "identity": "independent audio seed; never consume visual or gameplay RNG",
+    "mix": "bounded gain, spectral harshness, duration, repetition and concurrent voices",
+    "v1": "intentionally crude, humorous and coherent; never unpleasant or clipping",
+    "v2": "richer coordinated layers and usually transformed bases; same output limits",
+    "dsp": "reuse licensed native/WASM DSP libraries; no unfinished synthesis represented as complete",
+    "license": "retain source-specific attribution and derivative license; never relabel all outputs CC0",
+    "composition": "One pitch register. Radio overrides robot coloration; robot overrides ghost coloration. Mermaid watery layer may coexist. Reverb tails count toward the same voice budget."
+  },
+  "recipes": {
+    "death": {
+      "bases": [
+        "wilhelm-scream",
+        "animal-cries",
+        "grunt-oof"
+      ],
+      "v1": "Wilhelm fairly common",
+      "v2": "usually transformed",
+      "alternatives": [
+        "occasional bang/pop",
+        "bubbles underwater",
+        "licensed pronunciations of death or ouch in various languages"
+      ],
+      "avoid": "prolonged distress, harsh repeated screams",
+      "humanoid": "Higher normalized Wilhelm weight, especially transformed variants matching voice policy",
+      "repetition": "Cooldown by source asset, shared across transformed variants; normalize combined trait weights"
+    },
+    "ANIME_GIRL": {
+      "bases": [
+        "Japanese ordinary-word clips"
+      ],
+      "style": "restrained playful chipmunk register, no shrill octave squeals"
+    },
+    "HITLER": {
+      "bases": [
+        "unrelated harmless words such as hummus"
+      ],
+      "style": "absurd monster distortion, not voice imitation",
+      "exclude": "ideological material or historical speeches"
+    },
+    "MERMAID": {
+      "bases": [
+        "harmless Esperanto words",
+        "harmless French words"
+      ],
+      "style": "watery garble, gentle pitch wobble, filtered vowels and bubbling echo",
+      "register": "restrained chipmunk; apply once even if CHIBI or ANIME_GIRL"
+    },
+    "ORC": {
+      "bases": [
+        "grunts",
+        "growls",
+        "occasional harmless garbled word"
+      ]
+    },
+    "TROLL": {
+      "bases": [
+        "grunts",
+        "growls"
+      ]
+    },
+    "animals": {
+      "bases": [
+        "verified actual-animal recordings matching affinity or acoustic family"
+      ],
+      "fallback": "clearly labeled synthesized/human imitation, not passed off as actual animal"
+    },
+    "cartoon": {
+      "bases": [
+        "jaw-harp boing"
+      ],
+      "style": "short controlled comedic accent"
+    },
+    "fire_attack": {
+      "layers": [
+        "ignition",
+        "sustain",
+        "crackle tail"
+      ],
+      "note": "Only suitable auditioned crops; source recordings do not prove usable ignition transients"
+    },
+    "CHIBI": {
+      "register": "restrained chipmunk shared with mermaid/anime; never stack pitch shifts"
+    },
+    "ROBOT": {
+      "style": "metallic flanger and short reverb; bounded 80s character"
+    },
+    "ghost": {
+      "style": "airy modulation and longer bounded reverb; no feedback buildup"
+    },
+    "HUMANOID": {
+      "selection": "greater probability of licensed word-pronunciation clips, not compulsory speech"
+    },
+    "STORMTROOPER": {
+      "bases": [
+        "licensed pronunciation recordings of Star Wars names such as Anakin, Boba Fett, Darth Maul"
+      ],
+      "style": "band-limited radio/walkie-talkie, soft distortion and subtle bounded static",
+      "exclude": "film dialogue or actor imitation",
+      "availability": "exact recordings still being verified"
+    },
+    "phoneme": {
+      "bases": [
+        "licensed schwa /ə/ recordings"
+      ],
+      "source_kind": "phoneme",
+      "style": "neutral vocal seed for grunt/murmur/garbled speech with bounded pitch, resonance and rhythm"
+    }
+  },
+  "candidates": [
+    {
+      "id": "wilhelm-scream",
+      "file": "Wilhelm_Scream.ogg",
+      "source": "https://commons.wikimedia.org/wiki/File:Wilhelm_Scream.ogg",
+      "license": "CC0-1.0 as published",
+      "artist": "likely Sheb Wooley (not independently established)",
+      "sha256": "360097c9715f55abcc26ab73f12f69b730c660fbf019fc63caa685bfa9b6585b",
+      "bundled": false
+    },
+    {
+      "id": "dog-bark",
+      "file": "Perro_ladrar.ogg",
+      "artist": "Tsacuenta",
+      "license": "CC-BY-SA-3.0",
+      "bundled": false
+    },
+    {
+      "id": "small-dog-growl",
+      "file": "journal.pone.0015175.s006.ogg",
+      "artist": "Faragó et al.",
+      "license": "CC-BY-2.5",
+      "source": "https://doi.org/10.1371/journal.pone.0015175",
+      "bundled": false
+    },
+    {
+      "id": "hawk",
+      "file": "Screaming_Hawk.wav",
+      "license": "pending exact source resolution",
+      "bundled": false
+    },
+    {
+      "id": "lion",
+      "file": "Lion_raring-sound1TamilNadu178.ogg",
+      "artist": "த*உழவன் / Info-farmer",
+      "license": "PD-self dedication, not CC0",
+      "bundled": false
+    },
+    {
+      "id": "literal-tiger",
+      "file": "De-Tiger2.ogg",
+      "artist": "Jeuwre",
+      "license": "CC-BY-SA-4.0",
+      "role": "human pronunciation gag, not tiger vocalization",
+      "bundled": false
+    },
+    {
+      "id": "literal-trex",
+      "file": "De-T-Rex.ogg",
+      "license": "pending exact source resolution; do not silently substitute De-T._rex.ogg",
+      "bundled": false
+    },
+    {
+      "id": "fire-barbecue",
+      "file": "Barbecue.ogg",
+      "artist": "aldor",
+      "license": "PD-author dedication",
+      "bundled": false
+    },
+    {
+      "id": "fire-grass",
+      "file": "Dry_grass_burning_in_open_fireplace.ogg",
+      "artist": "ezwa",
+      "license": "PD-author dedication",
+      "bundled": false
+    },
+    {
+      "id": "fire-bonfire",
+      "file": "WWS_Bonfireburning.ogg",
+      "artist": "Work With Sounds / Werstas, Kimmo Kestinen",
+      "license": "CC-BY-4.0",
+      "bundled": false
+    }
+  ]
+}
