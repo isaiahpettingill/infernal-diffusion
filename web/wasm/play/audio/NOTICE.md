@@ -2,7 +2,7 @@
 
 These bundled clips are derivatives of individually identified Wikimedia Commons recordings. Licensing is per recording, not the Commons page footer. No NC/ND assets are included. CC0/PD sources remain documented even when attribution is not required. The no-attribution mode must exclude every attribution_required=true entry. ShareAlike adaptations must retain the listed or compatible asset license; do not merge differently licensed recordings without review. No speaker endorsement is implied.
 
-All clips were decoded and measured, but not subjectively auditioned. Playback processing also needs listening review. Longer originals use provisional short excerpts. No Wilhelm scream, movie dialogue, unverified Star Wars names or US-only public-domain government recordings are bundled.
+All clips were decoded and measured, but not subjectively auditioned. Playback processing also needs listening review. Longer originals use provisional short excerpts. No movie dialogue, unverified Star Wars names or US-only public-domain government recordings are bundled.
 
 ## water-splash
 Bathtub water splashes — gradha / Grzegorz Adam Hankiewicz — PD-author — https://commons.wikimedia.org/wiki/File:Bathtub_water_splashes.ogg; excerpted, faded, mono/resampled and encoded for this project.
@@ -191,8 +191,16 @@ Original SHA256: 572927e5077210ee4594ac07ce65d5279b9542062b5b54da410b1e95ac89eed
 
 Every bundled file is a single-source derivative; no cross-recording blend is included. Attributed adaptations retain the exact CC license identified in the catalog. Schwa offers GFDL 1.2+ or CC BY-SA 3.0; this project selects CC BY-SA 3.0. Downstream rendered outputs must carry the source license and adaptation notices; attribution alone does not satisfy ShareAlike. Public-domain/CC0 files retain their status. Every PD-author/PD-self entry is based on the individual source page’s worldwide dedication plus unrestricted fallback permission, not US-only government status. The catalog records selected and derivative licenses explicitly.
 
-Wilhelm is not included: the posted CC0 status was found, but historical underlying recording rights could not be independently established. The playable prototype uses documented grunt/pop alternatives. No film dialogue or unverified character-name recording is substituted.
+Wilhelm is included under the source-published CC0 designation, as expressly requested by the user. Optional credit is retained. The supplied file is a user upload; exact byte identity with the Commons download was not independently established. Performer attribution remains “likely Sheb Wooley.” No film dialogue or unverified character-name recording is substituted.
 
 ## Metadata privacy sanitation
 
 All bundled derivatives have had original global and audio-stream metadata removed. Only intentional title, artist attribution, license URL, Commons source URL and codec encoder tags remain. Every file was checked against this strict tag-key allowlist with ffprobe. Original provenance hashes refer to the source recordings, which are not bundled.
+
+## wilhelm-scream
+Wilhelm Scream — likely Sheb Wooley; digitized by Craig Smith — CC0 1.0 as published by Wikimedia Commons. Credit retained at user request; attribution not required by CC0.
+Source: https://commons.wikimedia.org/wiki/File:Wilhelm_Scream.ogg
+License: https://creativecommons.org/publicdomain/zero/1.0/
+Changes: User-uploaded Wilhelm_Scream.ogg converted to mono 44.1kHz Vorbis; 12ms/30ms fades and limiter ceiling 0.85 without automatic gain. Removed all inherited global/stream recording metadata; only intentional title, artist, license URL, Commons source URL and codec encoder retained.
+Bundled SHA256: 109e8372e7c7519242136475fdff52a82356fe2815f7d66e43845571527a5e03
+Original uploaded SHA256: 360097c9715f55abcc26ab73f12f69b730c660fbf019fc63caa685bfa9b6585b

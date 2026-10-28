@@ -43,7 +43,7 @@ test('real generated monster can move, exercise animations, damage a dummy and p
   await page.locator('#audio-enable').check();
   await expect(page.locator('#audio-status')).toContainText('Sound on');
   const death=page.locator('#animations button').filter({hasText:/death$/i}).first();
-  const hurt=page.locator('#animations button').filter({hasText:/hurt$/i}).first();
+  const hurt=page.locator('#animations button[title="IMPACT_LIGHT"]').first();
   await expect(death).toBeVisible();
   await expect(hurt).toBeVisible();
   const played=()=>page.evaluate(()=>window.__audioDiagnostics.played);

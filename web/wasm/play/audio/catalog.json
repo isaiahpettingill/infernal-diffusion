@@ -1525,6 +1525,62 @@
       "derivative_license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
       "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
       "source_description": "word"
+    },
+    {
+      "id": "wilhelm-scream",
+      "title": "Wilhelm Scream",
+      "artist": "Likely Sheb Wooley; recording digitized by Craig Smith",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Wilhelm_Scream.ogg",
+      "license_id": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "selected_license_id": "CC0-1.0",
+      "derivative_license_id": "CC0-1.0",
+      "derivative_license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "changes": [
+        "User-uploaded Wilhelm_Scream.ogg converted to mono 44.1kHz Vorbis; 12ms/30ms fades and limiter ceiling 0.85 without automatic gain.",
+        "Removed all inherited global/stream recording metadata; only intentional title, artist, license URL, Commons source URL and codec encoder retained."
+      ],
+      "file": "wilhelm-scream.ogg",
+      "source_kind": "other",
+      "source_description": "Stock human scream; user-uploaded recording identified as Wilhelm Scream",
+      "tags": [
+        "HUMANOID",
+        "HUMAN",
+        "COMEDY"
+      ],
+      "roles": [
+        "death"
+      ],
+      "attribution_required": false,
+      "no_attribution_basis": "CC0 worldwide dedication as published on the identified Commons source page; user expressly requested reliance on this published designation.",
+      "license_scope": "CC0 as published on identified Commons page",
+      "contributors": [
+        "Likely Sheb Wooley",
+        "Craig Smith (digitization)"
+      ],
+      "share_alike": false,
+      "combination_policy": "Single-source derivative.",
+      "attribution": "Wilhelm Scream — likely Sheb Wooley; digitized by Craig Smith — CC0 1.0 as published by Wikimedia Commons. Credit retained at user request; attribution not required by CC0.",
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "109e8372e7c7519242136475fdff52a82356fe2815f7d66e43845571527a5e03",
+        "bytes": 17557,
+        "duration_seconds": 1.623537,
+        "source_sha256": "360097c9715f55abcc26ab73f12f69b730c660fbf019fc63caa685bfa9b6585b",
+        "source_bytes": 48391,
+        "source_duration_seconds": 1.623521,
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "source_identity": "Derived from user-uploaded Wilhelm_Scream.ogg. Filename, duration and codec consistent with identified Commons recording; byte identity with Commons not independently established.",
+        "method": "Published Commons CC0 designation inspected; user expressly requested trusting that source. Original uploaded bytes and bundled derivative hashed; decoded with ffmpeg; metadata allowlist verified. Performer identification remains likely, not certain."
+      }
     }
   ],
   "license_policy": {
@@ -1532,7 +1588,6 @@
     "no_attribution_mode": "Only attribution_required=false AND approved CC0/PD dedication IDs; no US-only government recordings.",
     "adaptations": "Each bundled file derives from exactly one recording. CC BY-SA derivatives retain selected source license. Different-source blends require separate compatibility review. Code license is separate.",
     "excluded": [
-      "Wilhelm scream: underlying historical recording rights not independently established",
       "Unverified Star Wars name audio",
       "Unverified exact De-T-Rex source",
       "US-only government public-domain sounds",

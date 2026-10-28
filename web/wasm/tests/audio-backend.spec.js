@@ -38,12 +38,13 @@ test('real catalog PCM renders bounded distinct model and character effects',asy
       let peak=0,energy=0,finite=true;
       for(const sample of pcm){finite&&=Number.isFinite(sample);peak=Math.max(peak,Math.abs(sample));energy+=sample*sample;}
       const fingerprint=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',pcm.buffer)),b=>b.toString(16).padStart(2,'0')).join('');
-      results.push({name,peak,energy,finite,fingerprint,duration:result.buffer.duration,channels:result.buffer.numberOfChannels});
+      results.push({name,peak,energy,finite,fingerprint,parameters:result.parameters,duration:result.buffer.duration,channels:result.buffer.numberOfChannels});
     }
     await audio.enable(false);
     await audio.context.close();
     return results;
   });
+  await test.info().attach('audio-render-measurements',{body:JSON.stringify(rendered,null,2),contentType:'application/json'});
   for(const item of rendered){
     expect(item.finite,`${item.name} finite PCM`).toBe(true);
     expect(item.energy,`${item.name} audible signal energy`).toBeGreaterThan(0);
@@ -58,8 +59,12 @@ test('real catalog PCM renders bounded distinct model and character effects',asy
   const distinct=['natural-v2','robot','ghost','mermaid','fire'].map(name=>byName[name].fingerprint);
   expect(new Set(distinct).size).toBe(distinct.length);
   // Multiple chipmunk-like traits use one pitch stage, not stacked transposition.
-  expect(byName.overlap.fingerprint).toBe(byName.mermaid.fingerprint);
-  await test.info().attach('audio-render-measurements',{body:JSON.stringify(rendered,null,2),contentType:'application/json'});
+  expect(byName.overlap.parameters).toEqual(byName.mermaid.parameters);
+  expect(byName.overlap.parameters.pitchStages).toBe(1);
+  expect(byName.overlap.parameters.watery).toBe(true);
+  expect(byName.overlap.duration).toBeCloseTo(byName.mermaid.duration,5);
+  // Browser decoding/resampling and native DSP need not be bit-identical.
+  expect(Math.abs(byName.overlap.energy-byName.mermaid.energy)/byName.mermaid.energy).toBeLessThan(.02);
 });
 
 test('mode switch discards a real restricted decode already in flight',async({page})=>{

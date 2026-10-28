@@ -33,8 +33,10 @@ uses one source; no incompatible ShareAlike licenses are blended. Source notices
 and modifications remain in `audio/NOTICE.md` and the manifest. No-attribution
 mode does not claim all files in the full distributable are public domain.
 
-Wilhelm and exact Star Wars name pronunciations are not bundled while source
-rights/identity remain unresolved; cleared grunts/ordinary words are fallbacks.
+Wilhelm is included under the source’s published CC0 declaration with optional
+qualified attribution retained. Its stable ID is `wilhelm-scream`; embedders can
+exclude it with `new MonsterAudio({disabledSourceIds:["wilhelm-scream"]})`.
+Exact Star Wars name recordings remain unverified; cleared words are fallbacks.
 
 ## Verification
 
