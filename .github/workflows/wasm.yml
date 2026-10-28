@@ -59,12 +59,15 @@ jobs:
       - name: Test real BERT browser worker, responsiveness and cancellation
         working-directory: web/wasm
         run: npm test
+      - name: Record exact artifact revision
+        run: python3 -c 'import json,os; open("web/wasm/build-info.json","w").write(json.dumps({"commit":os.environ["GITHUB_SHA"],"run_id":os.environ["GITHUB_RUN_ID"]}))'
       - uses: actions/upload-artifact@v4
         with:
           name: infernal-wasm32-bert-threads-${{ matrix.threaded }}
           path: |
             web/wasm/pkg/
             web/wasm/bundle-manifest.json
+            web/wasm/build-info.json
             web/wasm/client.js
             web/wasm/worker.js
             web/wasm/index.html
@@ -86,10 +89,11 @@ jobs:
           path: |
             web/wasm/test-results/**/playground-v2.png
             web/wasm/test-results/**/playable-monster.png
+            web/wasm/test-results/**/attachments/*.json
           if-no-files-found: ignore
 
   deploy-approved-demo:
-    if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && inputs.publish) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[publish-playground]')))
     needs: wasm
     runs-on: ubuntu-24.04
     permissions:
@@ -115,3 +119,30 @@ jobs:
         id: deploy
         uses: actions/deploy-pages@v4
 
+      - name: Verify published revision and playable audio route
+        env:
+          SITE_URL: ${{ steps.deploy.outputs.page_url }}
+        run: |
+          python3 - <<'PYVERIFY'
+          import hashlib, json, os, time, urllib.request
+          base = os.environ["SITE_URL"].rstrip("/") + "/"
+          def read(path):
+              with urllib.request.urlopen(base + path, timeout=30) as response:
+                  return response.read()
+          for attempt in range(60):
+              try:
+                  info = json.loads(read("build-info.json"))
+                  assert info["commit"] == os.environ["GITHUB_SHA"], "Published revision has not propagated"
+                  assert b'id="audio-enable"' in read("play/"), "Playable audio controls missing"
+                  catalog = json.loads(read("play/audio/catalog.json"))
+                  source = next(a for a in catalog["assets"] if a["id"] == "wilhelm-scream")
+                  audio = read("play/audio/" + source["file"])
+                  assert hashlib.sha256(audio).hexdigest() == source["verification"]["sha256"], "Published audio checksum mismatch"
+                  print("Verified published commit", info["commit"], "and playable audio at", base + "play/")
+                  break
+              except Exception as error:
+                  if attempt == 59:
+                      raise
+                  print("Waiting for Pages propagation:", type(error).__name__)
+                  time.sleep(10)
+          PYVERIFY

@@ -45,8 +45,9 @@ Exact Star Wars name recordings remain unverified; cleared words are fallbacks.
 Browser generation additionally requires the real generated `web/wasm/pkg/`
 bundle. Missing BERT/WASM reports an error, never a fake generated monster.
 The existing WASM workflow packages this route and its real-browser screenshot.
-Pages deployment is manual, main-only, and defaults to publish=false. Do not
-select publish=true without the final user go-ahead; no automatic deployment.
+Pages deployment is main-only: explicit manual publish=true or an approved
+main commit containing `[publish-playground]`. Ordinary pushes never deploy.
+The deployed artifact comes from both passing WASM/browser jobs in that same run.
 
 Known limitations: no native Rust/Godot audio backend; complex combat primitives
 above; no subjective listening certification. CI verifies real decoding,
