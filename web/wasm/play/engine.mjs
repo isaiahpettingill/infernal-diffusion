@@ -59,7 +59,7 @@ function step(s,a,p,key){
     s.action.motion={start:s.x,at:p.at_ms||0,duration:Math.max(1,p.duration_ms||300),distance:Math.min(300,length(s.monster,(p.speed||100))*(p.duration_ms||300)/1000),kind};
   } else if(kind==='TELEPORT'){s.x=clamp(s.x+s.facing*160,40,960);}
   else s.feedback=`${kind}: animation only in this harness`;
-  s.events.push({kind:'attack',id:a.id,primitive:kind});
+  s.events.push({kind:'attack',id:a.id,primitive:kind,element:a.element});
 }
 export function tick(s,dt,input={}) {
   dt=clamp(dt,0,.05);const ms=dt*1000;

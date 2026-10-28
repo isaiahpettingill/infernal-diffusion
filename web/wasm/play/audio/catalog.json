@@ -1,0 +1,1542 @@
+{
+  "schema_version": 1,
+  "assets": [
+    {
+      "id": "water-splash",
+      "title": "Bathtub water splashes",
+      "artist": "gradha / Grzegorz Adam Hankiewicz",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Bathtub_water_splashes.ogg",
+      "license_id": "PD-author",
+      "license_url": "https://commons.wikimedia.org/wiki/Template:PD-author",
+      "changes": [
+        "Audio extracted; excerpt 1.000–5.000s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned. Removed 2.540s detected leading silence.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "water-splash.ogg",
+      "source_kind": "foley",
+      "tags": [
+        "CEPHALOPOD",
+        "CRAB",
+        "EEL",
+        "FISH",
+        "JELLYFISH",
+        "SHARK",
+        "SPLASH",
+        "SWIM",
+        "WATER"
+      ],
+      "roles": [
+        "splash",
+        "swim"
+      ],
+      "attribution_required": false,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "26fb7fa6811ac9e1c602857d2c9c7676d99018196024c2fea0a0685658676780",
+        "bytes": 17604,
+        "duration_seconds": 1.46,
+        "source_sha256": "471b9c2cc35a183d74af61abc1352c93ecc457450cef1c29aa79669113010f38",
+        "source_bytes": 768038,
+        "source_duration_seconds": 48.117551,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/8/83/Bathtub_water_splashes.ogg",
+      "contributors": [
+        "gradha / Grzegorz Adam Hankiewicz"
+      ],
+      "share_alike": false,
+      "license_scope": "worldwide dedication with fallback permission",
+      "attribution": "Bathtub water splashes — gradha / Grzegorz Adam Hankiewicz — PD-author — https://commons.wikimedia.org/wiki/File:Bathtub_water_splashes.ogg; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "PD-author",
+      "derivative_license_id": "PD-author",
+      "derivative_license_url": "https://commons.wikimedia.org/wiki/Template:PD-author",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "no_attribution_basis": "Individual Commons file states author worldwide public-domain dedication and unrestricted fallback permission where dedication is unavailable; not US-government-only public domain.",
+      "source_description": "water recording"
+    },
+    {
+      "id": "cat-meow",
+      "title": "Meow of a pleading cat",
+      "artist": "Heismark",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Meow_of_a_pleading_cat.oga",
+      "license_id": "PD-self",
+      "license_url": "https://commons.wikimedia.org/wiki/Template:PD-self",
+      "changes": [
+        "Audio extracted; excerpt 0.000–4.000s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned. Removed 0.300s detected leading silence.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "cat-meow.ogg",
+      "source_kind": "animal",
+      "tags": [
+        "AMBIENT",
+        "CAT",
+        "LEOPARD",
+        "PANTHER"
+      ],
+      "roles": [
+        "voice"
+      ],
+      "attribution_required": false,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "4b274616a77628f838f98ba24e15a7c77b258e777c29c7830ad2c977763c4afe",
+        "bytes": 18190,
+        "duration_seconds": 3.7,
+        "source_sha256": "fdbfa1c5d5f7f18b5713bd58d50387a008133ca5e84606757898228b3521a2ff",
+        "source_bytes": 33297,
+        "source_duration_seconds": 11.851875,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/6/6b/Meow_of_a_pleading_cat.oga",
+      "contributors": [
+        "Heismark"
+      ],
+      "share_alike": false,
+      "license_scope": "worldwide dedication with fallback permission",
+      "attribution": "Meow of a pleading cat — Heismark — PD-self — https://commons.wikimedia.org/wiki/File:Meow_of_a_pleading_cat.oga; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "PD-self",
+      "derivative_license_id": "PD-self",
+      "derivative_license_url": "https://commons.wikimedia.org/wiki/Template:PD-self",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "no_attribution_basis": "Individual Commons file states author worldwide public-domain dedication and unrestricted fallback permission where dedication is unavailable; not US-government-only public domain.",
+      "source_description": "animal recording"
+    },
+    {
+      "id": "bird-argus",
+      "title": "Great Argus call",
+      "artist": "Designism",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Great_Argus_call.ogg",
+      "license_id": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "changes": [
+        "Audio extracted; excerpt 0.000–2.385s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "bird-argus.ogg",
+      "source_kind": "animal",
+      "tags": [
+        "BIRD",
+        "CROW",
+        "EAGLE",
+        "HAWK",
+        "OWL",
+        "RAVEN",
+        "TAUNT"
+      ],
+      "roles": [
+        "voice"
+      ],
+      "attribution_required": false,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "7c5ecb8811e7828dccca06e7ebf4824738d8a8602209add17c6d70847d9ca210",
+        "bytes": 24608,
+        "duration_seconds": 2.384807,
+        "source_sha256": "fb141e3161af8e63e0c1fcc16246f07aef830f58b7393b288247bf9943a851d4",
+        "source_bytes": 35435,
+        "source_duration_seconds": 2.384807,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/a/ab/Great_Argus_call.ogg",
+      "contributors": [
+        "Designism"
+      ],
+      "share_alike": false,
+      "license_scope": "license as identified on individual Commons source page",
+      "attribution": "Great Argus call — Designism — CC0-1.0 — https://commons.wikimedia.org/wiki/File:Great_Argus_call.ogg; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "CC0-1.0",
+      "derivative_license_id": "CC0-1.0",
+      "derivative_license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "no_attribution_basis": "CC0 worldwide public-domain dedication",
+      "source_description": "animal recording"
+    },
+    {
+      "id": "meow-word",
+      "title": "MeowUSA",
+      "artist": "SalomeCzapiewski",
+      "source_url": "https://commons.wikimedia.org/wiki/File:MeowUSA.wav",
+      "license_id": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "changes": [
+        "Audio extracted; excerpt 0.000–1.472s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned. Removed 0.540s detected leading silence.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "meow-word.ogg",
+      "source_kind": "word",
+      "tags": [
+        "ANIME_GIRL",
+        "COMEDY",
+        "HUMANOID"
+      ],
+      "roles": [
+        "voice"
+      ],
+      "attribution_required": false,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "23bca86f9a2afbebf157a07938274bfeec855b68f83df15a0cd73f7c585c0d19",
+        "bytes": 11133,
+        "duration_seconds": 0.932018,
+        "source_sha256": "268fd93f966804df6cb6c518c4393dd99b36ce814ae1cb6499b5e032c0a233bf",
+        "source_bytes": 141390,
+        "source_duration_seconds": 1.472,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/7/7d/MeowUSA.wav",
+      "contributors": [
+        "SalomeCzapiewski"
+      ],
+      "share_alike": false,
+      "license_scope": "license as identified on individual Commons source page",
+      "attribution": "MeowUSA — SalomeCzapiewski — CC0-1.0 — https://commons.wikimedia.org/wiki/File:MeowUSA.wav; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "CC0-1.0",
+      "derivative_license_id": "CC0-1.0",
+      "derivative_license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "no_attribution_basis": "CC0 worldwide public-domain dedication",
+      "source_description": "word"
+    },
+    {
+      "id": "eo-aleo",
+      "title": "Eo-aleo",
+      "artist": "Cannona",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Eo-aleo.ogg",
+      "license_id": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "changes": [
+        "Audio extracted; excerpt 0.000–1.113s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned. Removed 0.100s detected leading silence.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "eo-aleo.ogg",
+      "source_kind": "word",
+      "tags": [
+        "FISHMAN",
+        "HUMANOID",
+        "MERMAID",
+        "MERMAN"
+      ],
+      "roles": [
+        "voice"
+      ],
+      "attribution_required": false,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "4f0732cd3ef2f380337ea3c0b8c69575b96126e26070eb7018b11e2247f9c1b9",
+        "bytes": 11036,
+        "duration_seconds": 1.01288,
+        "source_sha256": "cffde23c0e7c2436290eb238f6f1f8f9b213b4d595d590782124d2a33b825631",
+        "source_bytes": 12178,
+        "source_duration_seconds": 1.11288,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/8/8b/Eo-aleo.ogg",
+      "contributors": [
+        "Cannona"
+      ],
+      "share_alike": false,
+      "license_scope": "license as identified on individual Commons source page",
+      "attribution": "Eo-aleo — Cannona — CC0-1.0 — https://commons.wikimedia.org/wiki/File:Eo-aleo.ogg; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "CC0-1.0",
+      "derivative_license_id": "CC0-1.0",
+      "derivative_license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "no_attribution_basis": "CC0 worldwide public-domain dedication",
+      "source_description": "word"
+    },
+    {
+      "id": "eo-akvo",
+      "title": "Eo-akvo",
+      "artist": "Arcxjo",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Eo-akvo.ogg",
+      "license_id": "PD-self",
+      "license_url": "https://commons.wikimedia.org/wiki/Template:PD-self",
+      "changes": [
+        "Audio extracted; excerpt 0.000–0.667s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned. Removed 0.080s detected leading silence.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "eo-akvo.ogg",
+      "source_kind": "word",
+      "tags": [
+        "FISHMAN",
+        "HUMANOID",
+        "MERMAID",
+        "MERMAN"
+      ],
+      "roles": [
+        "voice"
+      ],
+      "attribution_required": false,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "dc72fc88d860939d19e2a3e16296c6778a67bd4d5377925f79270cd1b945f81c",
+        "bytes": 9022,
+        "duration_seconds": 0.587438,
+        "source_sha256": "3e4e2409eee056795694a2ecb0a3fcde08872361ffcd5ead40107a49ddf3bbbf",
+        "source_bytes": 16495,
+        "source_duration_seconds": 0.667438,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/d/d8/Eo-akvo.ogg",
+      "contributors": [
+        "Arcxjo"
+      ],
+      "share_alike": false,
+      "license_scope": "worldwide dedication with fallback permission",
+      "attribution": "Eo-akvo — Arcxjo — PD-self — https://commons.wikimedia.org/wiki/File:Eo-akvo.ogg; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "PD-self",
+      "derivative_license_id": "PD-self",
+      "derivative_license_url": "https://commons.wikimedia.org/wiki/Template:PD-self",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "no_attribution_basis": "Individual Commons file states author worldwide public-domain dedication and unrestricted fallback permission where dedication is unavailable; not US-government-only public domain.",
+      "source_description": "word"
+    },
+    {
+      "id": "ja-neko",
+      "title": "Ja-neko-anglonative",
+      "artist": "FreeMediaKid!",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Ja-neko-anglonative.oga",
+      "license_id": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "changes": [
+        "Audio extracted; excerpt 0.000–0.715s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned. Removed 0.180s detected leading silence.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "ja-neko.ogg",
+      "source_kind": "word",
+      "tags": [
+        "ANIME_GIRL",
+        "HUMANOID"
+      ],
+      "roles": [
+        "voice"
+      ],
+      "attribution_required": false,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "c0acf7af2d1cfb115fd6a3fa749aa5353c4d626b0b45ce82f4483b9b94457e46",
+        "bytes": 8873,
+        "duration_seconds": 0.532018,
+        "source_sha256": "c603691c6f87cba73240392d290dcd9ad4b75d28214a897d93c91a12535a0163",
+        "source_bytes": 36496,
+        "source_duration_seconds": 0.714667,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/f/f8/Ja-neko-anglonative.oga",
+      "contributors": [
+        "FreeMediaKid!"
+      ],
+      "share_alike": false,
+      "license_scope": "license as identified on individual Commons source page",
+      "attribution": "Ja-neko-anglonative — FreeMediaKid! — CC0-1.0 — https://commons.wikimedia.org/wiki/File:Ja-neko-anglonative.oga; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "CC0-1.0",
+      "derivative_license_id": "CC0-1.0",
+      "derivative_license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "no_attribution_basis": "CC0 worldwide public-domain dedication",
+      "source_description": "word"
+    },
+    {
+      "id": "ja-godzilla",
+      "title": "Ja-Godzilla",
+      "artist": "Spacecat2~commonswiki (attributed by Commons)",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Ja-Godzilla.oga",
+      "license_id": "PD-self",
+      "license_url": "https://commons.wikimedia.org/wiki/Template:PD-self",
+      "changes": [
+        "Audio extracted; excerpt 0.000–0.755s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "ja-godzilla.ogg",
+      "source_kind": "word",
+      "tags": [
+        "ANIME_GIRL",
+        "HUMANOID"
+      ],
+      "roles": [
+        "voice"
+      ],
+      "attribution_required": false,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "494da81f2c728e05cec6b37677c9640b70f4b36c80a8213dbb4492d8112b02c2",
+        "bytes": 11438,
+        "duration_seconds": 0.754649,
+        "source_sha256": "d4d9d06cb804f60c1f5cf37601e57cc0349d0413b3e803d450a8729f34939426",
+        "source_bytes": 12918,
+        "source_duration_seconds": 0.754649,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/d/d0/Ja-Godzilla.oga",
+      "contributors": [
+        "Spacecat2~commonswiki (attributed by Commons)"
+      ],
+      "share_alike": false,
+      "license_scope": "worldwide dedication with fallback permission",
+      "attribution": "Ja-Godzilla — Spacecat2~commonswiki (attributed by Commons) — PD-self — https://commons.wikimedia.org/wiki/File:Ja-Godzilla.oga; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "PD-self",
+      "derivative_license_id": "PD-self",
+      "derivative_license_url": "https://commons.wikimedia.org/wiki/Template:PD-self",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "no_attribution_basis": "Individual Commons file states author worldwide public-domain dedication and unrestricted fallback permission where dedication is unavailable; not US-government-only public domain.",
+      "source_description": "word"
+    },
+    {
+      "id": "ja-ramen",
+      "title": "Ja-Ramen",
+      "artist": "TAKASUGI Shinji (current recording)",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Ja-Ramen.oga",
+      "license_id": "PD-self",
+      "license_url": "https://commons.wikimedia.org/wiki/Template:PD-self",
+      "changes": [
+        "Audio extracted; excerpt 0.000–1.360s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "ja-ramen.ogg",
+      "source_kind": "word",
+      "tags": [
+        "ANIME_GIRL",
+        "HUMANOID"
+      ],
+      "roles": [
+        "voice"
+      ],
+      "attribution_required": false,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "31abe2a3cf89320399e3f3fb7c61f7a141dc200d1496921693e3696d8801d710",
+        "bytes": 15498,
+        "duration_seconds": 1.36,
+        "source_sha256": "ae341439aeae4f2172fd1aa012d00d055679428445ae2386b7e0856da6269e4d",
+        "source_bytes": 23970,
+        "source_duration_seconds": 1.36,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/9/96/Ja-Ramen.oga",
+      "contributors": [
+        "TAKASUGI Shinji (current recording)"
+      ],
+      "share_alike": false,
+      "license_scope": "worldwide dedication with fallback permission",
+      "attribution": "Ja-Ramen — TAKASUGI Shinji (current recording) — PD-self — https://commons.wikimedia.org/wiki/File:Ja-Ramen.oga; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "PD-self",
+      "derivative_license_id": "PD-self",
+      "derivative_license_url": "https://commons.wikimedia.org/wiki/Template:PD-self",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "no_attribution_basis": "Individual Commons file states author worldwide public-domain dedication and unrestricted fallback permission where dedication is unavailable; not US-government-only public domain.",
+      "source_description": "word"
+    },
+    {
+      "id": "human-grunts",
+      "title": "Male pain grunts",
+      "artist": "stilgar",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Male_pain_grunts.ogg",
+      "license_id": "PD-author",
+      "license_url": "https://commons.wikimedia.org/wiki/Template:PD-author",
+      "changes": [
+        "Audio extracted; excerpt 0.000–4.000s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned. Removed 0.520s detected leading silence.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "human-grunts.ogg",
+      "source_kind": "other",
+      "tags": [
+        "DEATH",
+        "GOBLIN",
+        "GRUNT",
+        "HURT",
+        "ORC",
+        "TROLL"
+      ],
+      "roles": [
+        "voice",
+        "hurt",
+        "death"
+      ],
+      "attribution_required": false,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "404bd4d4a3356abe008f662fed866bbf55d3a2f7fe0a46dd6fc8ace30c225553",
+        "bytes": 34745,
+        "duration_seconds": 3.48907,
+        "source_sha256": "a208ad6d2329966f200bf8e17bc7be27ecd4e0fdef124a39c7aecc20ffb25882",
+        "source_bytes": 444722,
+        "source_duration_seconds": 28.235465,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/e/e3/Male_pain_grunts.ogg",
+      "contributors": [
+        "stilgar"
+      ],
+      "share_alike": false,
+      "license_scope": "worldwide dedication with fallback permission",
+      "attribution": "Male pain grunts — stilgar — PD-author — https://commons.wikimedia.org/wiki/File:Male_pain_grunts.ogg; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "PD-author",
+      "derivative_license_id": "PD-author",
+      "derivative_license_url": "https://commons.wikimedia.org/wiki/Template:PD-author",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "no_attribution_basis": "Individual Commons file states author worldwide public-domain dedication and unrestricted fallback permission where dedication is unavailable; not US-government-only public domain.",
+      "source_description": "human vocal effects"
+    },
+    {
+      "id": "pig-imitation",
+      "title": "Man grunts like pig",
+      "artist": "stilgar",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Man_grunts_like_pig.ogg",
+      "license_id": "PD-author",
+      "license_url": "https://commons.wikimedia.org/wiki/Template:PD-author",
+      "changes": [
+        "Audio extracted; excerpt 0.000–4.000s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned. Removed 0.300s detected leading silence.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "pig-imitation.ogg",
+      "source_kind": "foley",
+      "tags": [
+        "GOBLIN",
+        "GRUNT",
+        "ORC",
+        "TROLL"
+      ],
+      "roles": [
+        "voice",
+        "hurt",
+        "death"
+      ],
+      "attribution_required": false,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "51a268ed429897b9a8fbe97b40535edffc4bd89e4257f92400581a46f111bb20",
+        "bytes": 44402,
+        "duration_seconds": 3.698141,
+        "source_sha256": "f99a74620cd48d1c1d998e58b6d57dac43b7043e6d0129f96f8389f7728cacd6",
+        "source_bytes": 415395,
+        "source_duration_seconds": 23.643719,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/c/c0/Man_grunts_like_pig.ogg",
+      "contributors": [
+        "stilgar"
+      ],
+      "share_alike": false,
+      "license_scope": "worldwide dedication with fallback permission",
+      "attribution": "Man grunts like pig — stilgar — PD-author — https://commons.wikimedia.org/wiki/File:Man_grunts_like_pig.ogg; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "PD-author",
+      "derivative_license_id": "PD-author",
+      "derivative_license_url": "https://commons.wikimedia.org/wiki/Template:PD-author",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "no_attribution_basis": "Individual Commons file states author worldwide public-domain dedication and unrestricted fallback permission where dedication is unavailable; not US-government-only public domain.",
+      "source_description": "human animal imitation"
+    },
+    {
+      "id": "lion-roar",
+      "title": "Lion raring-sound1TamilNadu178",
+      "artist": "த*உழவன் / Info-farmer",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Lion_raring-sound1TamilNadu178.ogg",
+      "license_id": "PD-self",
+      "license_url": "https://commons.wikimedia.org/wiki/Template:PD-self",
+      "changes": [
+        "Audio extracted; excerpt 0.000–4.000s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "lion-roar.ogg",
+      "source_kind": "animal",
+      "tags": [
+        "LEOPARD",
+        "LION",
+        "PANTHER",
+        "ROAR",
+        "TAUNT",
+        "TIGER"
+      ],
+      "roles": [
+        "voice",
+        "hurt",
+        "death"
+      ],
+      "attribution_required": false,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "22e6b089665bc2fe635daa6712657fd8022e4289c10e105651d71691c9e7faef",
+        "bytes": 36031,
+        "duration_seconds": 3.966621,
+        "source_sha256": "ab237d0f960e83412251d0c11f69959f3c2e8d3b14595f7181c3056f7fa18bf7",
+        "source_bytes": 77611,
+        "source_duration_seconds": 9.042721,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/7/7d/Lion_raring-sound1TamilNadu178.ogg",
+      "contributors": [
+        "த*உழவன் / Info-farmer"
+      ],
+      "share_alike": false,
+      "license_scope": "worldwide dedication with fallback permission",
+      "attribution": "Lion raring-sound1TamilNadu178 — த*உழவன் / Info-farmer — PD-self — https://commons.wikimedia.org/wiki/File:Lion_raring-sound1TamilNadu178.ogg; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "PD-self",
+      "derivative_license_id": "PD-self",
+      "derivative_license_url": "https://commons.wikimedia.org/wiki/Template:PD-self",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "no_attribution_basis": "Individual Commons file states author worldwide public-domain dedication and unrestricted fallback permission where dedication is unavailable; not US-government-only public domain.",
+      "source_description": "animal recording"
+    },
+    {
+      "id": "fire-barbecue",
+      "title": "Barbecue",
+      "artist": "aldor",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Barbecue.ogg",
+      "license_id": "PD-author",
+      "license_url": "https://commons.wikimedia.org/wiki/Template:PD-author",
+      "changes": [
+        "Audio extracted; excerpt 2.000–6.000s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "fire-barbecue.ogg",
+      "source_kind": "foley",
+      "tags": [
+        "AMBIENT",
+        "ATTACK",
+        "FIRE"
+      ],
+      "roles": [
+        "fire"
+      ],
+      "attribution_required": false,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "1811d41f490f58b4553e4516e26b9d22130db3d52ef65f9a0c0636661c51cbea",
+        "bytes": 43787,
+        "duration_seconds": 4.003447,
+        "source_sha256": "db080613af9415bfadbfa947cc3e46583b3d8fed0c59c296caee7a30eadc9baf",
+        "source_bytes": 2414674,
+        "source_duration_seconds": 56.973061,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/9/9b/Barbecue.ogg",
+      "contributors": [
+        "aldor"
+      ],
+      "share_alike": false,
+      "license_scope": "worldwide dedication with fallback permission",
+      "attribution": "Barbecue — aldor — PD-author — https://commons.wikimedia.org/wiki/File:Barbecue.ogg; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "PD-author",
+      "derivative_license_id": "PD-author",
+      "derivative_license_url": "https://commons.wikimedia.org/wiki/Template:PD-author",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "no_attribution_basis": "Individual Commons file states author worldwide public-domain dedication and unrestricted fallback permission where dedication is unavailable; not US-government-only public domain.",
+      "source_description": "field recording"
+    },
+    {
+      "id": "fire-grass",
+      "title": "Dry grass burning in open fireplace",
+      "artist": "ezwa",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Dry_grass_burning_in_open_fireplace.ogg",
+      "license_id": "PD-author",
+      "license_url": "https://commons.wikimedia.org/wiki/Template:PD-author",
+      "changes": [
+        "Audio extracted; excerpt 1.000–5.000s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "fire-grass.ogg",
+      "source_kind": "foley",
+      "tags": [
+        "AMBIENT",
+        "ATTACK",
+        "FIRE"
+      ],
+      "roles": [
+        "fire"
+      ],
+      "attribution_required": false,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "a3bd3ac5b92129be72482a428aec9d2fb6c701f2bc5e63d003b928dd05754926",
+        "bytes": 42658,
+        "duration_seconds": 4.0,
+        "source_sha256": "0fb9fb4a44fe378ceffb2b80d0cf420e28404e04f5f200b7bc0205eadeebc8d4",
+        "source_bytes": 511116,
+        "source_duration_seconds": 25.49551,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/d/d8/Dry_grass_burning_in_open_fireplace.ogg",
+      "contributors": [
+        "ezwa"
+      ],
+      "share_alike": false,
+      "license_scope": "worldwide dedication with fallback permission",
+      "attribution": "Dry grass burning in open fireplace — ezwa — PD-author — https://commons.wikimedia.org/wiki/File:Dry_grass_burning_in_open_fireplace.ogg; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "PD-author",
+      "derivative_license_id": "PD-author",
+      "derivative_license_url": "https://commons.wikimedia.org/wiki/Template:PD-author",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "no_attribution_basis": "Individual Commons file states author worldwide public-domain dedication and unrestricted fallback permission where dedication is unavailable; not US-government-only public domain.",
+      "source_description": "field recording"
+    },
+    {
+      "id": "dog-bark",
+      "title": "Ladrido perro",
+      "artist": "Edo.pt2",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Ladrido_perro.ogg",
+      "license_id": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "changes": [
+        "Audio extracted; excerpt 0.000–3.740s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned. Removed 1.080s detected leading silence.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "dog-bark.ogg",
+      "source_kind": "animal",
+      "tags": [
+        "BARK",
+        "DOG",
+        "JACKAL",
+        "TAUNT",
+        "WOLF"
+      ],
+      "roles": [
+        "voice"
+      ],
+      "attribution_required": false,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "7979a73d018fd6d8cfa14d9c86c09b30efe9f5b16e506fcb80ef70cfbba3ffb5",
+        "bytes": 25196,
+        "duration_seconds": 2.653515,
+        "source_sha256": "6646b8ab52930a967d01ec19158185599b4573d0b00507e7da21df89ebafad53",
+        "source_bytes": 77123,
+        "source_duration_seconds": 3.74,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/f/fd/Ladrido_perro.ogg",
+      "contributors": [
+        "Edo.pt2"
+      ],
+      "share_alike": false,
+      "license_scope": "license as identified on individual Commons source page",
+      "attribution": "Ladrido perro — Edo.pt2 — CC0-1.0 — https://commons.wikimedia.org/wiki/File:Ladrido_perro.ogg; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "CC0-1.0",
+      "derivative_license_id": "CC0-1.0",
+      "derivative_license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "no_attribution_basis": "CC0 worldwide public-domain dedication",
+      "source_description": "animal recording"
+    },
+    {
+      "id": "elephant-trumpet",
+      "title": "Elephant voice - trumpeting",
+      "artist": "தகவலுழவன்",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Elephant_voice_-_trumpeting.ogg",
+      "license_id": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "changes": [
+        "Audio extracted; excerpt 0.000–1.440s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned. Removed 0.120s detected leading silence.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "elephant-trumpet.ogg",
+      "source_kind": "animal",
+      "tags": [
+        "ELEPHANT",
+        "MAMMOTH",
+        "TAUNT"
+      ],
+      "roles": [
+        "voice"
+      ],
+      "attribution_required": false,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "c586f5dca7a328b91a7997bf3133b73fea1294dad00030c56dbf03daa28cb725",
+        "bytes": 14799,
+        "duration_seconds": 1.316735,
+        "source_sha256": "e5f3120e5eaca87cc080bbf57bd185c96d52fd0f63cc1dfe33228c8bfa29f3bc",
+        "source_bytes": 18502,
+        "source_duration_seconds": 1.439637,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/4/40/Elephant_voice_-_trumpeting.ogg",
+      "contributors": [
+        "தகவலுழவன்"
+      ],
+      "share_alike": false,
+      "license_scope": "license as identified on individual Commons source page",
+      "attribution": "Elephant voice - trumpeting — தகவலுழவன் — CC0-1.0 — https://commons.wikimedia.org/wiki/File:Elephant_voice_-_trumpeting.ogg; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "CC0-1.0",
+      "derivative_license_id": "CC0-1.0",
+      "derivative_license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "no_attribution_basis": "CC0 worldwide public-domain dedication",
+      "source_description": "animal recording"
+    },
+    {
+      "id": "frog",
+      "title": "Frosch",
+      "artist": "Ammoniumnitrat",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Frosch.ogv",
+      "license_id": "PD-self",
+      "license_url": "https://commons.wikimedia.org/wiki/Template:PD-self",
+      "changes": [
+        "Audio extracted; excerpt 0.000–4.000s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned. Removed 0.080s detected leading silence.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "frog.ogg",
+      "source_kind": "animal",
+      "tags": [
+        "AMBIENT",
+        "FROG"
+      ],
+      "roles": [
+        "voice"
+      ],
+      "attribution_required": false,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "7bcbc9ca5c434c1edb62dc67c7c2ee5c8e9277f48c83e826a426b16a8ce4a1d3",
+        "bytes": 33351,
+        "duration_seconds": 3.92,
+        "source_sha256": "af441018f8bc4e995528493e76cecb86f7459808bfac845ceeb6159d9f681ae9",
+        "source_bytes": 84222,
+        "source_duration_seconds": 11.0,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/2/24/Frosch.ogv",
+      "contributors": [
+        "Ammoniumnitrat"
+      ],
+      "share_alike": false,
+      "license_scope": "worldwide dedication with fallback permission",
+      "attribution": "Frosch — Ammoniumnitrat — PD-self — https://commons.wikimedia.org/wiki/File:Frosch.ogv; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "PD-self",
+      "derivative_license_id": "PD-self",
+      "derivative_license_url": "https://commons.wikimedia.org/wiki/Template:PD-self",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "no_attribution_basis": "Individual Commons file states author worldwide public-domain dedication and unrestricted fallback permission where dedication is unavailable; not US-government-only public domain.",
+      "source_description": "animal recording"
+    },
+    {
+      "id": "cicada",
+      "title": "蝉鸣",
+      "artist": "Ngguls",
+      "source_url": "https://commons.wikimedia.org/wiki/File:%E8%9D%89%E9%B8%A3.ogg",
+      "license_id": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "changes": [
+        "Audio extracted; excerpt 1.000–5.000s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "cicada.ogg",
+      "source_kind": "animal",
+      "tags": [
+        "AMBIENT",
+        "BEETLE",
+        "CENTIPEDE",
+        "HORNET",
+        "SCORPION",
+        "SPIDER"
+      ],
+      "roles": [
+        "voice"
+      ],
+      "attribution_required": false,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "3b750b04233b73f53fc8fcc01dadbdea3e8ae4e78cbae9f771de59dc56859a86",
+        "bytes": 32006,
+        "duration_seconds": 4.0,
+        "source_sha256": "1dad0233d8ef729a489386857c938fabd7645f5ffc0e33e58cca7d940b1ff73f",
+        "source_bytes": 433619,
+        "source_duration_seconds": 33.097143,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/9/90/%E8%9D%89%E9%B8%A3.ogg",
+      "contributors": [
+        "Ngguls"
+      ],
+      "share_alike": false,
+      "license_scope": "license as identified on individual Commons source page",
+      "attribution": "蝉鸣 — Ngguls — CC0-1.0 — https://commons.wikimedia.org/wiki/File:%E8%9D%89%E9%B8%A3.ogg; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "CC0-1.0",
+      "derivative_license_id": "CC0-1.0",
+      "derivative_license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "no_attribution_basis": "CC0 worldwide public-domain dedication",
+      "source_description": "animal recording"
+    },
+    {
+      "id": "foley-pop",
+      "title": "Growing plants (sound effect)",
+      "artist": "Pixelmaniac pictures",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Growing_plants_%28sound_effect%29.ogg",
+      "license_id": "PD-self",
+      "license_url": "https://commons.wikimedia.org/wiki/Template:PD-self",
+      "changes": [
+        "Audio extracted; excerpt 0.000–4.000s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "foley-pop.ogg",
+      "source_kind": "foley",
+      "tags": [
+        "BUBBLE",
+        "CARTOON",
+        "CEPHALOPOD",
+        "CRAB",
+        "EEL",
+        "FISH",
+        "JELLYFISH",
+        "POP",
+        "SHARK"
+      ],
+      "roles": [
+        "voice",
+        "hurt",
+        "death"
+      ],
+      "attribution_required": false,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "b5ccfd49f8876bc5bbcda9f603dc981f4989614d4dc006b1227af25adb14f2d6",
+        "bytes": 42054,
+        "duration_seconds": 3.977483,
+        "source_sha256": "5f5faace4d0135419a6bd2d5c8f2510ccad526954c50fe099a7519f095c13b8d",
+        "source_bytes": 914428,
+        "source_duration_seconds": 55.229909,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/a/a1/Growing_plants_%28sound_effect%29.ogg",
+      "contributors": [
+        "Pixelmaniac pictures"
+      ],
+      "share_alike": false,
+      "license_scope": "worldwide dedication with fallback permission",
+      "attribution": "Growing plants (sound effect) — Pixelmaniac pictures — PD-self — https://commons.wikimedia.org/wiki/File:Growing_plants_%28sound_effect%29.ogg; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "PD-self",
+      "derivative_license_id": "PD-self",
+      "derivative_license_url": "https://commons.wikimedia.org/wiki/Template:PD-self",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "no_attribution_basis": "Individual Commons file states author worldwide public-domain dedication and unrestricted fallback permission where dedication is unavailable; not US-government-only public domain.",
+      "source_description": "bubble wrap and sponge foley"
+    },
+    {
+      "id": "fr-orange",
+      "title": "Fr-orange",
+      "artist": "Vion Nicolas / Shtooka",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Fr-orange.ogg",
+      "license_id": "CC-BY-2.0-FR",
+      "license_url": "https://creativecommons.org/licenses/by/2.0/fr/",
+      "changes": [
+        "Audio extracted; excerpt 0.000–1.300s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned. Removed 0.260s detected leading silence.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "fr-orange.ogg",
+      "source_kind": "word",
+      "tags": [
+        "FISHMAN",
+        "HUMANOID",
+        "MERMAID",
+        "MERMAN"
+      ],
+      "roles": [
+        "voice"
+      ],
+      "attribution_required": true,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "10e3270e9a129e7cbe3b7f74c25fdd29bbbd01d923597e9fcf49cb1a438c9924",
+        "bytes": 13311,
+        "duration_seconds": 1.04,
+        "source_sha256": "e6d97002cf96e00c43d12b02bcb5e39d3c46a1b062a4719b00e8aaaf8d1a5459",
+        "source_bytes": 15783,
+        "source_duration_seconds": 1.3,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/e/e3/Fr-orange.ogg",
+      "contributors": [
+        "Vion Nicolas / Shtooka"
+      ],
+      "share_alike": false,
+      "license_scope": "license as identified on individual Commons source page",
+      "attribution": "Fr-orange — Vion Nicolas / Shtooka — CC-BY-2.0-FR — https://commons.wikimedia.org/wiki/File:Fr-orange.ogg; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "CC-BY-2.0-FR",
+      "derivative_license_id": "CC-BY-2.0-FR",
+      "derivative_license_url": "https://creativecommons.org/licenses/by/2.0/fr/",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "source_description": "word"
+    },
+    {
+      "id": "fr-haricot",
+      "title": "Fr-haricot",
+      "artist": "Vion Nicolas / Shtooka",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Fr-haricot.ogg",
+      "license_id": "CC-BY-2.0-FR",
+      "license_url": "https://creativecommons.org/licenses/by/2.0/fr/",
+      "changes": [
+        "Audio extracted; excerpt 0.000–1.300s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned. Removed 0.260s detected leading silence.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "fr-haricot.ogg",
+      "source_kind": "word",
+      "tags": [
+        "FISHMAN",
+        "HUMANOID",
+        "MERMAID",
+        "MERMAN"
+      ],
+      "roles": [
+        "voice"
+      ],
+      "attribution_required": true,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "404d974b006d25777ebc3c0b5a3d8011c191e6aaf86b21b19cee2064be80b19a",
+        "bytes": 13719,
+        "duration_seconds": 1.04,
+        "source_sha256": "48868a08f24302cbc6f81732817c74501f6af97447f9f9dfef8c80be2adcbcef",
+        "source_bytes": 16202,
+        "source_duration_seconds": 1.3,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/c/ce/Fr-haricot.ogg",
+      "contributors": [
+        "Vion Nicolas / Shtooka"
+      ],
+      "share_alike": false,
+      "license_scope": "license as identified on individual Commons source page",
+      "attribution": "Fr-haricot — Vion Nicolas / Shtooka — CC-BY-2.0-FR — https://commons.wikimedia.org/wiki/File:Fr-haricot.ogg; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "CC-BY-2.0-FR",
+      "derivative_license_id": "CC-BY-2.0-FR",
+      "derivative_license_url": "https://creativecommons.org/licenses/by/2.0/fr/",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "source_description": "word"
+    },
+    {
+      "id": "eo-avo",
+      "title": "Eo-avo",
+      "artist": "Castelobranco / Davi Gurgel Castelo Branco",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Eo-avo.ogg",
+      "license_id": "CC-BY-SA-4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "changes": [
+        "Audio extracted; excerpt 0.000–1.042s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned. Removed 0.320s detected leading silence.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "eo-avo.ogg",
+      "source_kind": "word",
+      "tags": [
+        "FISHMAN",
+        "HUMANOID",
+        "MERMAID",
+        "MERMAN"
+      ],
+      "roles": [
+        "voice"
+      ],
+      "attribution_required": true,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "342113cf08346d4a1e32376843af83dbc3bc7d449408abfd8c170806ddcb7c95",
+        "bytes": 10594,
+        "duration_seconds": 0.719501,
+        "source_sha256": "017444617ace1a8a48c7b55418cd5b295d86a2f5a830235f2ab196e7d4e9f112",
+        "source_bytes": 16264,
+        "source_duration_seconds": 1.041667,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/5/53/Eo-avo.ogg",
+      "contributors": [
+        "Castelobranco / Davi Gurgel Castelo Branco"
+      ],
+      "share_alike": true,
+      "license_scope": "license as identified on individual Commons source page",
+      "attribution": "Eo-avo — Castelobranco / Davi Gurgel Castelo Branco — CC-BY-SA-4.0 — https://commons.wikimedia.org/wiki/File:Eo-avo.ogg; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "CC-BY-SA-4.0",
+      "derivative_license_id": "CC-BY-SA-4.0",
+      "derivative_license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "source_description": "word"
+    },
+    {
+      "id": "schwa",
+      "title": "Schwa",
+      "artist": "Denelson83",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Schwa.ogg",
+      "license_id": "CC-BY-SA-3.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+      "changes": [
+        "Audio extracted; excerpt 0.000–0.524s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "schwa.ogg",
+      "source_kind": "phoneme",
+      "tags": [
+        "AMBIENT",
+        "GRUNT",
+        "PHONEME"
+      ],
+      "roles": [
+        "voice",
+        "hurt",
+        "death"
+      ],
+      "attribution_required": true,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "d70adea93f34bf9b2943abb0b4587dc35e256a98d790e6050cee804a2409baa7",
+        "bytes": 9034,
+        "duration_seconds": 0.52356,
+        "source_sha256": "e091d43230d0e9c4e4d85310fea4b52d06456632b82179aab94c9578e08c6c31",
+        "source_bytes": 11677,
+        "source_duration_seconds": 0.52356,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/d/db/Schwa.ogg",
+      "contributors": [
+        "Denelson83"
+      ],
+      "share_alike": true,
+      "license_scope": "license as identified on individual Commons source page",
+      "attribution": "Schwa — Denelson83 — CC-BY-SA-3.0 — https://commons.wikimedia.org/wiki/File:Schwa.ogg; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "CC-BY-SA-3.0",
+      "derivative_license_id": "CC-BY-SA-3.0",
+      "derivative_license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "license_options": [
+        "CC-BY-SA-3.0",
+        "GFDL-1.2-or-later"
+      ],
+      "license_selection_note": "Select CC BY-SA 3.0 offered by Commons licensing migration; GFDL alternative not used.",
+      "source_description": "phoneme"
+    },
+    {
+      "id": "boing",
+      "title": "Boing raw",
+      "artist": "cfork",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Boing_raw.ogg",
+      "license_id": "CC-BY-4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "changes": [
+        "Audio extracted; excerpt 0.000–3.624s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "boing.ogg",
+      "source_kind": "foley",
+      "tags": [
+        "CARTOON",
+        "FLOP"
+      ],
+      "roles": [
+        "flop",
+        "hurt"
+      ],
+      "attribution_required": true,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "19ec164c8ebfde93b9d1c40e2711c2be6f972b27b49866d4b7272252ec5c0943",
+        "bytes": 38419,
+        "duration_seconds": 3.624014,
+        "source_sha256": "797cd817044bcb861d94ca489afaed94d607c75b35da810edc2169b03095d64e",
+        "source_bytes": 37846,
+        "source_duration_seconds": 3.624,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/e/ee/Boing_raw.ogg",
+      "contributors": [
+        "cfork"
+      ],
+      "share_alike": false,
+      "license_scope": "license as identified on individual Commons source page",
+      "attribution": "Boing raw — cfork — CC-BY-4.0 — https://commons.wikimedia.org/wiki/File:Boing_raw.ogg; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "CC-BY-4.0",
+      "derivative_license_id": "CC-BY-4.0",
+      "derivative_license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "source_description": "jaw harp effect"
+    },
+    {
+      "id": "pig-grunt",
+      "title": "Pig grunt - Erdie",
+      "artist": "erdie",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Pig_grunt_-_Erdie.ogg",
+      "license_id": "CC-BY-3.0",
+      "license_url": "https://creativecommons.org/licenses/by/3.0/",
+      "changes": [
+        "Audio extracted; excerpt 0.000–0.655s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "pig-grunt.ogg",
+      "source_kind": "animal",
+      "tags": [
+        "GOBLIN",
+        "GRUNT",
+        "ORC",
+        "PIG",
+        "TROLL"
+      ],
+      "roles": [
+        "voice",
+        "hurt",
+        "death"
+      ],
+      "attribution_required": true,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "92e342e279373d5636aa9f1c1eba229b8d8299cd292fb9753b49d4032dd9c66c",
+        "bytes": 10933,
+        "duration_seconds": 0.655079,
+        "source_sha256": "1c3d7b63b87e4d85c0db20e0649e72fe4ba2aa9fd8da11424b23e8deb9c6fa37",
+        "source_bytes": 12702,
+        "source_duration_seconds": 0.655079,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/a/ac/Pig_grunt_-_Erdie.ogg",
+      "contributors": [
+        "erdie"
+      ],
+      "share_alike": false,
+      "license_scope": "license as identified on individual Commons source page",
+      "attribution": "Pig grunt - Erdie — erdie — CC-BY-3.0 — https://commons.wikimedia.org/wiki/File:Pig_grunt_-_Erdie.ogg; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "CC-BY-3.0",
+      "derivative_license_id": "CC-BY-3.0",
+      "derivative_license_url": "https://creativecommons.org/licenses/by/3.0/",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "source_description": "animal recording"
+    },
+    {
+      "id": "de-tiger",
+      "title": "De-Tiger2",
+      "artist": "Jeuwre",
+      "source_url": "https://commons.wikimedia.org/wiki/File:De-Tiger2.ogg",
+      "license_id": "CC-BY-SA-4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "changes": [
+        "Audio extracted; excerpt 0.000–1.730s; mono 44.1kHz Vorbis; 12ms/30ms fades; limiter ceiling 0.85 without automatic gain. Not auditioned. Removed 0.540s detected leading silence.",
+        "Removed unrelated recording metadata; retained only intentional title, artist, license URL and Commons source URL, plus codec encoder tag."
+      ],
+      "file": "de-tiger.ogg",
+      "source_kind": "word",
+      "tags": [
+        "COMEDY",
+        "HUMANOID",
+        "TIGER"
+      ],
+      "roles": [
+        "voice"
+      ],
+      "attribution_required": true,
+      "verification": {
+        "source_page_verified": true,
+        "auditioned": false,
+        "sha256": "b4e660cb59fd0d4ae2206712c2316e16adbee1b84ea8df2ae20d4c6b9ccd5111",
+        "bytes": 14177,
+        "duration_seconds": 1.19,
+        "source_sha256": "572927e5077210ee4594ac07ce65d5279b9542062b5b54da410b1e95ac89eede",
+        "source_bytes": 17859,
+        "source_duration_seconds": 1.73,
+        "checked_utc": "2026-10-28T01:02:00Z",
+        "method": "Commons individual file description/license inspected; downloaded original decoded using ffmpeg; SHA256 measured. No subjective audition.",
+        "metadata_sanitized": true,
+        "allowed_metadata_keys": [
+          "artist",
+          "encoder",
+          "license",
+          "source",
+          "title"
+        ],
+        "metadata_verification": "All original global and audio-stream tags removed; only intentional title, artist, license, source and codec encoder allowed. Checked with ffprobe."
+      },
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/c/c2/De-Tiger2.ogg",
+      "contributors": [
+        "Jeuwre"
+      ],
+      "share_alike": true,
+      "license_scope": "license as identified on individual Commons source page",
+      "attribution": "De-Tiger2 — Jeuwre — CC-BY-SA-4.0 — https://commons.wikimedia.org/wiki/File:De-Tiger2.ogg; excerpted, faded, mono/resampled and encoded for this project.",
+      "selected_license_id": "CC-BY-SA-4.0",
+      "derivative_license_id": "CC-BY-SA-4.0",
+      "derivative_license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "combination_policy": "Single-source derivative only; do not blend with differently licensed sources without compatibility review.",
+      "source_description": "word"
+    }
+  ],
+  "license_policy": {
+    "commercial_use": true,
+    "no_attribution_mode": "Only attribution_required=false AND approved CC0/PD dedication IDs; no US-only government recordings.",
+    "adaptations": "Each bundled file derives from exactly one recording. CC BY-SA derivatives retain selected source license. Different-source blends require separate compatibility review. Code license is separate.",
+    "excluded": [
+      "Wilhelm scream: underlying historical recording rights not independently established",
+      "Unverified Star Wars name audio",
+      "Unverified exact De-T-Rex source",
+      "US-only government public-domain sounds",
+      "NC or ND recordings"
+    ]
+  }
+}

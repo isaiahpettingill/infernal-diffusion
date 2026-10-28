@@ -13,7 +13,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node --test web/wasm/play/engine.test.mjs
+      - run: node --test web/wasm/play/*.test.mjs
       - run: node --check web/wasm/play/app.mjs
-# Deliberately no deployment job. Publication is awaiting the user's sound
-# curation and explicit go-ahead; existing WASM workflow builds the real bundle.
+# Deployment is the manually approved Pages job in the WASM workflow.
