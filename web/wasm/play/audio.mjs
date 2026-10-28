@@ -12,7 +12,7 @@ export function selectAsset(assets,{mode,role,tags=[],seed,profile='v2',sequence
   const desired=new Set(normalized);
   for(const [tag,aliases] of Object.entries({anime_girl:['anime','speech'],chibi:['comedy'],mermaid:['mermaid'],merman:['mermaid'],orc:['orc','grunt'],troll:['troll','grunt'],canine:['dog','canine'],feline:['cat','big-cat'],avian:['bird'],arthropod:['insect'],amphibian:['frog']}))if(has(tag))aliases.forEach(x=>desired.add(x));
   const vocal=a=>['word','phoneme','animal'].includes(a.source_kind)||a.roles?.some(t=>['grunt','voice','roar','taunt','speech'].includes(t));
-  let choices=role==='fire'?pool.filter(a=>a.roles?.includes('fire')):role==='attack'?pool.filter(a=>a.tags?.includes('GRUNT')):pool.filter(vocal);
+  let choices=['fire','splash','flop'].includes(role)?pool.filter(a=>a.roles?.includes(role)):role==='attack'?pool.filter(a=>a.tags?.includes('GRUNT')):pool.filter(vocal);
   if(role==='death'||role==='hurt'){const explicit=choices.filter(a=>a.roles?.includes(role)||a.roles?.includes('grunt'));const family=choices.filter(a=>a.tags?.some(t=>desired.has(t.toLowerCase())));choices=family.length?family:explicit.length?explicit:choices;}
   if(!choices.length)return null;
   const words=has('humanoid'),score=a=>(a.tags||[]).reduce((n,t)=>n+(desired.has(t.toLowerCase())?(t.toLowerCase()==='humanoid'?1:4):0),0),best=Math.max(0,...choices.map(score)),preferred=best?choices.filter(a=>score(a)===best):[];
@@ -23,7 +23,7 @@ export function selectAsset(assets,{mode,role,tags=[],seed,profile='v2',sequence
 
   return choices[hash(`${seed}:${role}:${profile}:${sequence}`)%choices.length];
 }
-export function eventRole(event){if(event.kind==='animation'){const s=`${event.semantic} ${event.id}`.toLowerCase();if(/death|die/.test(s))return 'death';if(/hurt|hit|pain|impact|knockback/.test(s))return 'hurt';if(/roar|taunt/.test(s))return 'voice';return null;}if(event.kind==='attack')return event.element==='FIRE'?'fire':'attack';return null;}
+export function eventRole(event){if(event.kind==='animation'){const s=`${event.semantic} ${event.id}`.toLowerCase();if(/death|die/.test(s))return 'death';if(/hurt|hit|pain|impact|knockback/.test(s))return 'hurt';if(/swim|splash/.test(s))return 'splash';if(/flop|stumble|land/.test(s))return 'flop';if(/roar|taunt/.test(s))return 'voice';return null;}if(event.kind==='attack')return event.element==='FIRE'?'fire':'attack';return null;}
 export class MonsterAudio {
   constructor({onStatus=()=>{},contextFactory=()=>new AudioContext(),disabledSourceIds=[]}={}){this.disabledSources=new Set(disabledSourceIds);this.onStatus=onStatus;this.contextFactory=contextFactory;this.assets=[];this.mode='unrestricted';this.enabled=false;this.generation=0;this.sequence=0;this.cache=new Map();this.decoded=new Map();this.voices=new Set();this.cooldowns=new Map();this.pending=new Set();this.used=new Map();this.diagnostics={played:0,active:0,selectedSourceIds:[],mode:this.mode,peak:0,outputRmsMax:0,decodedCount:0};}
   async load(){const r=await fetch(new URL('./audio/catalog.json',import.meta.url));if(!r.ok)throw new Error('Sound bank unavailable');const c=await r.json();if(c.schema_version!==1||!Array.isArray(c.assets))throw new Error('Invalid sound bank');this.assets=c.assets.filter(a=>!this.disabledSources.has(a.id));return this.assets;}

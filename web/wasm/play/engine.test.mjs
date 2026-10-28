@@ -157,8 +157,8 @@ test('audio declaration has separate stable seed domain and does not mutate visu
   const original = structuredClone(m);
   const a = audioRecipe(m, '9007199254740993', 'v1');
   assert.deepEqual(a, audioRecipe(m, '9007199254740993', 'v1'));
-  assert.match(a.seed, /^audio-v1:9007199254740993:/);
-  assert.equal(a.voice, null, 'unprovided sounds must not be represented as completed synthesis');
+  assert.match(a.seed, /^audio-v2:9007199254740993:/);
+  assert.equal(a.voice, null, 'policy must not claim a concrete rendered voice before source selection');
   assert.equal(a.death.variation, 'fallback-common');
   assert.equal(audioRecipe(m, '9007199254740993', 'v2').death.variation, 'transform-usually');
   assert.deepEqual(m, original);

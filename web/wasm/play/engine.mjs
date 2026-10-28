@@ -81,7 +81,7 @@ export function tick(s,dt,input={}) {
   s.shots=s.shots.filter(p=>p.life>0&&p.x>0&&p.x<1000);
   if(s.events.length>64)s.events.splice(0,s.events.length-64);
 }
-// Versioned declaration, not invented finished synthesis. Separate seed domain.
+// Engine-independent policy; the browser backend resolves sources lazily.
 export function voicePolicy(tags=[]) {
   const has=t=>tags.includes(t);
   const chipmunk=['CHIBI','ANIME_GIRL','MERMAID','MERMAN'].some(has);
@@ -89,6 +89,6 @@ export function voicePolicy(tags=[]) {
   return {register:chipmunk?'restrained-chipmunk':'natural',pitchStages:chipmunk?1:0,
     coloration:color,watery:['MERMAID','MERMAN'].some(has),wordBias:has('HUMANOID')?'increased':'normal',
     wordBank:has('STORMTROOPER')?'licensed-star-wars-name-pronunciations':has('ANIME_GIRL')?'ordinary-japanese':has('HITLER')?'harmless-unrelated-words':['MERMAID','MERMAN'].some(has)?'french-esperanto':null,
-    limits:'shared-bounded-gain-harshness-duration-repetition-voices',reverbTailBudget:'included',status:'declaration-only-not-synthesized'};
+    limits:'shared-bounded-gain-harshness-duration-repetition-voices',reverbTailBudget:'included',status:'runtime-policy'};
 }
-export function audioRecipe(monster,seed,profile){return {schema:1,profile,seed:`audio-v1:${seed}:${monster.id}`,voice:null,policy:voicePolicy(monster.tags),death:{asset:'wilhelm-scream',status:'pending-curation',weight:monster.tags?.includes('HUMANOID')?'increased-normalized':'normal',variation:profile==='v2'||monster.tags?.includes('HUMANOID')?'transform-usually':'fallback-common',cooldownGroup:'source:wilhelm-scream'}};}
+export function audioRecipe(monster,seed,profile){return {schema:1,profile,seed:`audio-v2:${seed}:${monster.id}`,voice:null,policy:voicePolicy(monster.tags),death:{asset:'wilhelm-scream',status:'optional-source-policy',weight:monster.tags?.includes('HUMANOID')?'increased-normalized':'normal',variation:profile==='v2'||monster.tags?.includes('HUMANOID')?'transform-usually':'fallback-common',cooldownGroup:'source:wilhelm-scream'}};}
