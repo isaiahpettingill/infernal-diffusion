@@ -25,7 +25,7 @@ jobs:
         run: |
           cargo build --locked --release ${{ matrix.features }} --bin infernal
           python3 tools/smoke_playground.py --expect-parser ${{ matrix.features == '' && 'embedded-bert' || 'vocabulary' }}
-          node --test web/combat.test.cjs web/prompt-suggestions.test.cjs web/wasm/tests/profiles.node.mjs web/wasm/tests/suggestions.node.mjs web/wasm/tests/prompt-controls.node.mjs web/wasm/tests/worker-contract.node.mjs
+          node --test web/combat.test.cjs web/prompt-suggestions.test.cjs web/wasm/tests/profiles.node.mjs web/wasm/tests/suggestions.node.mjs web/wasm/tests/prompt-controls.node.mjs web/wasm/tests/worker-contract.node.mjs web/wasm/tests/trustmark.node.mjs
       - name: Install local Arena browser checks
         if: matrix.features == ''
         working-directory: web/wasm
@@ -44,6 +44,33 @@ jobs:
           if-no-files-found: ignore
       - if: matrix.features == '--no-default-features'
         run: cargo clippy --locked --no-default-features --all-targets -- -D warnings
+
+  trustmark-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Use Microsoft's matching runtime release instead of relying on ORT's CDN.
+      - name: Prepare native ONNX runtime
+        run: |
+          curl -fL https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-linux-x64-1.22.0.tgz -o /tmp/onnxruntime.tgz
+          echo '8344d55f93d5bc5021ce342db50f62079daf39aaafb5d311a451846228be49b3  /tmp/onnxruntime.tgz' | sha256sum --check
+          tar -xzf /tmp/onnxruntime.tgz -C "$RUNNER_TEMP"
+          echo "ORT_LIB_LOCATION=$RUNNER_TEMP/onnxruntime-linux-x64-1.22.0" >> "$GITHUB_ENV"
+          echo "ORT_PREFER_DYNAMIC_LINK=1" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/onnxruntime-linux-x64-1.22.0/lib" >> "$GITHUB_ENV"
+      - run: cargo test --locked --release --no-default-features --features trustmark watermark::tests
+      - name: Verify native export through browser WASM decoder
+        env:
+          TRUSTMARK_MODELS: ${{ runner.temp }}/trustmark-models
+          TRUSTMARK_FIXTURE_DIR: ${{ runner.temp }}/trustmark-fixtures
+        run: |
+          python3 tools/fetch_trustmark_models.py "$TRUSTMARK_MODELS"
+          cargo test --locked --release --no-default-features --features trustmark --lib watermark::tests::generated_atlas_roundtrip -- --ignored
+          npm install --prefix "$RUNNER_TEMP/trustmark-web" --no-audit --no-fund --ignore-scripts onnxruntime-web@1.20.1
+          ORT_WEB_MODULE="$RUNNER_TEMP/trustmark-web/node_modules/onnxruntime-web/dist/ort.webgpu.min.mjs" TRUSTMARK_MODEL_DIR="$TRUSTMARK_MODELS" node web/wasm/tests/trustmark.actual-wasm.mjs "$TRUSTMARK_FIXTURE_DIR/marked-0.png" match "$TRUSTMARK_FIXTURE_DIR/original-0.png" absent
 
   v1-compatibility:
     runs-on: ubuntu-24.04

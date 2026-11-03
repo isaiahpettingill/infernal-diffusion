@@ -74,6 +74,7 @@ jobs:
             web/wasm/demo.js
             web/wasm/play/
             web/wasm/prompt-controls.js
+            web/wasm/trustmark/
             web/wasm/server.py
             web/wasm/README.md
           if-no-files-found: error

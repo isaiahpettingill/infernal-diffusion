@@ -1,3 +1,5 @@
+#[cfg(all(feature = "trustmark", not(target_arch = "wasm32")))]
+pub mod watermark;
 pub mod anatomy;
 pub mod animation;
 pub mod atlas;
