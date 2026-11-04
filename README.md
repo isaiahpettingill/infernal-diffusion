@@ -130,3 +130,15 @@ cargo clippy --release --no-default-features --all-targets -- -D warnings
 The `export_intermediate` example exports the exact triangles consumed by the
 sprite baker for inspection in Blender. The evidence tools compare identical
 prompts/seeds and check every directional atlas frame for clipping.
+
+## Experimental atlas watermark
+
+An optional native TrustMark export can label color atlases for the web demo's
+spritesheet detector. It is disabled by default, changes RGB, and is a reproducible
+public marker, not proof of origin. See [setup, format, and limitations](docs/watermark.md).
+
+## Palette PNGs and generation memory
+
+Ordinary exports use lossless palette PNGs; marked exports stay RGBA. Runtime
+RGBA buffers and APIs are unchanged. See [storage and temporary-memory changes](docs/palette-and-performance.md)
+and [measured benchmarks](BENCHMARKS.md).

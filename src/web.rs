@@ -351,6 +351,48 @@ fn handle(mut stream: TcpStream, root: Arc<PathBuf>, generation_lock: Arc<Mutex<
             "text/html; charset=utf-8",
             INDEX.as_bytes(),
         ),
+        ("GET", "/trustmark/png.mjs") => response(
+            &mut stream,
+            "200 OK",
+            "text/javascript; charset=utf-8",
+            include_bytes!("../web/wasm/trustmark/png.mjs"),
+        ),
+        ("GET", "/trustmark/ui.mjs") => response(
+            &mut stream,
+            "200 OK",
+            "text/javascript; charset=utf-8",
+            include_bytes!("../web/wasm/trustmark/ui.mjs"),
+        ),
+        ("GET", "/trustmark/core.mjs") => response(
+            &mut stream,
+            "200 OK",
+            "text/javascript; charset=utf-8",
+            include_bytes!("../web/wasm/trustmark/core.mjs"),
+        ),
+        ("GET", "/trustmark/detector.mjs") => response(
+            &mut stream,
+            "200 OK",
+            "text/javascript; charset=utf-8",
+            include_bytes!("../web/wasm/trustmark/detector.mjs"),
+        ),
+        ("GET", "/trustmark/vendor/bch-ecc.mjs") => response(
+            &mut stream,
+            "200 OK",
+            "text/javascript; charset=utf-8",
+            include_bytes!("../web/wasm/trustmark/vendor/bch-ecc.mjs"),
+        ),
+        ("GET", "/trustmark/vendor/data-layer.mjs") => response(
+            &mut stream,
+            "200 OK",
+            "text/javascript; charset=utf-8",
+            include_bytes!("../web/wasm/trustmark/vendor/data-layer.mjs"),
+        ),
+        ("GET", "/trustmark/vendor/resize.mjs") => response(
+            &mut stream,
+            "200 OK",
+            "text/javascript; charset=utf-8",
+            include_bytes!("../web/wasm/trustmark/vendor/resize.mjs"),
+        ),
         ("GET", "/app.js") => response(
             &mut stream,
             "200 OK",

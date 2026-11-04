@@ -8,7 +8,9 @@ use crate::{
     parser::MonsterSpec,
     proto, render,
 };
-use image::{Rgba, RgbaImage};
+#[cfg(test)]
+use image::Rgba;
+use image::RgbaImage;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
@@ -2458,7 +2460,14 @@ fn draw_triangle<const LEGACY_SAMPLE_STEP: bool>(
         z: 0.450023,
     };
     let shade = (0.49 + 0.51 * normal.dot(LIGHT).abs()).clamp(0.0, 1.0);
+    let pixels = image.as_mut();
+    let row_width = size as usize;
     for y in min_y..=max_y {
+        // Restrict both buffers once per scanline instead of recomputing image
+        // coordinates and validating the full image on each covered sample.
+        let row_start = y as usize * row_width;
+        let depth_row = &mut depths[row_start..row_start + row_width];
+        let pixel_row = &mut pixels[row_start * 4..(row_start + row_width) * 4];
         let py = y as f32 + 0.5;
         let px = min_x as f32 + 0.5;
         let mut w0 = ((b.x - px) * (c.y - py) - (b.y - py) * (c.x - px)) * inverse_area;
@@ -2478,18 +2487,19 @@ fn draw_triangle<const LEGACY_SAMPLE_STEP: bool>(
                 continue;
             }
             let depth = w0 * a.depth + w1 * b.depth + w2 * c.depth;
-            let offset = (y * size + x) as usize;
-            if depth <= depths[offset] {
+            let offset = x as usize;
+            if depth <= depth_row[offset] {
                 continue;
             }
-            depths[offset] = depth;
+            depth_row[offset] = depth;
             let local = triangle.local[0] * w0 + triangle.local[1] * w1 + triangle.local[2] * w2;
             let variation = texture_value(triangle.texture, local, triangle.seed);
             let mut shaded = triangle.color;
+            let intensity = (shade + variation).clamp(0.25, 1.35);
             for channel in shaded.iter_mut().take(3) {
-                *channel = (*channel as f32 * (shade + variation).clamp(0.25, 1.35)) as u8;
+                *channel = (*channel as f32 * intensity) as u8;
             }
-            image.put_pixel(x, y, Rgba(shaded));
+            pixel_row[offset * 4..offset * 4 + 4].copy_from_slice(&shaded);
         }
     }
 }
@@ -2651,7 +2661,7 @@ pub(crate) fn downsample(high: &RgbaImage) -> RgbaImage {
     low
 }
 
-/// A direction keeps its raster buffers and exact RGB lookup for the whole
+/// A worker keeps its raster buffers and exact RGB lookup for the whole
 /// sheet. The palette is fixed within a sheet; no cache crosses palette changes.
 struct FrameScratch {
     high: RgbaImage,
@@ -2877,7 +2887,18 @@ pub fn sheet(
     let rows = total.div_ceil(columns);
     let palette = scene_palette(spec, body, seed);
     let mut output = RgbaImage::new(columns * size, rows * size);
-    let mut scratch: Vec<_> = ANGLES_DEG.iter().map(|_| FrameScratch::new(size)).collect();
+    // Allocate only for simultaneous work, not for every direction. Each pair
+    // costs 32 * size² bytes before the color cache; native rendering uses at
+    // most two workers and non-threaded WASM only needs one.
+    #[cfg(not(target_arch = "wasm32"))]
+    let workers = render_pool().map_or(1, |pool| pool.current_num_threads());
+    #[cfg(all(target_arch = "wasm32", feature = "wasm-threads"))]
+    let workers = rayon::current_num_threads();
+    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+    let workers = 1;
+    let mut scratch: Vec<_> = (0..workers.clamp(1, ANGLES_DEG.len()))
+        .map(|_| FrameScratch::new(size))
+        .collect();
     let coherent = visual_v2(spec);
     let mut rendered_scenes: std::collections::HashMap<u64, Vec<usize>> =
         std::collections::HashMap::new();
@@ -2911,30 +2932,42 @@ pub fn sheet(
             continue;
         }
         rendered_scenes.entry(fingerprint).or_default().push(index);
-        let make_frame = |(direction, scratch): (usize, &mut FrameScratch)| {
-            let phase_started = Instant::now();
-            let (mut frame, stages) = frame_with_scratch(
-                &triangles,
-                pose,
-                ANGLES_DEG[direction].to_radians(),
-                &palette,
-                scratch,
-                coherent,
-            );
-            v2_finish_alpha(spec, pose, &mut frame);
-            (direction, frame, stages, phase_started.elapsed())
+        // Keep one dispatch per pose and let the next available worker claim
+        // a direction. Fixed direction batches would force a barrier behind
+        // a slow view while another worker and its scratch buffers sit idle.
+        let next_direction = std::sync::atomic::AtomicUsize::new(0);
+        let make_frames = |scratch: &mut FrameScratch| {
+            let mut frames = Vec::new();
+            loop {
+                let direction = next_direction.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                if direction >= ANGLES_DEG.len() {
+                    break;
+                }
+                let phase_started = Instant::now();
+                let (mut frame, stages) = frame_with_scratch(
+                    &triangles,
+                    pose,
+                    ANGLES_DEG[direction].to_radians(),
+                    &palette,
+                    scratch,
+                    coherent,
+                );
+                v2_finish_alpha(spec, pose, &mut frame);
+                frames.push((direction, frame, stages, phase_started.elapsed()));
+            }
+            frames
         };
         #[cfg(all(target_arch = "wasm32", feature = "wasm-threads"))]
-        let frames: Vec<_> = scratch.par_iter_mut().enumerate().map(make_frame).collect();
+        let frames: Vec<_> = scratch.par_iter_mut().map(make_frames).collect();
         #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        let frames: Vec<_> = scratch.iter_mut().enumerate().map(make_frame).collect();
+        let frames: Vec<_> = scratch.iter_mut().map(make_frames).collect();
         #[cfg(not(target_arch = "wasm32"))]
         let frames: Vec<_> = if let Some(pool) = render_pool() {
-            pool.install(|| scratch.par_iter_mut().enumerate().map(make_frame).collect())
+            pool.install(|| scratch.par_iter_mut().map(make_frames).collect())
         } else {
-            scratch.iter_mut().enumerate().map(make_frame).collect()
+            scratch.iter_mut().map(make_frames).collect()
         };
-        for (direction, frame, stages, duration) in frames {
+        for (direction, frame, stages, duration) in frames.into_iter().flatten() {
             for (total, stage) in stage_times.iter_mut().zip(stages) {
                 *total += stage;
             }

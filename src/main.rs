@@ -6,6 +6,41 @@ fn main() {
         eprintln!("{error}");
         std::process::exit(2)
     });
+    if args.get(1).is_some_and(|arg| arg == "generate-marked") {
+        #[cfg(all(feature = "trustmark", not(target_arch = "wasm32")))]
+        let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+            if args.len() != 6 {
+                return Err("usage: infernal generate-marked PROMPT SEED OUTPUT_DIR TRUSTMARK_MODELS [--profile v1|v2]".into());
+            }
+            let seed = args[3]
+                .parse::<u64>()
+                .map_err(|_| "seed must be an unsigned integer")?;
+            // Load/validate both local models before spending time generating.
+            let marker = infernal_diffusion::watermark::AtlasWatermarker::new(&args[5])?;
+            let mut generated =
+                infernal_diffusion::generate_in_memory_with_profile(&args[2], seed, profile)?;
+            marker.mark_generated(&mut generated)?;
+            infernal_diffusion::save_generated_with_format_and_encoding(
+                &generated,
+                Path::new(&args[4]),
+                infernal_diffusion::PackageFormat::Protobuf,
+                infernal_diffusion::atlas_png::Encoding::Rgba,
+            )?;
+            println!(
+                "Saved verified experimental Infernal Diffusion watermark to {}",
+                args[4]
+            );
+            Ok(())
+        })();
+        #[cfg(not(all(feature = "trustmark", not(target_arch = "wasm32"))))]
+        let result: Result<(), Box<dyn std::error::Error>> =
+            Err("rebuild with --features trustmark to use generate-marked".into());
+        if let Err(error) = result {
+            eprintln!("{error}");
+            std::process::exit(2);
+        }
+        return;
+    }
     if args.get(1).is_some_and(|arg| arg == "--hybrid-json") {
         let result = (|| -> Result<(), Box<dyn std::error::Error>> {
             if args.len() != 5 {

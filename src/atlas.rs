@@ -5,7 +5,28 @@ use crate::{
     Error, GeneratedMonster, GeneratedPackage,
 };
 use image::RgbaImage;
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    hash::{Hash, Hasher},
+};
+
+// Hashes only select candidates. Compare dimensions and all RGBA bytes before
+// reusing a frame, including invisible RGB, so collisions cannot alter pixels.
+fn intern_frame(
+    image: RgbaImage,
+    fingerprint: u64,
+    unique: &mut Vec<RgbaImage>,
+    lookup: &mut HashMap<u64, Vec<usize>>,
+) -> usize {
+    let candidates = lookup.entry(fingerprint).or_default();
+    if let Some(index) = candidates.iter().copied().find(|&i| unique[i] == image) {
+        return index;
+    }
+    let index = unique.len();
+    unique.push(image);
+    candidates.push(index);
+    index
+}
 
 pub fn valid_regions(s: &SpriteSet, width: u32, height: u32) -> bool {
     s.frame_regions.len() == s.frame_count as usize
@@ -43,7 +64,7 @@ pub(crate) fn compact_package(p: &mut GeneratedPackage) -> Result<(), Error> {
         return Ok(());
     }
     let mut unique: Vec<RgbaImage> = Vec::new();
-    let mut lookup: HashMap<(u32, u32, Vec<u8>), usize> = HashMap::new();
+    let mut lookup: HashMap<u64, Vec<usize>> = HashMap::new();
     let mut frames = Vec::with_capacity(s.frame_count as usize);
     for id in 0..s.frame_count {
         let sx = id % s.columns * s.frame_width;
@@ -71,12 +92,9 @@ pub(crate) fn compact_package(p: &mut GeneratedPackage) -> Result<(), Error> {
             bounds.3 - bounds.1,
         )
         .to_image();
-        let key = (image.width(), image.height(), image.as_raw().clone());
-        let index = *lookup.entry(key).or_insert_with(|| {
-            let index = unique.len();
-            unique.push(image);
-            index
-        });
+        let mut hash = std::collections::hash_map::DefaultHasher::new();
+        (image.width(), image.height(), image.as_raw()).hash(&mut hash);
+        let index = intern_frame(image, hash.finish(), &mut unique, &mut lookup);
         frames.push((index, bounds.0, bounds.1));
     }
     drop(lookup);
@@ -159,4 +177,32 @@ pub(crate) fn compact_package(p: &mut GeneratedPackage) -> Result<(), Error> {
         s.emission_file.clear();
     }
     crate::validate(&p.monster, &p.sprites)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn frame_interning_checks_collisions_dimensions_and_hidden_rgb() {
+        let mut unique = Vec::new();
+        let mut lookup = HashMap::new();
+        let first = RgbaImage::from_raw(2, 1, vec![1, 2, 3, 0, 4, 5, 6, 255]).unwrap();
+        let reshaped = RgbaImage::from_raw(1, 2, first.as_raw().clone()).unwrap();
+        let mut hidden = first.clone();
+        hidden.get_pixel_mut(0, 0)[0] = 99;
+        // Force every image into the same hash bucket, including exact repeats.
+        for (image, expected) in [
+            (first.clone(), 0),
+            (reshaped.clone(), 1),
+            (hidden.clone(), 2),
+            (first, 0),
+            (hidden, 2),
+            (reshaped, 1),
+        ] {
+            assert_eq!(intern_frame(image, 7, &mut unique, &mut lookup), expected);
+        }
+        assert_eq!(unique.len(), 3);
+        assert_eq!(lookup[&7], [0, 1, 2]);
+    }
 }

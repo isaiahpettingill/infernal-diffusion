@@ -1,6 +1,9 @@
+#[cfg(all(feature = "trustmark", not(target_arch = "wasm32")))]
+pub mod watermark;
 pub mod anatomy;
 pub mod animation;
 pub mod atlas;
+pub mod atlas_png;
 pub mod budget;
 pub use budget::GenerationBudget;
 pub mod description;
@@ -440,16 +443,29 @@ pub fn save_generated_with_format(
     output_dir: &Path,
     format: PackageFormat,
 ) -> Result<(), Error> {
+    save_generated_with_format_and_encoding(
+        generated, output_dir, format, atlas_png::Encoding::Palette,
+    )
+}
+
+/// Explicit storage policy for special exports such as TrustMark. This does not
+/// change the in-memory RGBA representation or any generation behavior.
+pub fn save_generated_with_format_and_encoding(
+    generated: &GeneratedMonster,
+    output_dir: &Path,
+    format: PackageFormat,
+    encoding: atlas_png::Encoding,
+) -> Result<(), Error> {
     // The root in-memory package uses ".". Creating "new/path/." directly can
     // fail before its final component exists; establish the output root first.
     std::fs::create_dir_all(output_dir)?;
     for package in &generated.packages {
         let destination = output_dir.join(&package.path);
         std::fs::create_dir_all(&destination)?;
-        package.sprites.save(destination.join("sprites.png"))?;
-        package.emission.save(destination.join("emission.png"))?;
+        atlas_png::save(&package.sprites, destination.join("sprites.png"), encoding)?;
+        atlas_png::save(&package.emission, destination.join("emission.png"), encoding)?;
         if let Some(projectiles) = &package.projectiles {
-            projectiles.save(destination.join("projectiles.png"))?;
+            atlas_png::save(projectiles, destination.join("projectiles.png"), encoding)?;
         }
         write_metadata(&destination, &package.monster, format)?;
     }
@@ -484,11 +500,11 @@ impl PackageSink for DiskSink {
         preview: Option<(u32, u32, u32)>,
     ) -> Result<(), Error> {
         std::fs::create_dir_all(path)?;
-        sheet.save(path.join("sprites.png"))?;
+        atlas_png::save(&sheet, path.join("sprites.png"), atlas_png::Encoding::Palette)?;
         if let Some(atlas) = projectiles {
-            atlas.save(path.join("projectiles.png"))?;
+            atlas_png::save(atlas, path.join("projectiles.png"), atlas_png::Encoding::Palette)?;
         }
-        render::emission_sheet(&sheet).save(path.join("emission.png"))?;
+        atlas_png::save(&render::emission_sheet(&sheet), path.join("emission.png"), atlas_png::Encoding::Palette)?;
         if let Some((size, columns, stride)) = preview {
             render3d::preview(&sheet, size, columns, stride).save(path.join("preview.png"))?;
         }
@@ -1549,16 +1565,16 @@ pub fn export_handcrafted_with_format(
         ));
     }
     std::fs::create_dir_all(output_dir)?;
-    sheet.save(output_dir.join("sprites.png"))?;
+    atlas_png::save(sheet, output_dir.join("sprites.png"), atlas_png::Encoding::Palette)?;
     if let Some(atlas) = projectile_sheet {
-        atlas.save(output_dir.join("projectiles.png"))?;
+        atlas_png::save(atlas, output_dir.join("projectiles.png"), atlas_png::Encoding::Palette)?;
     }
     if monster
         .sprites
         .as_ref()
         .is_some_and(|s| !s.emission_file.is_empty())
     {
-        render::emission_sheet(sheet).save(output_dir.join("emission.png"))?;
+        atlas_png::save(&render::emission_sheet(sheet), output_dir.join("emission.png"), atlas_png::Encoding::Palette)?;
     }
     write_metadata(output_dir, monster, format)?;
     Ok(())

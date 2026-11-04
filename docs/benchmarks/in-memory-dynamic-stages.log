@@ -1,0 +1,48 @@
+BENCH profile=v1 prompt='wolf' run=0
+infernal profile: sprite_size=96 poses=158 scene=140.1ms raster=1572.5ms downsample=56.9ms quantize=38.8ms frame=1668.7ms sheet_total=1140.2ms reused_frames=108
+infernal profile: parse=0.5ms total=1333.6ms
+BENCH profile=v1 prompt='wolf' run=1
+infernal profile: sprite_size=96 poses=158 scene=90.1ms raster=1523.0ms downsample=48.1ms quantize=33.8ms frame=1605.4ms sheet_total=985.5ms reused_frames=108
+infernal profile: parse=0.0ms total=1144.8ms
+BENCH profile=v1 prompt='wolf' run=2
+infernal profile: sprite_size=96 poses=158 scene=115.3ms raster=2066.2ms downsample=65.6ms quantize=41.0ms frame=2174.2ms sheet_total=1371.9ms reused_frames=108
+infernal profile: parse=0.0ms total=1537.1ms
+BENCH profile=v1 prompt='wolf' run=0
+infernal profile: sprite_size=96 poses=158 scene=111.7ms raster=958.3ms downsample=25.3ms quantize=21.3ms frame=1005.3ms sheet_total=766.2ms reused_frames=108
+infernal profile: parse=0.1ms total=939.0ms
+BENCH profile=v1 prompt='wolf' run=1
+infernal profile: sprite_size=96 poses=158 scene=92.8ms raster=1016.1ms downsample=25.2ms quantize=22.4ms frame=1064.4ms sheet_total=782.3ms reused_frames=108
+infernal profile: parse=0.0ms total=968.0ms
+BENCH profile=v1 prompt='wolf' run=2
+infernal profile: sprite_size=96 poses=158 scene=112.8ms raster=1019.6ms downsample=20.7ms quantize=19.4ms frame=1060.0ms sheet_total=792.0ms reused_frames=108
+infernal profile: parse=0.0ms total=965.5ms
+BENCH profile=v2 prompt='orc riding a wolf' run=0
+infernal profile: sprite_size=128 poses=158 scene=561.2ms raster=4060.6ms downsample=106.1ms quantize=70.8ms frame=4238.4ms sheet_total=2948.8ms reused_frames=104
+infernal profile: sprite_size=96 poses=142 scene=138.2ms raster=1256.3ms downsample=26.7ms quantize=18.2ms frame=1301.9ms sheet_total=936.2ms reused_frames=104
+infernal profile: sprite_size=112 poses=158 scene=194.2ms raster=1696.0ms downsample=41.7ms quantize=25.7ms frame=1764.0ms sheet_total=1256.7ms reused_frames=112
+infernal profile: parse=0.4ms total=6544.7ms
+BENCH profile=v2 prompt='orc riding a wolf' run=1
+infernal profile: sprite_size=128 poses=158 scene=340.1ms raster=2977.7ms downsample=56.2ms quantize=40.8ms frame=3076.4ms sheet_total=2119.7ms reused_frames=104
+infernal profile: sprite_size=96 poses=142 scene=148.2ms raster=1290.1ms downsample=27.6ms quantize=17.5ms frame=1336.0ms sheet_total=953.6ms reused_frames=104
+infernal profile: sprite_size=112 poses=158 scene=178.4ms raster=1717.4ms downsample=40.6ms quantize=23.9ms frame=1782.8ms sheet_total=1248.3ms reused_frames=112
+infernal profile: parse=0.1ms total=5698.9ms
+BENCH profile=v2 prompt='orc riding a wolf' run=2
+infernal profile: sprite_size=128 poses=158 scene=325.0ms raster=2969.8ms downsample=58.5ms quantize=41.6ms frame=3071.1ms sheet_total=2100.6ms reused_frames=104
+infernal profile: sprite_size=96 poses=142 scene=152.2ms raster=1374.4ms downsample=29.4ms quantize=24.6ms frame=1428.8ms sheet_total=1017.2ms reused_frames=104
+infernal profile: sprite_size=112 poses=158 scene=231.5ms raster=2071.6ms downsample=56.1ms quantize=23.5ms frame=2152.0ms sheet_total=1631.9ms reused_frames=112
+infernal profile: parse=0.1ms total=6033.2ms
+BENCH profile=v2 prompt='orc riding a wolf' run=0
+infernal profile: sprite_size=128 poses=158 scene=790.6ms raster=5152.2ms downsample=109.6ms quantize=73.1ms frame=5336.3ms sheet_total=4772.1ms reused_frames=104
+infernal profile: sprite_size=96 poses=142 scene=215.4ms raster=1283.4ms downsample=30.3ms quantize=29.7ms frame=1345.5ms sheet_total=1145.9ms reused_frames=104
+infernal profile: sprite_size=112 poses=158 scene=291.7ms raster=1754.9ms downsample=38.5ms quantize=26.8ms frame=1821.9ms sheet_total=1505.2ms reused_frames=112
+infernal profile: parse=1.0ms total=8978.8ms
+BENCH profile=v2 prompt='orc riding a wolf' run=1
+infernal profile: sprite_size=128 poses=158 scene=387.1ms raster=2756.1ms downsample=44.7ms quantize=34.2ms frame=2835.7ms sheet_total=2059.5ms reused_frames=104
+infernal profile: sprite_size=96 poses=142 scene=209.5ms raster=1225.9ms downsample=24.7ms quantize=18.6ms frame=1269.6ms sheet_total=1021.4ms reused_frames=104
+infernal profile: sprite_size=112 poses=158 scene=337.0ms raster=1613.5ms downsample=35.3ms quantize=21.6ms frame=1671.2ms sheet_total=1433.4ms reused_frames=112
+infernal profile: parse=0.1ms total=5866.8ms
+BENCH profile=v2 prompt='orc riding a wolf' run=2
+infernal profile: sprite_size=128 poses=158 scene=406.5ms raster=2688.8ms downsample=42.9ms quantize=40.7ms frame=2773.1ms sheet_total=2046.7ms reused_frames=104
+infernal profile: sprite_size=96 poses=142 scene=184.0ms raster=1336.8ms downsample=23.6ms quantize=19.7ms frame=1380.5ms sheet_total=1065.8ms reused_frames=104
+infernal profile: sprite_size=112 poses=158 scene=191.9ms raster=1370.9ms downsample=26.1ms quantize=20.1ms frame=1417.5ms sheet_total=1046.9ms reused_frames=112
+infernal profile: parse=0.1ms total=5460.9ms

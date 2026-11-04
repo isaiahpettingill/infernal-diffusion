@@ -1,0 +1,115 @@
+[
+  {
+    "prompt": "wolf",
+    "profile": "v1",
+    "seed": 42,
+    "files": [
+      {
+        "path": "preview.png",
+        "before_bytes": 26304,
+        "after_bytes": 26304,
+        "before_mode": "RGBA",
+        "after_mode": "RGBA",
+        "rgba_identical": true
+      },
+      {
+        "path": "emission.png",
+        "before_bytes": 121917,
+        "after_bytes": 5956,
+        "before_mode": "RGBA",
+        "after_mode": "P",
+        "rgba_identical": true
+      },
+      {
+        "path": "sprites.png",
+        "before_bytes": 1772972,
+        "after_bytes": 251164,
+        "before_mode": "RGBA",
+        "after_mode": "P",
+        "rgba_identical": true
+      }
+    ],
+    "total_png_bytes": {
+      "baseline": 1921193,
+      "candidate": 283424
+    }
+  },
+  {
+    "prompt": "giant spider",
+    "profile": "v2",
+    "seed": 42,
+    "files": [
+      {
+        "path": "preview.png",
+        "before_bytes": 40706,
+        "after_bytes": 40706,
+        "before_mode": "RGBA",
+        "after_mode": "RGBA",
+        "rgba_identical": true
+      },
+      {
+        "path": "emission.png",
+        "before_bytes": 214517,
+        "after_bytes": 10484,
+        "before_mode": "RGBA",
+        "after_mode": "P",
+        "rgba_identical": true
+      },
+      {
+        "path": "sprites.png",
+        "before_bytes": 2615849,
+        "after_bytes": 319947,
+        "before_mode": "RGBA",
+        "after_mode": "P",
+        "rgba_identical": true
+      }
+    ],
+    "total_png_bytes": {
+      "baseline": 2871072,
+      "candidate": 371137
+    }
+  },
+  {
+    "prompt": "ghost",
+    "profile": "v2",
+    "seed": 42,
+    "files": [
+      {
+        "path": "preview.png",
+        "before_bytes": 29739,
+        "after_bytes": 29739,
+        "before_mode": "RGBA",
+        "after_mode": "RGBA",
+        "rgba_identical": true
+      },
+      {
+        "path": "emission.png",
+        "before_bytes": 227757,
+        "after_bytes": 11117,
+        "before_mode": "RGBA",
+        "after_mode": "P",
+        "rgba_identical": true
+      },
+      {
+        "path": "projectiles.png",
+        "before_bytes": 1407,
+        "after_bytes": 192,
+        "before_mode": "RGBA",
+        "after_mode": "P",
+        "rgba_identical": true
+      },
+      {
+        "path": "sprites.png",
+        "before_bytes": 1813129,
+        "after_bytes": 294272,
+        "before_mode": "RGBA",
+        "after_mode": "P",
+        "rgba_identical": true
+      }
+    ],
+    "total_png_bytes": {
+      "baseline": 2072032,
+      "candidate": 335320
+    }
+  }
+]
