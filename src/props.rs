@@ -126,7 +126,7 @@ pub fn load_mesh(path: &Path) -> Result<PropMesh, PropError> {
 }
 pub fn save(atlas: &PropAtlas, directory: &Path) -> Result<(), PropError> {
     std::fs::create_dir_all(directory)?;
-    atlas.sprites.save(directory.join("sprites.png"))?;
+    crate::atlas_png::save(&atlas.sprites, directory.join("sprites.png"), crate::atlas_png::Encoding::Palette)?;
     std::fs::write(
         directory.join("prop.json"),
         serde_json::to_vec_pretty(&atlas.metadata)?,

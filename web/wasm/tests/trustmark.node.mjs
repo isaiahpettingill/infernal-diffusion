@@ -104,9 +104,9 @@ function chunk(type,data) {
   const out=Buffer.alloc(data.length+12);out.writeUInt32BE(data.length);out.write(type,4);out.set(data,8);
   out.writeUInt32BE(crc(out.subarray(4,-4)),out.length-4);return out;
 }
-function makePNG({filter=0, color=6, rows=Buffer.from([0,255,2,33,0]), height=1}={}) {
- const header=Buffer.alloc(13);header.writeUInt32BE(1);header.writeUInt32BE(height,4);header[8]=8;header[9]=color;
- return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',header),chunk('IDAT',deflateSync(rows)),chunk('IEND',Buffer.alloc(0))]);
+function makePNG({filter=0, color=6, rows=Buffer.from([0,255,2,33,0]), height=1, width=1, extraChunks=[]}={}) {
+ const header=Buffer.alloc(13);header.writeUInt32BE(width);header.writeUInt32BE(height,4);header[8]=8;header[9]=color;
+ return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',header),...extraChunks,chunk('IDAT',deflateSync(rows)),chunk('IEND',Buffer.alloc(0))]);
 }
 test('raw PNG decoder preserves transparent RGB and reconstructs all row filters', async()=>{
  for(let filter=0;filter<=4;filter++) {
@@ -120,9 +120,32 @@ test('raw PNG decoder preserves transparent RGB and reconstructs all row filters
  assert.equal(rgb.channels,3);assert.deepEqual(Array.from(rgb.data),[1,2,3]);
 });
 test('raw PNG decoder rejects unsupported, corrupt and oversized decoded data',async()=>{
- await assert.rejects(decodePNG(makePNG({color:3})),/unsupported/);
+ await assert.rejects(decodePNG(makePNG({color:0})),/unsupported/);
  await assert.rejects(decodePNG(makePNG({rows:Buffer.alloc(100)})),/expands/);
  await assert.rejects(decodePNG(makePNG({rows:Buffer.from([5,1,2,3,4])})),/filter/);
  await assert.rejects(decodePNG(makePNG().subarray(0,40)),/Truncated|Incomplete/);
  const damaged=makePNG();damaged[30]^=1;await assert.rejects(decodePNG(damaged),/checksum/);
+});
+
+test('indexed PNG expands exact RGB including hidden color and partial/default alpha',async()=>{
+ const palette=chunk('PLTE',Buffer.from([10,20,30, 40,50,60, 70,80,90]));
+ const alpha=chunk('tRNS',Buffer.from([0,128]));
+ for (const [filter,indices] of [[0,[0,1,2]],[1,[0,1,1]],[2,[0,1,2]],[3,[0,1,2]],[4,[0,1,1]]]) {
+  const x=await decodePNG(makePNG({color:3,width:3,rows:Buffer.from([filter,...indices]),extraChunks:[palette,alpha]}));
+  assert.equal(x.channels,4);
+  assert.deepEqual(Array.from(x.data),[10,20,30,0,40,50,60,128,70,80,90,255]);
+ }
+ const opaque=await decodePNG(makePNG({color:3,rows:Buffer.from([0,1]),extraChunks:[palette]}));
+ assert.deepEqual(Array.from(opaque.data),[40,50,60,255]);
+});
+test('indexed PNG rejects missing/malformed palettes, invalid alpha, and bad indices',async()=>{
+ const palette=chunk('PLTE',Buffer.from([1,2,3]));
+ const image=extraChunks=>makePNG({color:3,rows:Buffer.from([0,0]),extraChunks});
+ await assert.rejects(decodePNG(image([])),/missing.*palette/);
+ await assert.rejects(decodePNG(image([chunk('PLTE',Buffer.from([1,2]))])),/palette/);
+ await assert.rejects(decodePNG(image([chunk('PLTE',Buffer.alloc(771))])),/palette/);
+ await assert.rejects(decodePNG(image([palette,palette])),/palette/);
+ await assert.rejects(decodePNG(image([chunk('tRNS',Buffer.from([0])),palette])),/transparency/);
+ await assert.rejects(decodePNG(image([palette,chunk('tRNS',Buffer.from([0,1]))])),/transparency/);
+ await assert.rejects(decodePNG(makePNG({color:3,rows:Buffer.from([0,1]),extraChunks:[palette]})),/index/);
 });

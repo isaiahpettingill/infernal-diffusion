@@ -20,7 +20,12 @@ fn main() {
             let mut generated =
                 infernal_diffusion::generate_in_memory_with_profile(&args[2], seed, profile)?;
             marker.mark_generated(&mut generated)?;
-            infernal_diffusion::save_generated(&generated, Path::new(&args[4]))?;
+            infernal_diffusion::save_generated_with_format_and_encoding(
+                &generated,
+                Path::new(&args[4]),
+                infernal_diffusion::PackageFormat::Protobuf,
+                infernal_diffusion::atlas_png::Encoding::Rgba,
+            )?;
             println!(
                 "Saved verified experimental Infernal Diffusion watermark to {}",
                 args[4]

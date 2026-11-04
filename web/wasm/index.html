@@ -42,7 +42,7 @@
   <script type="module" src="./demo.js"></script>
   <section data-trustmark aria-labelledby="trustmark-heading">
     <h2 id="trustmark-heading">Check an Infernal Diffusion watermark</h2>
-    <p>Choose an 8-bit RGB/RGBA non-interlaced PNG spritesheet (up to 16 MiB / 16 megapixels). Image pixels stay in your browser. Clicking Detect downloads Adobe's TrustMark model (about 45 MiB) plus Microsoft's ONNX runtime. No detector runs during generation or gameplay.</p>
+    <p>Choose an 8-bit RGB/RGBA/indexed non-interlaced PNG spritesheet (up to 16 MiB / 16 megapixels). Image pixels stay in your browser. Clicking Detect downloads Adobe's TrustMark model (about 45 MiB) plus Microsoft's ONNX runtime. No detector runs during generation or gameplay.</p>
     <label>Spritesheet <input type="file" accept="image/png,.png" aria-label="Spritesheet to check"></label>
     <button type="button" data-detect disabled>Detect watermark</button>
     <button type="button" data-reset>Clear</button>

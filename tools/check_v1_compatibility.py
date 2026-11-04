@@ -3,11 +3,13 @@
 Frozen hashes remain diagnostics: platform-dependent math can change rasterized
 edge pixels across hosts. This reports baseline drift without presuming its exact
 CPU/libm cause. The acceptance check has no tolerance for artwork or existing contracts. Every
-PNG byte and the complete file set must match; only the additive world-scale
+decoded RGBA pixel (including hidden RGB), image size and complete file set must match; only the additive world-scale
 fields and their declared recipe/identity revision are normalized for protobuf.
 """
 import argparse
 import hashlib
+import io
+from PIL import Image
 import json
 from pathlib import Path
 import platform
@@ -119,6 +121,9 @@ def main():
                 equal = before == after and after_path.exists()
                 compatible = (compatible_metadata(before) == compatible_metadata(after)
                               if file.name == "monster.pb" and after_path.exists() else equal)
+                if file.suffix == ".png" and after_path.exists():
+                    with Image.open(io.BytesIO(before)) as old, Image.open(io.BytesIO(after)) as new:
+                        compatible = old.size == new.size and old.convert("RGBA").tobytes() == new.convert("RGBA").tobytes()
                 baseline_hash = hashlib.sha256(before).hexdigest()
                 frozen_hash = frozen.get(subject, {}).get(str(file))
                 entry["files"].append({
@@ -135,7 +140,7 @@ def main():
     args.report.write_text(json.dumps(report, indent=2) + "\n")
     if failed:
         raise SystemExit("V1 regression: " + ", ".join(failed))
-    print(f"V1 compatibility: {len(SUBJECTS)} specimens; every PNG byte and existing metadata contract identical; additive scale/identity revision only")
+    print(f"V1 compatibility: {len(SUBJECTS)} specimens; every decoded RGBA pixel and existing metadata contract identical (PNG storage may differ); additive scale/identity revision only")
     print(f"Host: {report['platform']}; libc: {report['libc']}")
 
 

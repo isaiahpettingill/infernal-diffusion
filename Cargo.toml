@@ -21,6 +21,7 @@ wasm-threads = ["wasm", "dep:wasm-bindgen-rayon"]
 bert = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers"]
 
 [dependencies]
+png = "0.18"
 image = { version = "0.25", default-features = false, features = ["png"] }
 prost = "0.14"
 ciborium = "0.2"

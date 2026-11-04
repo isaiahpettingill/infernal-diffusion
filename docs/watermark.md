@@ -32,7 +32,8 @@ cargo run --release --no-default-features --features trustmark -- \
 ```
 
 Use `watermark::AtlasWatermarker::new(model_dir)` and `mark_generated(&mut generated)`
-for Rust in-memory export. Load the model once and reuse it. This explicit path marks
+for Rust in-memory export. Save with `save_generated_with_format_and_encoding` and
+`atlas_png::Encoding::Rgba`, as `generate-marked` does, to bypass ordinary palette PNG storage. Load the model once and reuse it. This explicit path marks
 root and companion `sprites.png` color atlases; emission/projectile textures and
 metadata are untouched. Existing commands keep producing unmarked images.
 

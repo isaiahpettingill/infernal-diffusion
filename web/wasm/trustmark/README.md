@@ -23,9 +23,9 @@ and forgeable: it is not a signature, identity verification, or C2PA provenance.
 Absence is inconclusive because normal generation is unmarked and transformations
 can destroy an existing watermark.
 
-Raw 8-bit RGB/RGBA non-interlaced PNG samples are decoded with bounded streaming
-DEFLATE, CRC checks, and PNG row reconstruction. Palette, grayscale, interlaced,
-and animated PNGs are explicitly unsupported. RGB hidden by alpha is retained:
+Raw 8-bit RGB/RGBA/indexed non-interlaced PNG samples are decoded with bounded streaming
+DEFLATE, CRC checks, and PNG row reconstruction. Indexed PNG palettes (PLTE) and transparency (tRNS) expand losslessly to RGBA.
+Grayscale, interlaced, and animated PNGs are explicitly unsupported. RGB hidden by alpha is retained:
 it is the main watermark carrier in sparse atlases. Alpha is ignored for decoding,
 matching native Rust. Transparency processing, conversion, optimization, or sprite
 repacking commonly removes this fragile marker. Canvas is deliberately not used.
@@ -67,8 +67,16 @@ runtime bundle's WASM backend in Node with the same PNG decoder, preprocessing,
 ECC, and classification functions as the page. It does not use native ONNX Runtime.
 Real-model checks passed for Adobe `ghost_Q.png` and `ripley_Q.png` (`other`),
 Adobe's unmarked `ghost.png` (`absent`), and the unmarked repository showcase
-`motion_orc/sprites.png` (`absent`). A native-generated marker fixture is the next
-interoperability check. These tests do not replace browser DOM/CDN/WebGPU QA.
+`motion_orc/sprites.png` (`absent`). The native-generated V2 spider fixture also
+passed: marked PNG returned `match`, original PNG returned `absent`. Alpha was
+byte-identical after watermarking. These tests do not replace browser DOM/CDN/
+WebGPU QA, which remains untested.
+
+Ordinary native exports use lossless indexed PNG when their palette fits 256 colors;
+watermarked exports retain full RGB/RGBA samples. Both formats are accepted by this
+detector. An independently encoded 50-color indexed version of the showcase orc
+round-tripped byte-for-byte to its original RGBA and returned `absent` through the
+actual browser runtime WASM backend. This is a basic public marker check, not a robust provenance system.
 
 ## Verified native interoperability
 

@@ -117,13 +117,18 @@ mod tests {
             if let Ok(directory) = std::env::var("TRUSTMARK_FIXTURE_DIR") {
                 let directory = std::path::Path::new(&directory);
                 std::fs::create_dir_all(directory).unwrap();
-                original
-                    .save(directory.join(format!("original-{index}.png")))
-                    .unwrap();
-                package
-                    .sprites
-                    .save(directory.join(format!("marked-{index}.png")))
-                    .unwrap();
+                crate::atlas_png::save(
+                    &original,
+                    directory.join(format!("original-{index}.png")),
+                    crate::atlas_png::Encoding::Palette,
+                )
+                .unwrap();
+                crate::atlas_png::save(
+                    &package.sprites,
+                    directory.join(format!("marked-{index}.png")),
+                    crate::atlas_png::Encoding::Rgba,
+                )
+                .unwrap();
             }
             assert_eq!(package.sprites.dimensions(), original.dimensions());
             assert!(package
@@ -132,9 +137,13 @@ mod tests {
                 .zip(original.pixels())
                 .all(|(a, b)| a[3] == b[3]));
             let mut bytes = std::io::Cursor::new(Vec::new());
-            DynamicImage::ImageRgba8(package.sprites.clone())
-                .write_to(&mut bytes, image::ImageFormat::Png)
-                .unwrap();
+            crate::atlas_png::write(
+                &package.sprites,
+                &mut bytes,
+                crate::atlas_png::Encoding::Rgba,
+            )
+            .unwrap();
+            assert_eq!(bytes.get_ref()[25], 6, "marked exports must stay RGBA");
             assert!(marker
                 .detect(&image::load_from_memory(bytes.get_ref()).unwrap().to_rgba8())
                 .unwrap());

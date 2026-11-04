@@ -17,7 +17,7 @@ export async function decodePNG(buffer) {
   if (bytes.length > MAX_BYTES) throw new Error('PNG must be no larger than 16 MiB.');
   const {width,height} = pngDimensions(bytes);
   const view = new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
-  const chunks=[]; let channels, ended=false, offset=8, seenHeader=false, chunkCount=0;
+  const chunks=[]; let channels, colorType, palette, transparency, seenIDAT=false, ended=false, offset=8, seenHeader=false, chunkCount=0;
   while (offset + 12 <= bytes.length) {
     if (++chunkCount > 4096) throw new Error('PNG contains too many chunks.');
     const length=view.getUint32(offset), end=offset+12+length;
@@ -28,13 +28,25 @@ export async function decodePNG(buffer) {
     if (type==='IHDR') {
       if (seenHeader || offset!==8 || length!==13) throw new Error('Invalid PNG header.');
       seenHeader=true;
-      if (data[8]!==8 || ![2,6].includes(data[9]) || data[10]!==0 || data[11]!==0 || data[12]!==0)
-        throw new Error('Use an 8-bit RGB or RGBA non-interlaced PNG. Palette, grayscale, and interlaced PNGs are unsupported.');
-      channels=data[9]===6 ? 4 : 3;
-    } else if (type==='IDAT') chunks.push(data);
+      if (data[8]!==8 || ![2,3,6].includes(data[9]) || data[10]!==0 || data[11]!==0 || data[12]!==0)
+        throw new Error('Use an 8-bit RGB, RGBA, or indexed non-interlaced PNG. Grayscale and interlaced PNGs are unsupported.');
+      colorType=data[9];
+      channels=colorType===6 ? 4 : colorType===3 ? 1 : 3;
+    } else if (type==='PLTE') {
+      if (palette || seenIDAT || !length || length>768 || length%3) throw new Error('Invalid PNG palette.');
+      palette=data;
+    } else if (type==='tRNS') {
+      if (transparency || seenIDAT || colorType===6) throw new Error('Invalid PNG transparency.');
+      if (colorType===3 && (!palette || !length || length>palette.length/3)) throw new Error('Invalid PNG palette transparency.');
+      if (colorType===2 && length!==6) throw new Error('Invalid PNG RGB transparency.');
+      transparency=data;
+    } else if (type==='IDAT') {
+      if (colorType===3 && !palette) throw new Error('Indexed PNG is missing its palette.');
+      seenIDAT=true; chunks.push(data);
+    }
     else if (type==='IEND') {ended=true;break;}
     else if (type==='acTL') throw new Error('Animated PNGs are unsupported.');
-    else if (type!=='PLTE' && (bytes[offset+4]&32)===0) throw new Error('Unsupported critical PNG chunk.');
+    else if ((bytes[offset+4]&32)===0) throw new Error('Unsupported critical PNG chunk.');
     offset=end;
   }
   if (!ended || !channels || !chunks.length) throw new Error('Incomplete PNG.');
@@ -59,6 +71,25 @@ export async function decodePNG(buffer) {
       const predictor=filter===0?0:filter===1?a:filter===2?b:filter===3?Math.floor((a+b)/2):paeth(a,b,c);
       samples[i]=(raw[y*(stride+1)+1+x]+predictor)&255;
     }
+  }
+  if (colorType===3) {
+    const rgba=new Uint8Array(width*height*4), entries=palette.length/3;
+    for (let i=0;i<samples.length;i++) {
+      const index=samples[i];
+      if (index>=entries) throw new Error('PNG palette index is out of range.');
+      rgba[i*4]=palette[index*3]; rgba[i*4+1]=palette[index*3+1]; rgba[i*4+2]=palette[index*3+2];
+      rgba[i*4+3]=transparency && index<transparency.length ? transparency[index] : 255;
+    }
+    return {data:rgba,width,height,channels:4};
+  }
+  if (colorType===2 && transparency) {
+    const rgba=new Uint8Array(width*height*4);
+    const transparent=[0,2,4].map(i=>(transparency[i]<<8)|transparency[i+1]);
+    for (let i=0;i<width*height;i++) {
+      rgba.set(samples.subarray(i*3,i*3+3),i*4);
+      rgba[i*4+3]=transparent.every((v,c)=>v===samples[i*3+c]) ? 0 : 255;
+    }
+    return {data:rgba,width,height,channels:4};
   }
   return {data:samples,width,height,channels};
 }

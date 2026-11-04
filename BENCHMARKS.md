@@ -34,3 +34,10 @@ the numbers are not a direct end-to-end GPU versus CPU comparison. The CPU
 path remains the default because the probe does not show a reliable complete
 generation win, while a GPU path would require another renderer and context
 management inside the Godot process.
+
+## Palette storage and runtime allocation comparison
+
+The new [in-memory measurements](docs/benchmarks/in-memory-generation.md) separate
+generation wall/CPU time, process peak RSS, retained RGBA buffers, and exact pixel
+hashes. [Palette PNG measurements](docs/palette-and-performance.md) are separate:
+smaller encoded PNGs do not make the RGBA C/Godot/WASM runtime buffers smaller.
