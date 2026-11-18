@@ -36,6 +36,7 @@ jobs:
           cache: npm
           cache-dependency-path: web/wasm/package-lock.json
       - name: Install pinned official WASM tools
+        working-directory: ${{ runner.temp }}
         shell: bash
         run: |
           curl -fL --retry 3 https://github.com/wasm-bindgen/wasm-bindgen/releases/download/0.2.129/wasm-bindgen-0.2.129-x86_64-unknown-linux-musl.tar.gz | tar xz
@@ -45,7 +46,14 @@ jobs:
       - name: Test deterministic parser and preserved recipes
         run: cargo test --locked --no-default-features --lib parser
       - name: Build full optimized BERT WASM
-        run: tools/build_wasm.sh
+        run: |
+          tools/build_wasm.sh
+          python3 - <<'PYVERIFY'
+          import json, os, pathlib
+          manifest = json.loads(pathlib.Path("web/wasm/bundle-manifest.json").read_text())
+          if manifest["revision"] != os.environ["GITHUB_SHA"] or manifest["source_dirty"] is not False:
+              raise SystemExit("The bundle must come from a clean checkout at the workflow commit")
+          PYVERIFY
       - name: Test actual portable WASM worker with offline Node host adapters
         if: matrix.threaded == 0
         run: |
