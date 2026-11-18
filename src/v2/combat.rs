@@ -89,18 +89,13 @@ fn friendly_wave(body: &Body, pose: &mut Pose) {
     };
     let angle = -side * (1.8 + 0.22 * (pose.phase * std::f32::consts::TAU).sin());
     let (sin, cos) = angle.sin_cos();
-    for i in 0..body.nodes.len() {
-        let mut ancestor = Some(i);
-        let mut attached = false;
-        while let Some(j) = ancestor {
-            if j == shoulder {
-                attached = true;
-                break;
-            }
-            ancestor = body.nodes[j].parent;
-        }
-        if attached {
-            let p = &mut pose.physical_positions[i];
+    for (i, p) in pose
+        .physical_positions
+        .iter_mut()
+        .take(body.nodes.len())
+        .enumerate()
+    {
+        if in_subtree(body, i, shoulder) {
             let (x, y) = (p.0 - pivot.0, p.1 - pivot.1);
             p.0 = pivot.0 + x * cos - y * sin;
             p.1 = pivot.1 + x * sin + y * cos;
@@ -129,9 +124,13 @@ fn in_subtree(body: &Body, child: usize, root: usize) -> bool {
 fn transform_subtree(body: &Body, pose: &mut Pose, root: usize, angle: f32, scale: f32) {
     let pivot = pose.physical_positions[root];
     let (sin, cos) = angle.sin_cos();
-    for i in 0..body.nodes.len() {
+    for (i, p) in pose
+        .physical_positions
+        .iter_mut()
+        .take(body.nodes.len())
+        .enumerate()
+    {
         if in_subtree(body, i, root) {
-            let p = &mut pose.physical_positions[i];
             let (x, y) = (p.0 - pivot.0, p.1 - pivot.1);
             p.0 = pivot.0 + scale * (cos * x - sin * y);
             p.1 = pivot.1 + scale * (sin * x + cos * y);
@@ -518,9 +517,13 @@ fn splay_extra_tails(body: &Body, poses: &mut [Pose]) {
         let (sin, cos) = angle.sin_cos();
         for &root in &roots {
             let pivot = pose.physical_positions[body.nodes[root].parent.unwrap()];
-            for i in 0..body.nodes.len() {
+            for (i, p) in pose
+                .physical_positions
+                .iter_mut()
+                .take(body.nodes.len())
+                .enumerate()
+            {
                 if in_subtree(body, i, root) {
-                    let p = &mut pose.physical_positions[i];
                     let (x, y) = (p.0 - pivot.0, p.1 - pivot.1);
                     p.0 = pivot.0 + x * cos - y * sin;
                     p.1 = pivot.1 + x * sin + y * cos;
@@ -912,6 +915,7 @@ fn spectral_attacks(
     clips.push(drift);
 }
 
+pub(crate) const SHADE_MOTION_RECIPE: &str = "motion.shade_void_tendrils@1";
 pub const SHADE_EXTENSION_EVENT: &str = "V2_SHADE_TENDRIL_EXTENSION_MAX_1_8";
 
 fn shade_attacks(
@@ -968,12 +972,42 @@ fn shade_attacks(
         let phase = (seed % 65521) as f32 / 65521.0 * std::f32::consts::TAU;
         for (frame_index, frame) in clip.frames.iter().enumerate() {
             let pose = &mut poses[frame.sprite_frame_id as usize];
-            let time = frame_index as f32 * 50.0;
-            let drive = pulse(time, 650.0, 1350.0);
-            let noise_envelope = (std::f32::consts::PI * time / 1350.0).sin().max(0.0);
             pose.state = "SHADE_UNWIND".into();
             pose.phase = frame_index as f32 / 13.0;
+            if frame_index == 0 {
+                continue;
+            }
+            let frame = frame_index as f32;
             for (chain_index, chain) in chains.iter().enumerate() {
+                // Each angle describes a link from root to tip, in the attack plane.
+                // The lash winds overhead. The thrust folds low and opens into a spear.
+                let (coil, strike) = if chain_index == lead {
+                    if name == "lash" {
+                        (
+                            [-2.35, -1.65, -0.55, 0.70, 1.80],
+                            [-0.95, -0.33, 0.44, 0.62, 0.05],
+                        )
+                    } else {
+                        (
+                            [2.60, 1.90, 0.65, -0.85, -1.75],
+                            [0.44, 0.17, -0.30, -0.18, 0.0],
+                        )
+                    }
+                } else {
+                    let side = if (chain_index + 3 - lead) % 3 == 1 {
+                        -1.0
+                    } else {
+                        1.0
+                    };
+                    (
+                        [2.70, 2.35, 1.45, 0.4, -0.65].map(|a| a * side),
+                        if side < 0.0 {
+                            [-2.35, -1.95, -1.05, -0.35, 0.55]
+                        } else {
+                            [1.95, 1.40, 0.85, 0.15, -0.90]
+                        },
+                    )
+                };
                 for (segment, &i) in chain.iter().enumerate() {
                     let node = &body.nodes[i];
                     let parent = node.parent.expect("shade tendril has an anatomical parent");
@@ -981,42 +1015,26 @@ fn shade_attacks(
                     let rest = (node.x - body.nodes[parent].x, node.y - body.nodes[parent].y);
                     let length = rest.0.hypot(rest.1);
                     let base = rest.1.atan2(rest.0);
-                    let coherent_noise =
-                        ((time / 260.0 + phase + segment as f32 * 0.85 + chain_index as f32 * 1.7)
-                            .sin()
-                            * 0.32
-                            + (time / 470.0 + phase * 0.7 + segment as f32 * 1.3).sin() * 0.16)
-                            * noise_envelope;
-                    let aimed = if name == "lash" {
-                        ((time - 650.0) / 210.0).sin() * 0.55
-                    } else {
-                        0.0
+                    let link = segment as f32;
+                    let ease = |v: f32| {
+                        let v = v.clamp(0.0, 1.0);
+                        v * v * (3.0 - 2.0 * v)
                     };
-                    // A traveling S-curve survives full extension, avoiding a
-                    // straight barrel silhouette at the actual impact frame.
-                    let curl = (segment as f32 * 1.35 - time / 430.0 + phase).sin() * 0.8 * drive;
-                    let angle = if chain_index == lead {
-                        base * (1.0 - drive) + aimed * drive + coherent_noise + curl
-                    } else {
-                        let fan = if (chain_index + 3 - lead) % 3 == 1 {
-                            -0.8
-                        } else {
-                            0.8
-                        };
-                        base * (1.0 - 0.9 * drive)
-                            + fan * 0.9 * drive
-                            + coherent_noise
-                            + curl * 0.65
-                    };
-                    let scale = 1.0
-                        + if chain_index == lead {
-                            0.8 * drive
-                        } else {
-                            0.55 * drive
-                        };
+                    let wind = ease(frame / (7.0 + link * 0.25));
+                    // Delay release toward the tip. Bend travels along the strand
+                    // while each contact point stays attached to its parent.
+                    let release = ease((frame - 6.5 - link * 0.65) / (5.5 - link * 0.38));
+                    let rest_delta = (base - coil[segment] + std::f32::consts::PI)
+                        .rem_euclid(std::f32::consts::TAU)
+                        - std::f32::consts::PI;
+                    let loaded = coil[segment] + rest_delta * (1.0 - wind);
+                    let ripple = (link * 1.1 + phase + chain_index as f32).sin() * 0.10 * wind;
+                    let angle = loaded + (strike[segment] - loaded) * release + ripple;
+                    let scale = 1.0 + release * if chain_index == lead { 0.8 } else { 0.45 };
+                    let (sine, cosine) = angle.sin_cos();
                     pose.physical_positions[i] = (
-                        anchor.0 + length * scale * angle.cos(),
-                        anchor.1 + length * scale * angle.sin(),
+                        anchor.0 + length * scale * cosine,
+                        anchor.1 + length * scale * sine,
                         angle,
                     );
                 }

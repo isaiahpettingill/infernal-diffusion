@@ -29,8 +29,9 @@ A shade is opaque black regardless of source anatomy. Its attacks are only
 `v2_shade_tendril_lash` and `v2_shade_tendril_thrust`. The entire surface, including
 head, torso and limbs, continuously unwinds into three connected tapered strands.
 The same baked frames are replayed in reverse to reform the original creature;
-recovery does not deal a second hit. Coherent seeded deformation and bounded 1.8×
-strand growth keep the strike readable. `WHOLE_BODY_UNWIND_REVERSE` and
+recovery does not deal a second hit. The lash coils overhead and snaps outward. The thrust folds low and straightens.
+The bend travels from root to tip. The two supporting strands fan out in depth.
+Each strand can grow to 1.8× its folded length. `WHOLE_BODY_UNWIND_REVERSE` and
 `BOUNDED_SHADE_TENDRIL_EXTENSION_MAX_1_8` explicitly identify this motion.
 Original gun/bite/summon attacks and unused offensive frames are removed.
 

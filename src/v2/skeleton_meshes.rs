@@ -4,7 +4,7 @@
 //! In particular, the ribs and pelvis are disconnected bony rails with genuine
 //! empty space between them, rather than a bone-colored solid body.
 
-use super::{v2_append_blob, MeshAsset, V3};
+use super::{MeshAsset, V3};
 use std::{f32::consts::TAU, sync::OnceLock};
 
 const BONE: &str = "face_tusk";
@@ -21,13 +21,51 @@ fn point(p: [f32; 3]) -> V3 {
 }
 
 fn blob(mesh: &mut MeshAsset, p: [f32; 3], s: [f32; 3], role: &str) {
-    v2_append_blob(mesh, point(p), point(s), role);
+    // One vertex at each pole. The small tooth and joint details need fewer
+    // meridians, but keep the full silhouette on larger bony ends.
+    let fine = s.into_iter().fold(0.0, f32::max) <= 0.18;
+    let (sides, bands) = if fine { (8, 4) } else { (10, 5) };
+    let south = mesh.vertices.len();
+    mesh.vertices.push([p[0], p[1] - s[1], p[2]]);
+    for band in 1..bands {
+        let latitude = -TAU / 4.0 + (TAU / 2.0) * band as f32 / bands as f32;
+        let (y, radius) = latitude.sin_cos();
+        for side in 0..sides {
+            let (z, x) = (TAU * side as f32 / sides as f32).sin_cos();
+            mesh.vertices.push([
+                p[0] + radius * x * s[0],
+                p[1] + y * s[1],
+                p[2] + radius * z * s[2],
+            ]);
+        }
+    }
+    let north = mesh.vertices.len();
+    mesh.vertices.push([p[0], p[1] + s[1], p[2]]);
+    for side in 0..sides {
+        let a = south + 1 + side;
+        let b = south + 1 + (side + 1) % sides;
+        mesh.faces.push((south, b, a, role.into()));
+        for band in 0..bands - 2 {
+            let a = a + band * sides;
+            let b = b + band * sides;
+            mesh.faces.extend([
+                (a, b, a + sides, role.into()),
+                (b, b + sides, a + sides, role.into()),
+            ]);
+        }
+        let last = (bands - 2) * sides;
+        mesh.faces.push((a + last, b + last, north, role.into()));
+    }
 }
 
-/// Sweep an eight-sided cortical tube along a path, with a true narrow shaft
+/// Sweep a cortical tube along a path, with a true narrow shaft
 /// or an open, curved rib. No solid surfaces are added between separate paths.
 fn sweep(mesh: &mut MeshAsset, path: &[([f32; 3], f32)], role: &str, closed: bool) {
-    const SIDES: usize = 8;
+    let sides = if path.iter().all(|&(_, r)| r <= 0.09) {
+        6
+    } else {
+        8
+    };
     assert!(path.len() >= 2);
     let start = mesh.vertices.len();
     for (i, &(p, radius)) in path.iter().enumerate() {
@@ -57,8 +95,8 @@ fn sweep(mesh: &mut MeshAsset, path: &[([f32; 3], f32)], role: &str, closed: boo
         };
         let u = tangent.cross(reference).normalized();
         let v = tangent.cross(u).normalized();
-        for side in 0..SIDES {
-            let angle = TAU * side as f32 / SIDES as f32;
+        for side in 0..sides {
+            let angle = TAU * side as f32 / sides as f32;
             let p = point(p) + u * (radius * angle.cos()) + v * (radius * angle.sin());
             mesh.vertices.push([p.x, p.y, p.z]);
         }
@@ -66,11 +104,11 @@ fn sweep(mesh: &mut MeshAsset, path: &[([f32; 3], f32)], role: &str, closed: boo
     let bands = if closed { path.len() } else { path.len() - 1 };
     for ring in 0..bands {
         let next = (ring + 1) % path.len();
-        for side in 0..SIDES {
-            let a = start + ring * SIDES + side;
-            let b = start + ring * SIDES + (side + 1) % SIDES;
-            let c = start + next * SIDES + side;
-            let d = start + next * SIDES + (side + 1) % SIDES;
+        for side in 0..sides {
+            let a = start + ring * sides + side;
+            let b = start + ring * sides + (side + 1) % sides;
+            let c = start + next * sides + side;
+            let d = start + next * sides + (side + 1) % sides;
             mesh.faces
                 .extend([(a, b, c, role.into()), (b, d, c, role.into())]);
         }
@@ -79,9 +117,9 @@ fn sweep(mesh: &mut MeshAsset, path: &[([f32; 3], f32)], role: &str, closed: boo
         for (ring, reverse) in [(0, true), (path.len() - 1, false)] {
             let center = mesh.vertices.len();
             mesh.vertices.push(path[ring].0);
-            for side in 0..SIDES {
-                let a = start + ring * SIDES + side;
-                let b = start + ring * SIDES + (side + 1) % SIDES;
+            for side in 0..sides {
+                let a = start + ring * sides + side;
+                let b = start + ring * sides + (side + 1) % sides;
                 mesh.faces.push(if reverse {
                     (center, b, a, role.into())
                 } else {
@@ -314,8 +352,8 @@ fn ribs() -> MeshAsset {
         for side in [-1.0, 1.0] {
             let mut path = Vec::new();
             let extent = if row >= 4 { 0.84 } else { 1.0 };
-            for i in 0..=14 {
-                let t = extent * i as f32 / 14.0;
+            for i in 0..=10 {
+                let t = extent * i as f32 / 10.0;
                 let angle = std::f32::consts::PI * t;
                 path.push((
                     [

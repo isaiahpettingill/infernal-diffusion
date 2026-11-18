@@ -1117,7 +1117,7 @@ fn generate_spec_internal(
     };
     if let Some(budget) = sink.budget() {
         // Check the lower-bound canvas before the all-pose mesh framing pass.
-        budget.check_render(size, poses.len(), body.nodes.len())?;
+        budget.check_render(size, poses.len(), body.nodes.len(), options.profile)?;
     }
     let size = if render_style == RenderStyle::Mesh3d {
         render3d::required_frame_size(&spec, &body, &poses, size, seed)
@@ -1130,44 +1130,10 @@ fn generate_spec_internal(
         )));
     }
     if let Some(budget) = sink.budget() {
-        // Include all already-rendered parents/companions in admission.
-        budget.reserve_render(size, poses.len(), body.nodes.len())?;
+        // Admit the parent and its companions against one cumulative budget.
+        budget.reserve_render(size, poses.len(), body.nodes.len(), options.profile)?;
     }
     let (projectiles, projectile_sheet) = projectile::bake(&spec, &mut attacks, seed);
-    let (sheet, columns, palette_size) = if render_style == RenderStyle::Mesh3d {
-        render3d::sheet(&spec, &body, &poses, size, seed)
-    } else {
-        stages.render(&body, &poses, size)
-    };
-    if palette_size >= 256 {
-        return Err(Error::InvalidMonster(
-            "sprite sheet exceeds 255 RGBA colors".into(),
-        ));
-    }
-    let size_info = if render_style == RenderStyle::Mesh3d {
-        let (visible_width_px, visible_height_px) =
-            render3d::visible_extent(&sheet, size, columns, poses.len() as u32);
-        Some(proto::SizeInfo {
-            normalized_size: spec.size,
-            size_class: if spec.size < 0.35 {
-                "SMALL"
-            } else if spec.size > 0.8 {
-                "GIANT"
-            } else {
-                "STANDARD"
-            }
-            .into(),
-            morphology_scale: anatomy::morphology_scale(spec.size),
-            pixels_per_unit: render3d::PIXELS_PER_UNIT,
-            visible_width_px,
-            visible_height_px,
-            anchor_x_px: size as f32 * 0.5,
-            anchor_y_px: size as f32 * 0.57,
-            ..world_scale::size_info(&spec, &body, seed)
-        })
-    } else {
-        None
-    };
     let colliders = body
         .nodes
         .iter()
@@ -1360,6 +1326,42 @@ fn generate_spec_internal(
             });
         }
     }
+    // Finish each companion before allocating its parent's dense atlas. Nested
+    // mounts can otherwise keep several uncompressed sheets live during packing.
+    let (sheet, columns, palette_size) = if render_style == RenderStyle::Mesh3d {
+        render3d::sheet(&spec, &body, &poses, size, seed)
+    } else {
+        stages.render(&body, &poses, size)
+    };
+    if palette_size >= 256 {
+        return Err(Error::InvalidMonster(
+            "sprite sheet exceeds 255 RGBA colors".into(),
+        ));
+    }
+    let size_info = if render_style == RenderStyle::Mesh3d {
+        let (visible_width_px, visible_height_px) =
+            render3d::visible_extent(&sheet, size, columns, poses.len() as u32);
+        Some(proto::SizeInfo {
+            normalized_size: spec.size,
+            size_class: if spec.size < 0.35 {
+                "SMALL"
+            } else if spec.size > 0.8 {
+                "GIANT"
+            } else {
+                "STANDARD"
+            }
+            .into(),
+            morphology_scale: anatomy::morphology_scale(spec.size),
+            pixels_per_unit: render3d::PIXELS_PER_UNIT,
+            visible_width_px,
+            visible_height_px,
+            anchor_x_px: size as f32 * 0.5,
+            anchor_y_px: size as f32 * 0.57,
+            ..world_scale::size_info(&spec, &body, seed)
+        })
+    } else {
+        None
+    };
     let size_health = (spec.size * 90.0).round() as u32;
     let armor_material = spec.materials.iter().any(|material| {
         ["CHITIN", "SCALES", "STONE", "METAL", "BONE", "ARMOR_WHITE"].contains(&material.as_str())
@@ -1396,9 +1398,25 @@ fn generate_spec_internal(
     let mut identity = Sha256::new();
     identity.update(id.as_bytes());
     identity.update(world_scale::RECIPE_ID.as_bytes());
-    let id = format!("monster-{}", hex_prefix(&identity.finalize(), 8));
+    let shade = options.profile == GenerationProfile::V2
+        && spec.features.iter().any(|f| f == "SHADE");
+    let skeleton =
+        render_style == RenderStyle::Mesh3d && render3d::uses_skeletal_mesh(&spec, &body);
+    let mut recipe_version = format!("{recipe_version}-{}", world_scale::RECIPE_ID);
     recipe_ids.push(world_scale::RECIPE_ID.into());
-    let recipe_version = format!("{recipe_version}-{}", world_scale::RECIPE_ID);
+    for recipe in [
+        shade.then_some(v2::combat::SHADE_MOTION_RECIPE),
+        skeleton.then_some(render3d::SKELETON_MESH_RECIPE),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        identity.update(recipe.as_bytes());
+        recipe_ids.push(recipe.into());
+        recipe_version.push('-');
+        recipe_version.push_str(recipe);
+    }
+    let id = format!("monster-{}", hex_prefix(&identity.finalize(), 8));
     let monster = proto::Monster {
         v2_profile,
         format_version: if render_style == RenderStyle::Mesh3d {

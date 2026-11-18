@@ -52,12 +52,16 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      # Use Microsoft's matching runtime release instead of relying on ORT's CDN.
+      # Extract the pinned native library from Microsoft's Linux wheel.
       - name: Prepare native ONNX runtime
         run: |
-          curl -fL https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-linux-x64-1.22.0.tgz -o /tmp/onnxruntime.tgz
-          echo '8344d55f93d5bc5021ce342db50f62079daf39aaafb5d311a451846228be49b3  /tmp/onnxruntime.tgz' | sha256sum --check
-          tar -xzf /tmp/onnxruntime.tgz -C "$RUNNER_TEMP"
+          curl -fL --retry 3 https://files.pythonhosted.org/packages/8c/60/16d219b8868cc8e8e51a68519873bdb9f5f24af080b62e917a13fff9989b/onnxruntime-1.22.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl -o /tmp/onnxruntime.whl
+          echo '6964a975731afc19dc3418fad8d4e08c48920144ff590149429a5ebe0d15fb3c  /tmp/onnxruntime.whl' | sha256sum --check
+          ort_lib="$RUNNER_TEMP/onnxruntime-linux-x64-1.22.0/lib"
+          mkdir -p "$ort_lib"
+          unzip -j /tmp/onnxruntime.whl 'onnxruntime/capi/libonnxruntime*.so*' -d "$ort_lib"
+          ln -s libonnxruntime.so.1.22.0 "$ort_lib/libonnxruntime.so"
+          ln -s libonnxruntime.so.1.22.0 "$ort_lib/libonnxruntime.so.1"
           echo "ORT_LIB_LOCATION=$RUNNER_TEMP/onnxruntime-linux-x64-1.22.0" >> "$GITHUB_ENV"
           echo "ORT_PREFER_DYNAMIC_LINK=1" >> "$GITHUB_ENV"
           echo "LD_LIBRARY_PATH=$RUNNER_TEMP/onnxruntime-linux-x64-1.22.0/lib" >> "$GITHUB_ENV"

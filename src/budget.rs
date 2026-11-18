@@ -186,7 +186,13 @@ impl BudgetState {
         )
     }
 
-    pub(crate) fn check_render(&self, size: u32, poses: usize, nodes: usize) -> Result<u64, Error> {
+    pub(crate) fn check_render(
+        &self,
+        size: u32,
+        poses: usize,
+        nodes: usize,
+        profile: crate::GenerationProfile,
+    ) -> Result<u64, Error> {
         let budget = &self.limits;
         limit("animation poses", poses as u64, budget.max_poses)?;
         limit("frame dimension", size.into(), budget.max_frame_dimension)?;
@@ -214,11 +220,17 @@ impl BudgetState {
         // Compaction may temporarily retain dense data, crops, dedup keys,
         // packed output and emission; reserve eight dense RGBA equivalents.
         // Four directions each own a 2x RGBA buffer, 2x f32 z-buffer and low
-        // RGBA frame (36 bytes per logical pixel per view).
+        // RGBA frame. V2 also keeps two f32 barycentric weights per high-res
+        // sample until shading (68 bytes per logical pixel per view).
         let pixel_bytes = pixels.saturating_mul(4).saturating_mul(8);
+        let bytes_per_pixel = if profile == crate::GenerationProfile::V2 {
+            68
+        } else {
+            36
+        };
         let raster_bytes = u64::from(size)
             .saturating_mul(size.into())
-            .saturating_mul(36 * views);
+            .saturating_mul(bytes_per_pixel * views);
         // Conservative scene/pose/metadata allowance, not exact allocator RSS.
         let mesh_bytes = (nodes as u64).saturating_mul(256 * 1024);
         let bytes = pixel_bytes
@@ -245,8 +257,9 @@ impl BudgetState {
         size: u32,
         poses: usize,
         nodes: usize,
+        profile: crate::GenerationProfile,
     ) -> Result<(), Error> {
-        let bytes = self.check_render(size, poses, nodes)?;
+        let bytes = self.check_render(size, poses, nodes, profile)?;
         self.reserved_bytes = self.reserved_bytes.saturating_add(bytes);
         Ok(())
     }
@@ -285,22 +298,32 @@ mod tests {
 
     #[test]
     fn layout_limits_and_retained_parent_reservations_are_checked() {
+        let profile = crate::GenerationProfile::V2;
         let mut state = BudgetState::new(GenerationBudget::default());
-        is_limit(state.check_render(513, 20, 10), "frame dimension");
-        is_limit(state.check_render(96, 513, 10), "animation poses");
+        is_limit(state.check_render(513, 20, 10, profile), "frame dimension");
+        is_limit(state.check_render(96, 513, 10, profile), "animation poses");
         state.limits.max_atlas_dimension = 100;
-        is_limit(state.check_render(96, 20, 10), "dense atlas width");
+        is_limit(state.check_render(96, 20, 10, profile), "dense atlas width");
         state.limits = GenerationBudget::default();
         state.limits.max_dense_pixels = 10;
-        is_limit(state.check_render(96, 20, 10), "dense atlas pixels");
+        is_limit(
+            state.check_render(96, 20, 10, profile),
+            "dense atlas pixels",
+        );
         state.limits = GenerationBudget::default();
-        let one = state.check_render(96, 80, 30).unwrap();
+        let one = state.check_render(96, 80, 30, profile).unwrap();
         state.limits.max_estimated_working_bytes = one;
-        state.reserve_render(96, 80, 30).unwrap();
-        is_limit(state.reserve_render(96, 80, 30), "estimated working bytes");
+        state.reserve_render(96, 80, 30, profile).unwrap();
+        is_limit(
+            state.reserve_render(96, 80, 30, profile),
+            "estimated working bytes",
+        );
         // Arithmetic must fail safely even if a caller relaxes every work limit.
         state.limits.max_poses = u64::MAX;
-        is_limit(state.check_render(96, usize::MAX, 30), "directional frames");
+        is_limit(
+            state.check_render(96, usize::MAX, 30, profile),
+            "directional frames",
+        );
     }
 
     #[test]

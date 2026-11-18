@@ -17,9 +17,10 @@ The default admission limits are deliberately generous:
 
 The estimate reserves eight dense RGBA equivalents for raster/compaction pixel
 storage, supersampled RGBA/depth/downsample buffers for all four directions,
+and two additional f32 weights per supersample for V2 visible-surface shading,
 256 KiB per anatomy node for mesh/pose/metadata work, and 8 MiB per package.
-Reservations are cumulative: an already-rendered parent remains counted while its
-companions are generated. This intentionally overestimates retained compact
+Reservations are cumulative. A parent reserves its budget before generating
+companions and allocates its dense atlas after the children finish. This intentionally overestimates retained compact
 textures instead of assuming compaction will always be effective.
 
 These are admission guards, **not an OS-level memory or CPU quota**. Parser/model
@@ -27,8 +28,8 @@ memory, allocator overhead, native engine/JS copies and unrelated application
 memory are not covered. The game should still run one background generation at a
 time with a bounded pending queue. Guarded native BERT parsing uses a dedicated
 maximum-two-worker Rayon pool (one worker on hosts with fewer than four logical
-cores). Native rasterization has its existing separate two-worker pool and runs
-after parsing, or renders serially on smaller hosts. Portable WASM runs serially
+cores). Native rasterization runs after parsing. Hosts with at least four logical cores
+use half the available cores, up to four render workers. Smaller hosts render serially. Portable WASM runs serially
 inside its Web Worker; the optional threaded build uses the host-initialized Rayon
 pool (the provided worker initializes 2–4 threads). Ordinary memory spikes remain possible.
 

@@ -313,8 +313,19 @@ fn v2_local_surface(triangles: &mut [Triangle], spec: &MonsterSpec, node: &Node,
     let local = v2_surface_spec(spec, &node.id);
     let gains = v2_gains(local, seed);
     let friendly = local.features.iter().any(|f| f == "FRIENDLY_LURE");
-    for triangle in triangles {
-        triangle.color = v2_surface_color(local, triangle.color, gains, friendly);
+    tint_faces(triangles, local, gains, friendly);
+}
+
+fn tint_faces(triangles: &mut [Triangle], spec: &MonsterSpec, gains: [f32; 3], friendly: bool) {
+    let mut previous = None;
+    for t in triangles {
+        let color = t.color;
+        let tinted = match previous {
+            Some((before, after)) if before == color => after,
+            _ => v2_surface_color(spec, color, gains, friendly),
+        };
+        previous = Some((color, tinted));
+        t.color = tinted;
     }
 }
 
@@ -475,6 +486,7 @@ fn hash_lattice(x: i32, y: i32, z: i32, seed: u32) -> f32 {
     h as f32 / u32::MAX as f32
 }
 
+#[inline(always)]
 fn noise(p: V3, seed: u32) -> f32 {
     let x = p.x.floor() as i32;
     let y = p.y.floor() as i32;
@@ -500,6 +512,7 @@ fn noise(p: V3, seed: u32) -> f32 {
     mix(plane(z), plane(z + 1), fz)
 }
 
+#[inline(always)]
 fn texture_value(kind: TextureKind, local: V3, seed: u32) -> f32 {
     if kind == TextureKind::None {
         return 0.0;
@@ -748,10 +761,135 @@ fn node_pose(body: &Body, index: usize, pose: &Pose) -> (V3, f32) {
     (parent_animated + edge, base.1)
 }
 
+// Rotate V2 tendrils in depth after the common anatomical pose is resolved.
+fn shade_node_pose(body: &Body, index: usize, pose: &Pose) -> (V3, f32) {
+    let base = node_pose(body, index, pose);
+    if pose.state == "SHADE_UNWIND" && pose.phase > 0.0 {
+        if let Some(id) = body.nodes[index].id.strip_prefix("v2_shade_tendril_") {
+            let thrust = pose.clip_id.ends_with("_thrust");
+            let lead = if thrust { "1_" } else { "0_" };
+            let yaw = if id.starts_with(lead) {
+                if thrust {
+                    -0.18 * pose.phase
+                } else {
+                    0.36 * pose.phase - 0.70 * (std::f32::consts::PI * pose.phase).sin()
+                }
+            } else if id.starts_with("2_") {
+                0.90 * pose.phase
+            } else {
+                -0.85 * pose.phase
+            };
+            // Turn the whole strand around its root in depth. Both projected
+            // hurtboxes and artwork see the same front-view fan and tip.
+            let root = base_node_pose(body, 0, pose).0;
+            let offset = base.0 - root;
+            let (sin, cos) = yaw.sin_cos();
+            return (
+                root + V3::new(
+                    offset.x * cos - offset.z * sin,
+                    offset.y,
+                    offset.x * sin + offset.z * cos,
+                ),
+                base.1,
+            );
+        }
+    }
+    base
+}
+
+#[derive(Clone, Copy, PartialEq)]
 struct AssetOptions {
     flip_z: bool,
     seed: u32,
     irregularity: f32,
+}
+
+impl AssetOptions {
+    fn scaled(self, local: V3, scale: V3) -> V3 {
+        let wobble = if self.irregularity == 0.0 {
+            1.0
+        } else {
+            1.0 + self.irregularity * (noise(local * 5.0, self.seed) - 0.5)
+        };
+        V3::new(
+            local.x * scale.x * wobble,
+            local.y * scale.y * wobble,
+            local.z * scale.z * wobble * if self.flip_z { -1.0 } else { 1.0 },
+        )
+    }
+}
+
+/// Geometry and materials shared by the poses of one body part. Translation
+/// and rotation vary per frame. The stored vertices retain the original order
+/// of scale and noise multiplication for deterministic pixels.
+struct PreparedAsset<'a> {
+    mesh: &'a MeshAsset,
+    material: String,
+    scale: V3,
+    options: AssetOptions,
+    scaled: Vec<V3>,
+    points: Vec<V3>,
+    surfaces: Vec<([u8; 4], TextureKind)>,
+}
+
+impl<'a> PreparedAsset<'a> {
+    fn new(mesh: &'a MeshAsset, material: &str, scale: V3, options: AssetOptions) -> Self {
+        let scaled = mesh
+            .vertices
+            .iter()
+            .map(|&[x, y, z]| options.scaled(V3::new(x, y, z), scale))
+            .collect();
+        // Authored faces commonly have a consecutive run of the same material role.
+        let mut previous = None;
+        let surfaces = mesh
+            .faces
+            .iter()
+            .map(|(_, _, _, role)| {
+                if let Some((last, surface)) = previous {
+                    if last == role.as_str() {
+                        return surface;
+                    }
+                }
+                let surface = (role_color(role, material), texture_kind(material, role));
+                previous = Some((role.as_str(), surface));
+                surface
+            })
+            .collect();
+        Self {
+            mesh,
+            material: material.into(),
+            scale,
+            options,
+            scaled,
+            points: Vec::with_capacity(mesh.vertices.len()),
+            surfaces,
+        }
+    }
+
+    fn append(&mut self, triangles: &mut Vec<Triangle>, position: V3, angle: f32) {
+        let (sa, ca) = angle.sin_cos();
+        self.points.clear();
+        self.points.extend(
+            self.scaled
+                .iter()
+                .map(|v| position + V3::new(v.x * ca - v.y * sa, v.x * sa + v.y * ca, v.z)),
+        );
+        triangles.reserve(self.mesh.faces.len());
+        for ((a, b, c, _), &(color, texture)) in self.mesh.faces.iter().zip(&self.surfaces) {
+            triangles.push(Triangle {
+                a: self.points[*a],
+                b: self.points[*b],
+                c: self.points[*c],
+                local: [*a, *b, *c].map(|i| {
+                    let [x, y, z] = self.mesh.vertices[i];
+                    V3::new(x, y, z)
+                }),
+                color,
+                texture,
+                seed: self.options.seed,
+            });
+        }
+    }
 }
 
 fn add_asset(
@@ -763,34 +901,7 @@ fn add_asset(
     material: &str,
     options: AssetOptions,
 ) {
-    let ca = angle.cos();
-    let sa = angle.sin();
-    let locals: Vec<V3> = mesh
-        .vertices
-        .iter()
-        .map(|v| V3::new(v[0], v[1], v[2]))
-        .collect();
-    let points: Vec<V3> = locals
-        .iter()
-        .map(|v| {
-            let wobble = 1.0 + options.irregularity * (noise(*v * 5.0, options.seed) - 0.5);
-            let x = v.x * scale.x * wobble;
-            let y = v.y * scale.y * wobble;
-            let z = v.z * scale.z * wobble * if options.flip_z { -1.0 } else { 1.0 };
-            position + V3::new(x * ca - y * sa, x * sa + y * ca, z)
-        })
-        .collect();
-    for (a, b, c, role) in &mesh.faces {
-        triangles.push(Triangle {
-            a: points[*a],
-            b: points[*b],
-            c: points[*c],
-            color: role_color(role, material),
-            local: [locals[*a], locals[*b], locals[*c]],
-            texture: texture_kind(material, role),
-            seed: options.seed,
-        });
-    }
+    PreparedAsset::new(mesh, material, scale, options).append(triangles, position, angle);
 }
 
 fn sphere() -> &'static MeshAsset {
@@ -955,64 +1066,6 @@ fn add_connector(triangles: &mut Vec<Triangle>, a: V3, b: V3, radius: f32, color
             texture: TextureKind::None,
             seed: 0,
         });
-    }
-}
-
-fn v2_shade_tube(triangles: &mut Vec<Triangle>, a: V3, b: V3, start_radius: f32, end_radius: f32) {
-    let axis = (b - a).normalized();
-    let reference = if axis.z.abs() < 0.85 {
-        V3::new(0.0, 0.0, 1.0)
-    } else {
-        V3::new(0.0, 1.0, 0.0)
-    };
-    let side = axis.cross(reference).normalized();
-    let up = axis.cross(side).normalized();
-    for i in 0..12 {
-        let t0 = std::f32::consts::TAU * i as f32 / 12.0;
-        let t1 = std::f32::consts::TAU * (i + 1) as f32 / 12.0;
-        let o0 = side * t0.cos() + up * t0.sin();
-        let o1 = side * t1.cos() + up * t1.sin();
-        for [a, b, c] in [
-            [
-                a + o0 * start_radius,
-                a + o1 * start_radius,
-                b + o0 * end_radius,
-            ],
-            [
-                a + o1 * start_radius,
-                b + o1 * end_radius,
-                b + o0 * end_radius,
-            ],
-        ] {
-            triangles.push(Triangle {
-                a,
-                b,
-                c,
-                color: [0, 0, 0, 255],
-                local: [V3::default(); 3],
-                texture: TextureKind::None,
-                seed: 0,
-            });
-        }
-    }
-    // Joint caps share the tube radius; they close bend seams without bead bulges.
-    let first = triangles.len();
-    add_asset(
-        triangles,
-        sphere(),
-        b,
-        V3::new(end_radius, end_radius, end_radius),
-        0.0,
-        "FLESH",
-        AssetOptions {
-            flip_z: false,
-            seed: 0,
-            irregularity: 0.0,
-        },
-    );
-    for t in &mut triangles[first..] {
-        t.color = [0, 0, 0, 255];
-        t.texture = TextureKind::None;
     }
 }
 
@@ -1387,6 +1440,31 @@ fn v2_face_recipe(spec: &MonsterSpec, node: &Node) -> Option<&'static str> {
     }
 }
 
+pub(crate) const SKELETON_MESH_RECIPE: &str = "mesh.skeletal_detail@2";
+
+fn skeletal_part(spec: &MonsterSpec, node: &Node) -> Option<&'static str> {
+    if node.kind == "BONE_SPUR" {
+        return Some("long_bone");
+    }
+    if !v2_skeletal_node(spec, node) {
+        return None;
+    }
+    match node.kind.as_str() {
+        "HEAD" => Some("skull"),
+        "TORSO" => Some("ribs"),
+        "HAND" => Some("hand"),
+        "FOOT" => Some("foot"),
+        "LOBE" if node.id.contains("pelvis") => Some("pelvis"),
+        "LIMB" | "ARM" | "SHIN" | "NECK" | "SHOULDER" | "HIP" | "TAIL" => Some("long_bone"),
+        _ => None,
+    }
+}
+
+pub(crate) fn uses_skeletal_mesh(spec: &MonsterSpec, body: &Body) -> bool {
+    visual_v2(spec)
+        && body.nodes.iter().any(|node| skeletal_part(spec, node).is_some())
+}
+
 fn v2_mesh_override(spec: &MonsterSpec, node: &Node) -> Option<&'static MeshAsset> {
     if !visual_v2(spec) {
         return None;
@@ -1400,22 +1478,8 @@ fn v2_mesh_override(spec: &MonsterSpec, node: &Node) -> Option<&'static MeshAsse
             return Some(mesh);
         }
     }
-    if node.kind == "BONE_SPUR" {
-        return Some(v2_skeleton::mesh("long_bone"));
-    }
-    if v2_skeletal_node(spec, node) {
-        let part = match node.kind.as_str() {
-            "HEAD" => Some("skull"),
-            "TORSO" => Some("ribs"),
-            "HAND" => Some("hand"),
-            "FOOT" => Some("foot"),
-            "LOBE" if node.id.contains("pelvis") => Some("pelvis"),
-            "LIMB" | "ARM" | "SHIN" | "NECK" | "SHOULDER" | "HIP" | "TAIL" => Some("long_bone"),
-            _ => None,
-        };
-        if let Some(part) = part {
-            return Some(v2_skeleton::mesh(part));
-        }
+    if let Some(part) = skeletal_part(spec, node) {
+        return Some(v2_skeleton::mesh(part));
     }
     if node.id == "v2_hybrid_chest" {
         return Some(upright_torso());
@@ -1746,7 +1810,7 @@ fn scene_palette(spec: &MonsterSpec, body: &Body, seed: u64) -> Vec<[u8; 4]> {
 mod v2_shade_mesh;
 
 fn scene(spec: &MonsterSpec, body: &Body, pose: &Pose, seed: u64) -> Vec<Triangle> {
-    scene_parts(spec, body, pose, seed, false)
+    scene_parts(spec, body, pose, seed, false, &mut [])
 }
 
 fn scene_parts(
@@ -1755,19 +1819,25 @@ fn scene_parts(
     pose: &Pose,
     seed: u64,
     core_only: bool,
+    assets: &mut [Option<PreparedAsset<'static>>],
 ) -> Vec<Triangle> {
     if let Some(triangles) = v2_encounters::scene(spec, body, pose, seed) {
         return triangles;
     }
+    let posed = if visual_v2(spec) && pose.state == "SHADE_UNWIND" {
+        shade_node_pose
+    } else {
+        node_pose
+    };
     let positions: Vec<(V3, f32)> = body
         .nodes
         .iter()
         .enumerate()
-        .map(|(i, _)| node_pose(body, i, pose))
+        .map(|(i, _)| posed(body, i, pose))
         .collect();
     let mut triangles = Vec::with_capacity(body.nodes.len() * 100);
     let mut texture_rng = ChaCha8Rng::seed_from_u64(seed);
-    let mut shade_strands = Vec::new();
+
     for (i, node) in body.nodes.iter().enumerate() {
         if core_only && !crate::world_scale::reference_node(spec, node) {
             continue;
@@ -1775,19 +1845,6 @@ fn scene_parts(
         let connector_start = triangles.len();
         if let Some(parent) = node.parent {
             if visual_v2(spec) && node.id.starts_with("v2_shade_tendril_") {
-                let start = if body.nodes[parent].id.starts_with("v2_shade_tendril_") {
-                    body.nodes[parent].rx
-                } else {
-                    node.rx * 1.6
-                };
-                let end = node.rx * if node.id.ends_with("_4") { 0.35 } else { 1.0 };
-                v2_shade_tube(
-                    &mut shade_strands,
-                    positions[parent].0,
-                    positions[i].0,
-                    start,
-                    end,
-                );
                 continue;
             }
             if !(node.kind == "TORSO" && body.nodes[parent].kind == "TORSO")
@@ -2014,7 +2071,6 @@ fn scene_parts(
         } else {
             None
         };
-        let mesh = friendly_head.as_ref().unwrap_or(mesh);
         let mut scale = scale;
         // Dinosaur recipes author real transverse frill, armor and foot widths.
         // Legacy primitive defaults must not flatten these dedicated surfaces.
@@ -2078,32 +2134,60 @@ fn scene_parts(
             scale.y *= 1.0 - stretch * amount * 0.7;
         }
         let triangle_start = triangles.len();
-        add_asset(
-            &mut triangles,
-            mesh,
-            position,
-            scale,
-            -angle,
-            material,
-            AssetOptions {
-                flip_z: node.kind == "WING" && depth_for(node) < 0.0,
-                seed: node_seed,
-                irregularity: if visual_v2(spec) {
-                    // Deliberate rest-rig anomalies carry V2 variation, rather than
-                    // high-frequency per-vertex crumpling of recognizable anatomy.
-                    0.015
-                } else if matches!(
-                    node.kind.as_str(),
-                    "TORSO" | "LOBE" | "TAIL" | "SHELL" | "ABDOMEN" | "BODY_SEGMENT"
-                ) {
-                    0.08
-                } else if matches!(node.kind.as_str(), "LIMB" | "ARM" | "LEG") {
-                    0.06
-                } else {
-                    0.0
-                },
+        let options = AssetOptions {
+            flip_z: node.kind == "WING" && depth_for(node) < 0.0,
+            seed: node_seed,
+            irregularity: if visual_v2(spec) {
+                // Deliberate rest-rig anomalies carry V2 variation, rather than
+                // high-frequency per-vertex crumpling of recognizable anatomy.
+                0.015
+            } else if matches!(
+                node.kind.as_str(),
+                "TORSO" | "LOBE" | "TAIL" | "SHELL" | "ABDOMEN" | "BODY_SEGMENT"
+            ) {
+                0.08
+            } else if matches!(node.kind.as_str(), "LIMB" | "ARM" | "LEG") {
+                0.06
+            } else {
+                0.0
             },
-        );
+        };
+        if let Some(head) = friendly_head.as_ref() {
+            add_asset(
+                &mut triangles,
+                head,
+                position,
+                scale,
+                -angle,
+                material,
+                options,
+            );
+        } else if let Some(slot) = assets.get_mut(i) {
+            let prepared = match slot {
+                Some(asset)
+                    if std::ptr::eq(asset.mesh, mesh)
+                        && asset.scale.x == scale.x
+                        && asset.scale.y == scale.y
+                        && asset.scale.z == scale.z
+                        && asset.options == options
+                        && asset.material == material =>
+                {
+                    asset
+                }
+                slot => slot.insert(PreparedAsset::new(mesh, material, scale, options)),
+            };
+            prepared.append(&mut triangles, position, -angle);
+        } else {
+            add_asset(
+                &mut triangles,
+                mesh,
+                position,
+                scale,
+                -angle,
+                material,
+                options,
+            );
+        }
         v2_local_surface(&mut triangles[triangle_start..], spec, node, seed);
         if visual_v2(spec) {
             for triangle in &mut triangles[triangle_start..] {
@@ -2129,8 +2213,8 @@ fn scene_parts(
     }
     if !core_only && visual_v2(spec) && spec.features.iter().any(|f| f == "SHADE") {
         v2_shade_mesh::unwind(&mut triangles, body, pose, &positions);
+        v2_shade_mesh::strands(&mut triangles, body, &positions);
     }
-    triangles.extend(shade_strands);
     if visual_v2(spec) {
         let friendly = spec.features.iter().any(|f| f == "FRIENDLY_LURE");
         if friendly && pose.state == "LURE" && pose.phase >= 0.25 {
@@ -2159,20 +2243,25 @@ fn scene_parts(
                 );
             }
         }
-        let gains = v2_gains(spec, seed);
-        for triangle in &mut triangles {
-            if spec.mount.is_none() || spec.features.iter().any(|f| f == "SHADE") {
-                triangle.color = v2_surface_color(spec, triangle.color, gains, friendly);
+        let shade = spec.features.iter().any(|f| f == "SHADE");
+        if shade {
+            for t in &mut triangles {
+                t.color = [0, 0, 0, 255];
+            }
+        } else {
+            if spec.mount.is_none() {
+                tint_faces(&mut triangles, spec, v2_gains(spec, seed), friendly);
             }
             if pose.state == "PHASE"
-                && !spec.features.iter().any(|f| f == "SHADE")
                 && (spec
                     .features
                     .iter()
                     .any(|f| matches!(f.as_str(), "GHOST" | "GHOUL"))
                     || spec.affinity == "GHOUL")
             {
-                triangle.color[3] = 64;
+                for t in &mut triangles {
+                    t.color[3] = 64;
+                }
             }
         }
     }
@@ -2245,7 +2334,7 @@ pub fn reference_body_height(spec: &MonsterSpec, body: &Body, seed: u64) -> f32 
     let camera = Camera::new(0.0, 0, 1.0);
     let mut top = f32::INFINITY;
     let mut bottom = f32::NEG_INFINITY;
-    for triangle in scene_parts(spec, body, &pose, seed, true) {
+    for triangle in scene_parts(spec, body, &pose, seed, true, &mut []) {
         for vertex in [triangle.a, triangle.b, triangle.c] {
             let y = project_with_camera(vertex, camera).y;
             top = top.min(y);
@@ -2273,21 +2362,45 @@ pub fn required_frame_size(
         .iter()
         .map(|a| Camera::new(a.to_radians(), 0, 1.0))
         .collect();
-    let margin = 3.0;
+    let frame_extent = |point: V3| {
+        let mut extent = 0.0_f32;
+        for camera in &cameras {
+            let p = project_with_camera(point, *camera);
+            extent = extent.max((p.x.abs() + 3.0) * 2.0);
+            extent = extent.max(if p.y < 0.0 {
+                (-p.y + 3.0) / 0.57
+            } else {
+                (p.y + 3.0) / 0.43
+            });
+        }
+        extent
+    };
     let mut required = minimum as f32;
+    let mut assets: Vec<_> = (0..body.nodes.len()).map(|_| None).collect();
     for pose in poses {
-        for triangle in scene(spec, body, pose, seed) {
-            for point in [triangle.a, triangle.b, triangle.c] {
-                for camera in &cameras {
-                    let p = project_with_camera(point, *camera);
-                    required = required.max((p.x.abs() + margin) * 2.0);
-                    required = required.max(if p.y < 0.0 {
-                        (-p.y + margin) / 0.57
-                    } else {
-                        (p.y + margin) / 0.43
-                    });
-                }
-            }
+        let triangles = scene_parts(spec, body, pose, seed, false, &mut assets);
+        if triangles.is_empty() {
+            continue;
+        }
+        let vertices = || triangles.iter().flat_map(|t| [t.a, t.b, t.c]);
+        // Orthographic projection is affine. If the entire world-space box
+        // fits, every vertex is already inside this tile in every direction.
+        let mut lo = triangles[0].a;
+        let mut hi = lo;
+        for p in vertices() {
+            lo = V3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
+            hi = V3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
+        }
+        let fits = [lo.x, hi.x].into_iter().all(|x| {
+            [lo.y, hi.y].into_iter().all(|y| {
+                [lo.z, hi.z]
+                    .into_iter()
+                    .all(|z| frame_extent(V3::new(x, y, z)) <= required)
+            })
+        });
+        if !fits {
+            required = vertices().map(frame_extent).fold(required, f32::max);
+            required = (required / 8.0).ceil() * 8.0;
         }
     }
     // Whole tiles keep GPU/atlas allocation predictable while preserving scale.
@@ -2312,7 +2425,7 @@ pub fn collider_views_for_pose(
     pose: &Pose,
     size: u32,
 ) -> Vec<proto::ColliderView> {
-    let position = node_pose(body, index, pose).0;
+    let position = shade_node_pose(body, index, pose).0;
     let node = &body.nodes[index];
     let radius = (node.rx.min(node.ry) * PIXELS_PER_UNIT).max(0.5);
     ANGLES_DEG
@@ -2339,48 +2452,63 @@ pub fn collider_views_for_shade_receiver(
     pose: &Pose,
     size: u32,
 ) -> Vec<proto::ColliderView> {
-    if body.nodes[index].id.starts_with("v2_shade_tendril_") {
-        return collider_views_for_pose(body, index, pose, size);
+    ShadeReceivers::new(body, pose).views(body, index, pose, size)
+}
+
+pub(crate) struct ShadeReceivers {
+    positions: Vec<(V3, f32)>,
+    field: Option<v2_shade_mesh::Field>,
+}
+impl ShadeReceivers {
+    pub(crate) fn new(body: &Body, pose: &Pose) -> Self {
+        let positions: Vec<_> = (0..body.nodes.len())
+            .map(|i| shade_node_pose(body, i, pose))
+            .collect();
+        let field = v2_shade_mesh::Field::new(body, pose, &positions);
+        Self { positions, field }
     }
-    let positions: Vec<_> = (0..body.nodes.len())
-        .map(|i| node_pose(body, i, pose))
-        .collect();
-    let Some(field) = v2_shade_mesh::Field::new(body, pose, &positions) else {
-        return collider_views_for_pose(body, index, pose, size);
-    };
-    let node = &body.nodes[index];
-    let center = positions[index].0;
-    let mapped = field.map(center);
-    let offsets = [
-        V3::new(node.rx, 0.0, 0.0),
-        V3::new(0.0, node.ry, 0.0),
-        V3::new(0.0, 0.0, node.rz.unwrap_or(node.rx)),
-    ];
-    ANGLES_DEG
-        .iter()
-        .enumerate()
-        .map(|(direction_index, angle)| {
-            let p = project(mapped, angle.to_radians(), size, 1.0);
-            let mut radius = 0.5_f32;
-            for offset in offsets {
-                for sign in [-1.0, 1.0] {
-                    let q = project(
-                        field.map(center + offset * sign),
-                        angle.to_radians(),
-                        size,
-                        1.0,
-                    );
+    pub(crate) fn views(
+        &self,
+        body: &Body,
+        index: usize,
+        pose: &Pose,
+        size: u32,
+    ) -> Vec<proto::ColliderView> {
+        let Some(field) = self
+            .field
+            .as_ref()
+            .filter(|_| !body.nodes[index].id.starts_with("v2_shade_tendril_"))
+        else {
+            return collider_views_for_pose(body, index, pose, size);
+        };
+        let node = &body.nodes[index];
+        let center = self.positions[index].0;
+        let mapped = field.map(center);
+        let offsets = [
+            V3::new(node.rx, 0.0, 0.0),
+            V3::new(0.0, node.ry, 0.0),
+            V3::new(0.0, 0.0, node.rz.unwrap_or(node.rx)),
+        ];
+        let surface = offsets.map(|o| [field.map(center - o), field.map(center + o)]);
+        ANGLES_DEG
+            .iter()
+            .enumerate()
+            .map(|(direction_index, angle)| {
+                let p = project(mapped, angle.to_radians(), size, 1.0);
+                let mut radius = 0.5_f32;
+                for &point in surface.iter().flatten() {
+                    let q = project(point, angle.to_radians(), size, 1.0);
                     radius = radius.max((q.x - p.x).hypot(q.y - p.y));
                 }
-            }
-            proto::ColliderView {
-                direction_index: direction_index as u32,
-                x: p.x,
-                y: p.y,
-                radius,
-            }
-        })
-        .collect()
+                proto::ColliderView {
+                    direction_index: direction_index as u32,
+                    x: p.x,
+                    y: p.y,
+                    radius,
+                }
+            })
+            .collect()
+    }
 }
 
 fn collider_views_at_depth(node: &Node, size: u32, depth: f32) -> Vec<proto::ColliderView> {
@@ -2401,35 +2529,8 @@ fn collider_views_at_depth(node: &Node, size: u32, depth: f32) -> Vec<proto::Col
         .collect()
 }
 
-#[inline(always)]
-fn draw_triangle<const LEGACY_SAMPLE_STEP: bool>(
-    image: &mut RgbaImage,
-    depths: &mut [f32],
-    triangle: &Triangle,
-    camera: Camera,
-) {
-    let size = image.width();
-    let a = project_with_camera(triangle.a, camera);
-    let b = project_with_camera(triangle.b, camera);
-    let c = project_with_camera(triangle.c, camera);
-    let area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-    if area.abs() < 0.001 {
-        return;
-    }
-    let min_x = a.x.min(b.x).min(c.x).floor().max(0.0) as u32;
-    let max_x = a.x.max(b.x).max(c.x).ceil().min((size - 1) as f32) as u32;
-    let min_y = a.y.min(b.y).min(c.y).floor().max(0.0) as u32;
-    let max_y =
-        a.y.max(b.y)
-            .max(c.y)
-            .ceil()
-            .min((image.height() - 1) as f32) as u32;
-    if min_x > max_x || min_y > max_y {
-        return;
-    }
-    let inverse_area = 1.0 / area;
-    let w0_step = (b.y - c.y) * inverse_area;
-    let w1_step = (c.y - a.y) * inverse_area;
+#[inline]
+fn lighting<const LEGACY_SAMPLE_STEP: bool>(triangle: &Triangle) -> Option<f32> {
     let normal = if LEGACY_SAMPLE_STEP {
         (triangle.b - triangle.a)
             .cross(triangle.c - triangle.a)
@@ -2446,7 +2547,7 @@ fn draw_triangle<const LEGACY_SAMPLE_STEP: bool>(
         ];
         let length = n.iter().map(|x| x * x).sum::<f64>().sqrt();
         if length == 0.0 {
-            return;
+            return None;
         }
         V3::new(
             (n[0] / length) as f32,
@@ -2459,15 +2560,61 @@ fn draw_triangle<const LEGACY_SAMPLE_STEP: bool>(
         y: 0.790039,
         z: 0.450023,
     };
-    let shade = (0.49 + 0.51 * normal.dot(LIGHT).abs()).clamp(0.0, 1.0);
-    let pixels = image.as_mut();
+    Some((0.49 + 0.51 * normal.dot(LIGHT).abs()).clamp(0.0, 1.0))
+}
+
+#[inline(always)]
+fn lit_color(mut color: [u8; 4], intensity: f32) -> [u8; 4] {
+    for channel in &mut color[..3] {
+        *channel = (*channel as f32 * intensity) as u8;
+    }
+    color
+}
+
+#[inline(always)]
+fn flat_color(t: &Triangle, light: f32) -> Option<[u8; 4]> {
+    (t.texture == TextureKind::None || t.color[..3] == [0; 3]).then(|| lit_color(t.color, light))
+}
+
+#[inline(always)]
+fn shaded_sample(t: &Triangle, light: f32, [w0, w1, w2]: [f32; 3]) -> [u8; 4] {
+    let local = t.local[0] * w0 + t.local[1] * w1 + t.local[2] * w2;
+    let variation = texture_value(t.texture, local, t.seed);
+    lit_color(t.color, (light + variation).clamp(0.25, 1.35))
+}
+
+#[inline(always)]
+fn coverage<const LEGACY_SAMPLE_STEP: bool>(
+    size: u32,
+    height: u32,
+    depths: &mut [f32],
+    triangle: &Triangle,
+    camera: Camera,
+    mut sample: impl FnMut(usize, [f32; 3]),
+) {
+    let a = project_with_camera(triangle.a, camera);
+    let b = project_with_camera(triangle.b, camera);
+    let c = project_with_camera(triangle.c, camera);
+    let area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+    if area.abs() < 0.001 {
+        return;
+    }
+    let min_x = a.x.min(b.x).min(c.x).floor().max(0.0) as u32;
+    let max_x = a.x.max(b.x).max(c.x).ceil().min((size - 1) as f32) as u32;
+    let min_y = a.y.min(b.y).min(c.y).floor().max(0.0) as u32;
+    let max_y = a.y.max(b.y).max(c.y).ceil().min((height - 1) as f32) as u32;
+    if min_x > max_x || min_y > max_y {
+        return;
+    }
+    let inverse_area = 1.0 / area;
+    let w0_step = (b.y - c.y) * inverse_area;
+    let w1_step = (c.y - a.y) * inverse_area;
     let row_width = size as usize;
     for y in min_y..=max_y {
         // Restrict both buffers once per scanline instead of recomputing image
         // coordinates and validating the full image on each covered sample.
         let row_start = y as usize * row_width;
         let depth_row = &mut depths[row_start..row_start + row_width];
-        let pixel_row = &mut pixels[row_start * 4..(row_start + row_width) * 4];
         let py = y as f32 + 0.5;
         let px = min_x as f32 + 0.5;
         let mut w0 = ((b.x - px) * (c.y - py) - (b.y - py) * (c.x - px)) * inverse_area;
@@ -2492,76 +2639,136 @@ fn draw_triangle<const LEGACY_SAMPLE_STEP: bool>(
                 continue;
             }
             depth_row[offset] = depth;
-            let local = triangle.local[0] * w0 + triangle.local[1] * w1 + triangle.local[2] * w2;
-            let variation = texture_value(triangle.texture, local, triangle.seed);
-            let mut shaded = triangle.color;
-            let intensity = (shade + variation).clamp(0.25, 1.35);
-            for channel in shaded.iter_mut().take(3) {
-                *channel = (*channel as f32 * intensity) as u8;
-            }
-            pixel_row[offset * 4..offset * 4 + 4].copy_from_slice(&shaded);
+            sample(row_start + offset, [w0, w1, w2]);
         }
     }
 }
 
 #[inline(always)]
-pub(crate) fn rasterize(
+fn rasterize<const LEGACY: bool>(
     triangles: &[Triangle],
     image: &mut RgbaImage,
     depths: &mut [f32],
     camera: Camera,
 ) {
-    for triangle in triangles {
-        draw_triangle::<true>(image, depths, triangle, camera);
+    let (width, height) = image.dimensions();
+    let pixels = image.as_mut();
+    for t in triangles {
+        let Some(light) = lighting::<LEGACY>(t) else {
+            continue;
+        };
+        let flat = flat_color(t, light);
+        coverage::<LEGACY>(width, height, depths, t, camera, |offset, weights| {
+            let rgba = flat.unwrap_or_else(|| shaded_sample(t, light, weights));
+            pixels[offset * 4..offset * 4 + 4].copy_from_slice(&rgba);
+        });
     }
 }
 
-/// Generic mesh path with coherent pixel-center coverage/depth interpolation.
 pub(crate) fn rasterize_mesh(
     triangles: &[Triangle],
     image: &mut RgbaImage,
     depths: &mut [f32],
     camera: Camera,
 ) {
-    for triangle in triangles {
-        draw_triangle::<false>(image, depths, triangle, camera);
+    rasterize::<false>(triangles, image, depths, camera);
+}
+
+// Only the nearest surface contributes to a supersample, even for ghost
+// materials. Store the winning face in the output pixel until the shading pass.
+#[inline(always)]
+fn rasterize_visible(
+    triangles: &[Triangle],
+    image: &mut RgbaImage,
+    depths: &mut [f32],
+    weights: &mut [[f32; 2]],
+    lights: &[Option<f32>],
+    camera: Camera,
+) {
+    let (width, height) = image.dimensions();
+    let pixels = image.as_mut().as_chunks_mut::<4>().0;
+    for (index, (t, light)) in triangles.iter().zip(lights).enumerate() {
+        if light.is_none() {
+            continue;
+        }
+        let id = (index as u32 + 1).to_ne_bytes();
+        coverage::<false>(width, height, depths, t, camera, |offset, [w0, w1, _]| {
+            pixels[offset] = id;
+            weights[offset] = [w0, w1];
+        });
+    }
+    for (pixel, &[w0, w1]) in pixels.iter_mut().zip(weights.iter()) {
+        let id = u32::from_ne_bytes(*pixel);
+        if id != 0 {
+            let index = id as usize - 1;
+            let t = &triangles[index];
+            let light = lights[index].unwrap();
+            *pixel = flat_color(t, light)
+                .unwrap_or_else(|| shaded_sample(t, light, [w0, w1, 1.0 - w0 - w1]));
+        }
     }
 }
 
 type Rasterizer = unsafe fn(&[Triangle], &mut RgbaImage, &mut [f32], Camera);
+type VisibleRasterizer =
+    unsafe fn(&[Triangle], &mut RgbaImage, &mut [f32], &mut [[f32; 2]], &[Option<f32>], Camera);
 
-unsafe fn rasterize_baseline(
-    triangles: &[Triangle],
-    image: &mut RgbaImage,
-    depths: &mut [f32],
-    camera: Camera,
-) {
-    rasterize(triangles, image, depths, camera);
+#[derive(Clone, Copy)]
+struct Kernels {
+    legacy: Rasterizer,
+    coherent: VisibleRasterizer,
+    name: &'static str,
 }
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "sse4.2,popcnt")]
-unsafe fn rasterize_x64_v2(
+unsafe fn rasterize_x64_v2<const LEGACY: bool>(
     triangles: &[Triangle],
     image: &mut RgbaImage,
     depths: &mut [f32],
     camera: Camera,
 ) {
-    rasterize(triangles, image, depths, camera);
+    rasterize::<LEGACY>(triangles, image, depths, camera);
 }
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2,fma,bmi1,bmi2,f16c,lzcnt")]
-unsafe fn rasterize_x64_v3(
+unsafe fn rasterize_x64_v3<const LEGACY: bool>(
     triangles: &[Triangle],
     image: &mut RgbaImage,
     depths: &mut [f32],
     camera: Camera,
 ) {
-    rasterize(triangles, image, depths, camera);
+    rasterize::<LEGACY>(triangles, image, depths, camera);
 }
 
-fn select_rasterizer() -> (Rasterizer, &'static str) {
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "sse4.2,popcnt")]
+unsafe fn visible_x64_v2(
+    triangles: &[Triangle],
+    image: &mut RgbaImage,
+    depths: &mut [f32],
+    weights: &mut [[f32; 2]],
+    lights: &[Option<f32>],
+    camera: Camera,
+) {
+    rasterize_visible(triangles, image, depths, weights, lights, camera);
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2,fma,bmi1,bmi2,f16c,lzcnt")]
+unsafe fn visible_x64_v3(
+    triangles: &[Triangle],
+    image: &mut RgbaImage,
+    depths: &mut [f32],
+    weights: &mut [[f32; 2]],
+    lights: &[Option<f32>],
+    camera: Camera,
+) {
+    rasterize_visible(triangles, image, depths, weights, lights, camera);
+}
+
+fn select_rasterizer() -> Kernels {
     #[cfg(target_arch = "x86_64")]
     {
         // An override can only lower the selected tier. It is useful for
@@ -2587,34 +2794,41 @@ fn select_rasterizer() -> (Rasterizer, &'static str) {
             && std::is_x86_feature_detected!("f16c")
             && std::is_x86_feature_detected!("fma");
         if v3 && ceiling != "x64" && ceiling != "x64_v2" {
-            return (rasterize_x64_v3, "x64_v3");
+            return Kernels {
+                legacy: rasterize_x64_v3::<true>,
+                coherent: visible_x64_v3,
+                name: "x64_v3",
+            };
         }
         if v2 && ceiling != "x64" {
-            return (rasterize_x64_v2, "x64_v2");
+            return Kernels {
+                legacy: rasterize_x64_v2::<true>,
+                coherent: visible_x64_v2,
+                name: "x64_v2",
+            };
         }
-        (rasterize_baseline, "x64")
     }
-    #[cfg(not(target_arch = "x86_64"))]
-    {
-        (
-            rasterize_baseline,
-            if cfg!(target_arch = "aarch64") {
-                "arm64"
-            } else {
-                "x86"
-            },
-        )
+    Kernels {
+        legacy: rasterize::<true>,
+        coherent: rasterize_visible,
+        name: if cfg!(target_arch = "x86_64") {
+            "x64"
+        } else if cfg!(target_arch = "aarch64") {
+            "arm64"
+        } else {
+            "x86"
+        },
     }
 }
 
-fn rasterizer() -> (Rasterizer, &'static str) {
-    static SELECTED: std::sync::OnceLock<(Rasterizer, &'static str)> = std::sync::OnceLock::new();
+fn rasterizer() -> Kernels {
+    static SELECTED: OnceLock<Kernels> = OnceLock::new();
     *SELECTED.get_or_init(select_rasterizer)
 }
 
 /// Selected CPU kernel. The x64 library contains all three implementations.
 pub fn cpu_kernel_name() -> &'static str {
-    rasterizer().1
+    rasterizer().name
 }
 
 /// Shared 2x coverage reduction; keeps the established monster alpha contract.
@@ -2666,6 +2880,7 @@ pub(crate) fn downsample(high: &RgbaImage) -> RgbaImage {
 struct FrameScratch {
     high: RgbaImage,
     depths: Vec<f32>,
+    weights: Vec<[f32; 2]>,
     nearest: std::collections::HashMap<[u8; 3], [u8; 3]>,
 }
 
@@ -2673,6 +2888,7 @@ impl FrameScratch {
     fn new(size: u32) -> Self {
         let high_size = size * 2;
         Self {
+            weights: Vec::new(),
             high: RgbaImage::new(high_size, high_size),
             depths: vec![f32::NEG_INFINITY; high_size as usize * high_size as usize],
             nearest: std::collections::HashMap::new(),
@@ -2692,7 +2908,16 @@ fn frame_with_stats_mode(
 ) -> (RgbaImage, [std::time::Duration; 3]) {
     let mut scratch = FrameScratch::new(size);
     std::mem::swap(nearest, &mut scratch.nearest);
-    let result = frame_with_scratch(triangles, pose, angle, palette, &mut scratch, coherent);
+    let lights: Option<Vec<_>> =
+        coherent.then(|| triangles.iter().map(lighting::<false>).collect());
+    let result = frame_with_scratch(
+        triangles,
+        pose,
+        angle,
+        palette,
+        &mut scratch,
+        lights.as_deref(),
+    );
     std::mem::swap(nearest, &mut scratch.nearest);
     result
 }
@@ -2703,21 +2928,23 @@ fn frame_with_scratch(
     angle: f32,
     palette: &[[u8; 4]],
     scratch: &mut FrameScratch,
-    coherent: bool,
+    lights: Option<&[Option<f32>]>,
 ) -> (RgbaImage, [std::time::Duration; 3]) {
     let phase_started = Instant::now();
     let FrameScratch {
         high,
         depths,
+        weights,
         nearest,
     } = scratch;
     high.as_mut().fill(0);
     depths.fill(f32::NEG_INFINITY);
     let camera = Camera::new(angle, high.width(), 2.0);
-    if coherent {
-        rasterize_mesh(triangles, high, depths, camera);
+    if let Some(lights) = lights {
+        weights.resize(depths.len(), [0.0; 2]);
+        unsafe { (rasterizer().coherent)(triangles, high, depths, weights, lights, camera) };
     } else {
-        let kernel = rasterizer().0;
+        let kernel = rasterizer().legacy;
         unsafe {
             kernel(triangles, high, depths, camera);
         }
@@ -2793,7 +3020,7 @@ fn render_pool() -> Option<&'static rayon::ThreadPool> {
             return None;
         }
         rayon::ThreadPoolBuilder::new()
-            .num_threads(2)
+            .num_threads((logical_cores / 2).min(ANGLES_DEG.len()))
             .thread_name(|index| format!("infernal-render-{index}"))
             .build()
             .ok()
@@ -2839,7 +3066,7 @@ fn scene_fingerprint(triangles: &[Triangle], pose: &Pose) -> u64 {
     let mut hash = std::collections::hash_map::DefaultHasher::new();
     alpha_signature(pose).hash(&mut hash);
     triangles.len().hash(&mut hash);
-    for triangle in triangles {
+    for triangle in triangles.iter().step_by((triangles.len() / 32).max(1)) {
         triangle_bits(triangle).hash(&mut hash);
     }
     hash.finish()
@@ -2853,7 +3080,14 @@ fn scenes_equal(left: &[Triangle], right: &[Triangle]) -> bool {
             .all(|(a, b)| triangle_bits(a) == triangle_bits(b))
 }
 
-fn copy_sheet_frame(sheet: &mut RgbaImage, source: u32, target: u32, size: u32, columns: u32) {
+fn copy_sheet_frame(
+    sheet: &mut RgbaImage,
+    source: u32,
+    target: u32,
+    size: u32,
+    columns: u32,
+    blank_row: &[u8],
+) {
     let row_bytes = size as usize * 4;
     let stride = sheet.width() as usize * 4;
     let source_start =
@@ -2864,7 +3098,9 @@ fn copy_sheet_frame(sheet: &mut RgbaImage, source: u32, target: u32, size: u32, 
     for row in 0..size as usize {
         let from = source_start + row * stride;
         let to = target_start + row * stride;
-        pixels.copy_within(from..from + row_bytes, to);
+        if &pixels[from..from + row_bytes] != blank_row {
+            pixels.copy_within(from..from + row_bytes, to);
+        }
     }
 }
 
@@ -2887,9 +3123,11 @@ pub fn sheet(
     let rows = total.div_ceil(columns);
     let palette = scene_palette(spec, body, seed);
     let mut output = RgbaImage::new(columns * size, rows * size);
+    // Each tile is written once into a zeroed sheet. Leave all-zero rows on
+    // shared zero pages. Compare RGBA so invisible nonzero RGB is preserved.
+    let blank_row = vec![0; size as usize * 4];
     // Allocate only for simultaneous work, not for every direction. Each pair
-    // costs 32 * size² bytes before the color cache; native rendering uses at
-    // most two workers and non-threaded WASM only needs one.
+    // owns its color, depth, and V2 barycentric buffers. Serial WASM needs one lane.
     #[cfg(not(target_arch = "wasm32"))]
     let workers = render_pool().map_or(1, |pool| pool.current_num_threads());
     #[cfg(all(target_arch = "wasm32", feature = "wasm-threads"))]
@@ -2902,18 +3140,22 @@ pub fn sheet(
     let coherent = visual_v2(spec);
     let mut rendered_scenes: std::collections::HashMap<u64, Vec<usize>> =
         std::collections::HashMap::new();
+    let mut assets: Vec<_> = (0..body.nodes.len()).map(|_| None).collect();
     let mut reused_frames = 0usize;
     for (index, pose) in poses.iter().enumerate() {
         crate::report_progress("rendering", index, poses.len());
         let phase_started = Instant::now();
-        let triangles = scene(spec, body, pose, seed);
+        let triangles = scene_parts(spec, body, pose, seed, false, &mut assets);
         let fingerprint = scene_fingerprint(&triangles, pose);
         // Retain only pose indices, rather than every large triangle array. The
         // uncommon match regenerates its candidate for collision-safe equality.
         let previous = rendered_scenes.get(&fingerprint).and_then(|candidates| {
             candidates.iter().copied().find(|&candidate| {
                 alpha_signature(pose) == alpha_signature(&poses[candidate])
-                    && scenes_equal(&triangles, &scene(spec, body, &poses[candidate], seed))
+                    && scenes_equal(
+                        &triangles,
+                        &scene_parts(spec, body, &poses[candidate], seed, false, &mut assets),
+                    )
             })
         });
         scene_time += phase_started.elapsed();
@@ -2926,6 +3168,7 @@ pub fn sheet(
                     offset + index as u32,
                     size,
                     columns,
+                    &blank_row,
                 );
             }
             reused_frames += ANGLES_DEG.len();
@@ -2935,6 +3178,8 @@ pub fn sheet(
         // Keep one dispatch per pose and let the next available worker claim
         // a direction. Fixed direction batches would force a barrier behind
         // a slow view while another worker and its scratch buffers sit idle.
+        let lights: Option<Vec<_>> =
+            coherent.then(|| triangles.iter().map(lighting::<false>).collect());
         let next_direction = std::sync::atomic::AtomicUsize::new(0);
         let make_frames = |scratch: &mut FrameScratch| {
             let mut frames = Vec::new();
@@ -2950,7 +3195,7 @@ pub fn sheet(
                     ANGLES_DEG[direction].to_radians(),
                     &palette,
                     scratch,
-                    coherent,
+                    lights.as_deref(),
                 );
                 v2_finish_alpha(spec, pose, &mut frame);
                 frames.push((direction, frame, stages, phase_started.elapsed()));
@@ -2981,8 +3226,10 @@ pub fn sheet(
             let stride = (columns * size * 4) as usize;
             for y in 0..size as usize {
                 let destination = ((oy as usize + y) * stride) + ox as usize * 4;
-                target[destination..destination + row_len]
-                    .copy_from_slice(&source[y * row_len..(y + 1) * row_len]);
+                let row = &source[y * row_len..(y + 1) * row_len];
+                if row != blank_row {
+                    target[destination..destination + row_len].copy_from_slice(row);
+                }
             }
         }
     }
@@ -3359,26 +3606,10 @@ mod tests {
             let before = render(&start);
             let after = render(&peak);
             let mut strands = Vec::new();
-            for (i, node) in body
-                .nodes
-                .iter()
-                .enumerate()
-                .filter(|(_, n)| n.id.starts_with("v2_shade_tendril_"))
-            {
-                let parent = node.parent.unwrap();
-                let radius = if body.nodes[parent].id.starts_with("v2_shade_tendril_") {
-                    body.nodes[parent].rx
-                } else {
-                    node.rx * 1.6
-                };
-                v2_shade_tube(
-                    &mut strands,
-                    node_pose(&body, parent, &peak).0,
-                    node_pose(&body, i, &peak).0,
-                    radius,
-                    node.rx * if node.id.ends_with("_4") { 0.35 } else { 1.0 },
-                );
-            }
+            let positions: Vec<_> = (0..body.nodes.len())
+                .map(|i| shade_node_pose(&body, i, &peak))
+                .collect();
+            v2_shade_mesh::strands(&mut strands, &body, &positions);
             let strand_image = frame_with_stats_mode(
                 &strands,
                 &peak,
@@ -3429,6 +3660,78 @@ mod tests {
                 visual_signature(&scene(&spec, &body, &peak, 0)),
                 "V1 must not morph"
             );
+        }
+    }
+
+    #[test]
+    fn shade_windup_and_contact_follow_the_visible_tip_in_every_direction() {
+        let prompt = "shade humanoid";
+        let mut spec = crate::v2::interpret(crate::parser::parse_vocabulary(prompt), prompt);
+        crate::v2::prepare(&mut spec);
+        let mut body = crate::anatomy::build(&spec, &mut ChaCha8Rng::seed_from_u64(42));
+        crate::v2::anatomy::refine(&spec, &mut body, 42);
+        let (clips, _, attacks, poses) = crate::v2::combat::animate(&spec, &body, 42);
+        assert_eq!(attacks.len(), 2);
+        for attack in attacks {
+            let clip = clips.iter().find(|c| c.id == attack.animation_id).unwrap();
+            let tip = body
+                .nodes
+                .iter()
+                .position(|n| n.id == attack.origin_node)
+                .unwrap();
+            let loaded = &poses[clip.frames[7].sprite_frame_id as usize];
+            let hit = &poses[clip.frames[13].sprite_frame_id as usize];
+            let reach =
+                |p: &Pose| (shade_node_pose(&body, tip, p).0 - node_pose(&body, 0, p).0).length();
+            assert!(
+                reach(hit) > 2.0 * reach(loaded),
+                "strike must release the coil"
+            );
+            let triangles = scene(&spec, &body, hit, 42);
+            for view in collider_views_for_pose(&body, tip, hit, 256) {
+                let angle = ANGLES_DEG[view.direction_index as usize].to_radians();
+                let (frame, _) = frame_with_stats_mode(
+                    &triangles,
+                    hit,
+                    256,
+                    angle,
+                    &[[0, 0, 0, 255]],
+                    &mut Default::default(),
+                    true,
+                );
+                // A tapered tip can end between sample centers.
+                assert!(
+                    frame.enumerate_pixels().any(|(x, y, p)| p[3] > 0
+                        && (x as f32 + 0.5 - view.x).hypot(y as f32 + 0.5 - view.y) < 4.0),
+                    "{} tip misses direction {}",
+                    attack.id,
+                    view.direction_index
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn visible_surface_shading_matches_direct_depth_and_color() {
+        let mut spec = crate::parser::parse_vocabulary("orc riding a wolf");
+        crate::v2::prepare(&mut spec);
+        let body = crate::anatomy::build(&spec, &mut ChaCha8Rng::seed_from_u64(42));
+        let (_, _, _, poses) = crate::animation::make(&spec, &body);
+        let tris = scene(&spec, &body, &poses[0], 42);
+        let lights: Vec<_> = tris.iter().map(lighting::<false>).collect();
+        for direction in ANGLES_DEG {
+            let camera = Camera::new(direction.to_radians(), 256, 2.0);
+            let mut direct = RgbaImage::new(256, 256);
+            let mut visible = direct.clone();
+            let mut a = vec![f32::NEG_INFINITY; 256 * 256];
+            let mut b = a.clone();
+            rasterize_mesh(&tris, &mut direct, &mut a, camera);
+            let mut weights = vec![[0.0; 2]; b.len()];
+            unsafe {
+                (rasterizer().coherent)(&tris, &mut visible, &mut b, &mut weights, &lights, camera);
+            }
+            assert_eq!(a, b);
+            assert!(direct.as_raw() == visible.as_raw());
         }
     }
 

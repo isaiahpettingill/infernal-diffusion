@@ -23,8 +23,14 @@ def worker(args):
     lib = C.CDLL(str(args.library.resolve()))
     ptr = C.c_void_p
     error = ptr()
-    generate = lib.infernal_generate_in_memory_profile_compact if args.compact else lib.infernal_generate_in_memory_profile
-    generate.argtypes = [C.c_char_p, C.c_uint64, C.c_uint32, C.POINTER(ptr)]
+    if args.hybrid:
+        generate = lib.infernal_generate_hybrid_json_compact if args.compact else lib.infernal_generate_hybrid_json
+        generate.argtypes = [C.c_char_p, C.c_uint64, C.POINTER(ptr)]
+        inputs = [args.prompt.encode(), args.seed]
+    else:
+        generate = lib.infernal_generate_in_memory_profile_compact if args.compact else lib.infernal_generate_in_memory_profile
+        generate.argtypes = [C.c_char_p, C.c_uint64, C.c_uint32, C.POINTER(ptr)]
+        inputs = [args.prompt.encode(), args.seed, int(args.profile[1:])]
     generate.restype = ptr
     lib.infernal_object_free.argtypes = [ptr]
     lib.infernal_free_string.argtypes = [ptr]
@@ -44,7 +50,7 @@ def worker(args):
             print(f"BENCH profile={args.profile} prompt={args.prompt!r} run={i}", file=sys.stderr, flush=True)
             cpu_start = time.process_time()
             start = time.perf_counter()
-            handle = generate(args.prompt.encode(), args.seed, int(args.profile[1:]), C.byref(error))
+            handle = generate(*inputs, C.byref(error))
             durations.append(time.perf_counter() - start)
             cpu_durations.append(time.process_time() - cpu_start)
             if not handle:
@@ -53,6 +59,11 @@ def worker(args):
                     lib.infernal_free_string(error)
                 raise RuntimeError(message)
         peak_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
+        if args.timing_only:
+            print(json.dumps(dict(prompt=args.prompt, profile=args.profile, seed=args.seed,
+                packages=lib.infernal_object_count(handle), seconds=durations,
+                cpu_seconds=cpu_durations, generation_peak_rss_bytes=peak_rss)))
+            return
         atlases = []
         for index in range(lib.infernal_object_count(handle)):
             for kind in range(3):
@@ -89,19 +100,43 @@ def main():
     p.add_argument('--runs', type=int, default=4)
     p.add_argument('--seed', type=int, default=42)
     p.add_argument('--compact', action='store_true')
-    p.add_argument('--suite', action='store_true', help='Run wolf, mounted orc, giant spider, ghost for both profiles')
+    p.add_argument('--timing-only', action='store_true', help='Skip atlas inspection so CPU samples cover generation')
+    p.add_argument('--hybrid', action='store_true', help='Use the structured V2 hybrid API with JSON from --prompt')
+    suites = p.add_mutually_exclusive_group()
+    suites.add_argument('--stress-suite', action='store_true', help='Profile mounts, a nested riding stack, skeleton, dragon, summoner, shade, wolf, and hybrid')
+    suites.add_argument('--suite', action='store_true', help='Run wolf, mounted orc, giant spider, ghost for both profiles')
     p.add_argument('--worker', action='store_true', help=argparse.SUPPRESS)
     args = p.parse_args()
     if args.runs < 1:
         p.error('--runs must be positive')
+    if args.hybrid and (args.profile != 'v2' or args.suite or args.stress_suite):
+        p.error('--hybrid requires --profile v2 and a single JSON prompt')
     if args.worker:
         worker(args)
         return
-    cases = [(prompt, profile) for profile in ['v1', 'v2'] for prompt in ['wolf', 'orc riding a wolf', 'giant spider', 'ghost']] if args.suite else [(args.prompt, args.profile)]
-    for prompt, profile in cases:
+    if args.stress_suite:
+        stack = "goblin with a flaming sword riding a wolf riding a giant spider"
+        detail = " The creature guards the old road beneath a broken stone arch. Its footsteps echo through the empty hall."
+        hybrid = '{"schema_version":1,"upper_body":"STORMTROOPER","lower_body":"SPIDER","head":"FISH","lower_limb_count":8,"upper_arm_count":4}'
+        cases = [(prompt, 'v2', False) for prompt in (
+            'giant orc with a huge axe riding a giant spider', stack, 'skeleton',
+            'giant dragon that breathes fire', 'mushroom summons hornets', 'shade humanoid',
+            (stack + '.' + detail * 45)[:4000].rstrip(),
+            (Path(__file__).parent / 'benchmark-fixtures' / 'armored-rider.txt').read_text().strip(),
+        )] + [('wolf', 'v1', False), (hybrid, 'v2', True)]
+    elif args.suite:
+        cases = [(prompt, profile, False) for profile in ['v1', 'v2']
+                 for prompt in ['wolf', 'orc riding a wolf', 'giant spider', 'ghost']]
+    else:
+        cases = [(args.prompt, args.profile, args.hybrid)]
+    for prompt, profile, hybrid in cases:
         command = [sys.executable, str(Path(__file__).resolve()), str(args.library.resolve()), '--worker', '--prompt', prompt, '--profile', profile, '--runs', str(args.runs), '--seed', str(args.seed)]
+        if hybrid:
+            command.append('--hybrid')
         if args.compact:
             command.append('--compact')
+        if args.timing_only:
+            command.append('--timing-only')
         subprocess.run(command, check=True)
 
 
