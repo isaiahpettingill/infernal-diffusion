@@ -2,8 +2,8 @@
 
 The production generator uses a CPU rasterizer and performs expensive work on
 the Godot extension's background worker. Its x64 library selects baseline,
-v2, or v3 raster kernels at runtime. The render pool uses two threads on
-systems with at least four logical cores, and one otherwise.
+v2, or v3 raster kernels at runtime. The native renderer uses one thread on hosts with fewer than four logical cores.
+On larger hosts it uses half the available logical cores, up to four render workers.
 
 To benchmark generation, build the release library and run:
 

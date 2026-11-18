@@ -25,8 +25,7 @@ or changed pixel-pointer representation is implied.
 Actual temporary-memory changes are separate:
 
 - The renderer allocates high-resolution color/depth buffers per simultaneous
-  worker, not per camera direction. Native rendering normally uses two workers;
-  serial WASM uses one. Workers claim the next direction from a shared queue so
+  worker, not per camera direction. Native rendering uses up to four workers. Serial WASM uses one. Workers claim the next direction from a shared queue so
   scratch reuse does not require waiting at fixed direction-batch barriers.
 - Compact atlas deduplication retains cropped pixels once, rather than also
   copying them into map keys. Hashes select candidates; dimensions and all RGBA

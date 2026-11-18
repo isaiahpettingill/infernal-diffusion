@@ -276,6 +276,7 @@ fn package_dir_with_parser(
     // Keep the generation profiles separate as well as the parser builds.
     if profile == crate::GenerationProfile::V2 {
         digest.update(b"generation-profile:v2-recipes@3");
+        digest.update(crate::v2::combat::SHADE_MOTION_RECIPE.as_bytes());
     }
     digest.update(prompt.as_bytes());
     digest.update(seed.to_le_bytes());

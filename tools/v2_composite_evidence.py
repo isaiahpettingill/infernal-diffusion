@@ -15,7 +15,7 @@ def package(name):
     folder = root / name
     return json.loads((folder / "metadata.json").read_text()), Image.open(folder / "sprites.png").convert("RGBA")
 
-def frame_at(name, clip_id, time_ms):
+def frame_at(name, clip_id, time_ms, direction=0):
     monster, atlas = package(name)
     clip = next(c for c in monster["animations"] if c["id"] == clip_id)
     total = sum(f["duration_ms"] for f in clip["frames"])
@@ -26,6 +26,7 @@ def frame_at(name, clip_id, time_ms):
         time_ms -= frame["duration_ms"]
     sprites = monster["sprites"]
     w, h, index = sprites["frame_width"], sprites["frame_height"], frame["sprite_frame_id"]
+    index += direction * sprites["direction_stride"]
     x, y = index % sprites["columns"] * w, index // sprites["columns"] * h
     return atlas.crop((x, y, x + w, y + h))
 
@@ -61,17 +62,27 @@ contact.save(output / "v2-hybrid-compositions.png")
 
 names = ["shade_humanoid", "shade_wolf", "shade_tree", "shade_mermaid"]
 frames = []
-for time_ms in range(0, 1450, 50):
-    image = checker(4 * 300, 310)
+for time_ms in range(0, 1400, 50):
+    # Sample the actual exported duration, including the 100 ms contact hold.
+    image = checker(512, 400)
     draw = ImageDraw.Draw(image)
-    for column, name in enumerate(names):
-        draw.text((column * 300 + 8, 8), f"{name} / tendril lash / {time_ms}ms", fill="black")
-        paste(image, frame_at(name, "attack_v2_shade_tendril_lash", time_ms), column * 300 + 22, 45, 256)
+    for row, attack in enumerate(["lash", "thrust"]):
+        for direction, view in enumerate(["side", "front"]):
+            x, y = direction * 256, row * 200
+            draw.text((x + 10, y + 6), f"{attack.title()} / {view}", fill="black")
+            sprite = frame_at("shade_humanoid", f"attack_v2_shade_tendril_{attack}", time_ms, direction)
+            paste(image, sprite, x + 38, y + 18, 180)
     frames.append(image)
-frames[0].save(output / "v2-shade-tendrils.gif", save_all=True, append_images=frames[1:], duration=50, loop=0, disposal=2)
-contact = Image.new("RGB", (1200, 930))
-for row, index in enumerate([0, 8, 13]):
-    contact.paste(frames[index], (0, row * 310))
+frames[0].save(output / "v2-shade-tendrils.gif", save_all=True, append_images=frames[1:],
+               duration=50, loop=0, disposal=2)
+
+contact = checker(1000, 620)
+draw = ImageDraw.Draw(contact)
+for column, name in enumerate(names):
+    for row, (phase, time_ms) in enumerate([("Rest", 0), ("Coil", 350), ("Lash", 650)]):
+        x, y = column * 250, row * 206
+        draw.text((x + 8, y + 6), f"{name} / {phase}", fill="black")
+        paste(contact, frame_at(name, "attack_v2_shade_tendril_lash", time_ms), x + 30, y + 17, 188)
 contact.save(output / "v2-shade-tendrils-contact.png")
 
 frames = []

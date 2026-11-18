@@ -24,7 +24,7 @@ mockups. Native views and nearest-neighbor enlargements are labeled; full-frame
 - [V1/V2 water navigation](water-navigation.gif)
 - [Friendly lure → reveal → declared ambush attack](friendly-ambush.gif)
 - [Full-body mermaid / bilateral growing-tree attacks](v2-specialty-attacks.gif)
-- [Whole-body shade unwind and exact reverse (humanoid)](v2-shade-tendrils.gif)
+- [Shade lash and thrust, side and front (humanoid)](v2-shade-tendrils.gif)
 - [Ghost and ghoul phase/reappear attacks](v2-spectral-phase.gif)
 
 The shade contact sheet covers humanoid, wolf, tree and mermaid whole-body

@@ -713,15 +713,26 @@ fn shade_tendrils(spec: &MonsterSpec, body: &mut Body, s: f32) {
         let mut parent = 0;
         for segment in 0..5 {
             let i = segment as f32;
-            let radius = (1.4 - i * 0.23) * s;
+            // Fold the length back toward the torso at rest. Straightening this
+            // hooked spine buys reach without exceeding the 1.8x growth limit.
+            let (back, bend) = [
+                (-4.0, -2.0),
+                (-9.0, -5.0),
+                (-12.0, -1.0),
+                (-9.0, 4.0),
+                (-3.0, 4.5),
+            ][segment];
+            let radius = (2.15 - i * 0.38) * s;
             parent = landmark(
                 body,
                 parent,
                 &format!("v2_shade_tendril_{chain}_{segment}"),
                 "TENTACLE",
                 [
-                    torso.x - torso.rx * 0.4 - i * 2.7 * s,
-                    torso.y + ((chain as f32 - 1.0) * 1.6 + (i * 0.7).sin() * 1.5) * s,
+                    torso.x + back * s,
+                    torso.y
+                        + (bend * if chain == 1 { -1.0 } else { 1.0 } + (chain as f32 - 1.0) * 1.6)
+                            * s,
                     lateral * (2.5 + i * 0.7) * s,
                 ],
                 [radius, radius, radius],

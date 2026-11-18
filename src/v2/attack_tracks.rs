@@ -112,6 +112,7 @@ pub fn populate(
                 let Some(pose) = poses.get(frame.sprite_frame_id as usize) else {
                     continue;
                 };
+                let receivers = render3d::ShadeReceivers::new(body, pose);
                 let hurtboxes = body
                     .nodes
                     .iter()
@@ -122,7 +123,7 @@ pub fn populate(
                     })
                     .map(|(index, node)| PosedHurtbox {
                         node_id: node.id.clone(),
-                        views: render3d::collider_views_for_shade_receiver(body, index, pose, size),
+                        views: receivers.views(body, index, pose, size),
                     })
                     .collect();
                 profile.body_motion_samples.push(BodyMotionSample {
