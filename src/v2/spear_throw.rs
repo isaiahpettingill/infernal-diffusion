@@ -34,9 +34,13 @@ fn below(body: &Body, child: usize, root: usize) -> bool {
 
 fn rotate_about(body: &Body, pose: &mut Pose, root: usize, pivot: (f32, f32), angle: f32) {
     let (s, c) = angle.sin_cos();
-    for i in 0..body.nodes.len() {
+    for (i, p) in pose
+        .physical_positions
+        .iter_mut()
+        .take(body.nodes.len())
+        .enumerate()
+    {
         if below(body, i, root) {
-            let p = &mut pose.physical_positions[i];
             let x = p.0 - pivot.0;
             let y = p.1 - pivot.1;
             p.0 = pivot.0 + c * x - s * y;

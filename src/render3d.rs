@@ -3069,7 +3069,14 @@ fn scenes_equal(left: &[Triangle], right: &[Triangle]) -> bool {
             .all(|(a, b)| triangle_bits(a) == triangle_bits(b))
 }
 
-fn copy_sheet_frame(sheet: &mut RgbaImage, source: u32, target: u32, size: u32, columns: u32) {
+fn copy_sheet_frame(
+    sheet: &mut RgbaImage,
+    source: u32,
+    target: u32,
+    size: u32,
+    columns: u32,
+    blank_row: &[u8],
+) {
     let row_bytes = size as usize * 4;
     let stride = sheet.width() as usize * 4;
     let source_start =
@@ -3080,7 +3087,9 @@ fn copy_sheet_frame(sheet: &mut RgbaImage, source: u32, target: u32, size: u32, 
     for row in 0..size as usize {
         let from = source_start + row * stride;
         let to = target_start + row * stride;
-        pixels.copy_within(from..from + row_bytes, to);
+        if &pixels[from..from + row_bytes] != blank_row {
+            pixels.copy_within(from..from + row_bytes, to);
+        }
     }
 }
 
@@ -3103,6 +3112,9 @@ pub fn sheet(
     let rows = total.div_ceil(columns);
     let palette = scene_palette(spec, body, seed);
     let mut output = RgbaImage::new(columns * size, rows * size);
+    // Each tile is written once into a zeroed sheet. Leave all-zero rows on
+    // shared zero pages. Compare RGBA so invisible nonzero RGB is preserved.
+    let blank_row = vec![0; size as usize * 4];
     // Allocate only for simultaneous work, not for every direction. Each pair
     // owns its color, depth, and V2 barycentric buffers. Serial WASM needs one lane.
     #[cfg(not(target_arch = "wasm32"))]
@@ -3145,6 +3157,7 @@ pub fn sheet(
                     offset + index as u32,
                     size,
                     columns,
+                    &blank_row,
                 );
             }
             reused_frames += ANGLES_DEG.len();
@@ -3202,8 +3215,10 @@ pub fn sheet(
             let stride = (columns * size * 4) as usize;
             for y in 0..size as usize {
                 let destination = ((oy as usize + y) * stride) + ox as usize * 4;
-                target[destination..destination + row_len]
-                    .copy_from_slice(&source[y * row_len..(y + 1) * row_len]);
+                let row = &source[y * row_len..(y + 1) * row_len];
+                if row != blank_row {
+                    target[destination..destination + row_len].copy_from_slice(row);
+                }
             }
         }
     }

@@ -89,18 +89,13 @@ fn friendly_wave(body: &Body, pose: &mut Pose) {
     };
     let angle = -side * (1.8 + 0.22 * (pose.phase * std::f32::consts::TAU).sin());
     let (sin, cos) = angle.sin_cos();
-    for i in 0..body.nodes.len() {
-        let mut ancestor = Some(i);
-        let mut attached = false;
-        while let Some(j) = ancestor {
-            if j == shoulder {
-                attached = true;
-                break;
-            }
-            ancestor = body.nodes[j].parent;
-        }
-        if attached {
-            let p = &mut pose.physical_positions[i];
+    for (i, p) in pose
+        .physical_positions
+        .iter_mut()
+        .take(body.nodes.len())
+        .enumerate()
+    {
+        if in_subtree(body, i, shoulder) {
             let (x, y) = (p.0 - pivot.0, p.1 - pivot.1);
             p.0 = pivot.0 + x * cos - y * sin;
             p.1 = pivot.1 + x * sin + y * cos;
@@ -129,9 +124,13 @@ fn in_subtree(body: &Body, child: usize, root: usize) -> bool {
 fn transform_subtree(body: &Body, pose: &mut Pose, root: usize, angle: f32, scale: f32) {
     let pivot = pose.physical_positions[root];
     let (sin, cos) = angle.sin_cos();
-    for i in 0..body.nodes.len() {
+    for (i, p) in pose
+        .physical_positions
+        .iter_mut()
+        .take(body.nodes.len())
+        .enumerate()
+    {
         if in_subtree(body, i, root) {
-            let p = &mut pose.physical_positions[i];
             let (x, y) = (p.0 - pivot.0, p.1 - pivot.1);
             p.0 = pivot.0 + scale * (cos * x - sin * y);
             p.1 = pivot.1 + scale * (sin * x + cos * y);
@@ -518,9 +517,13 @@ fn splay_extra_tails(body: &Body, poses: &mut [Pose]) {
         let (sin, cos) = angle.sin_cos();
         for &root in &roots {
             let pivot = pose.physical_positions[body.nodes[root].parent.unwrap()];
-            for i in 0..body.nodes.len() {
+            for (i, p) in pose
+                .physical_positions
+                .iter_mut()
+                .take(body.nodes.len())
+                .enumerate()
+            {
                 if in_subtree(body, i, root) {
-                    let p = &mut pose.physical_positions[i];
                     let (x, y) = (p.0 - pivot.0, p.1 - pivot.1);
                     p.0 = pivot.0 + x * cos - y * sin;
                     p.1 = pivot.1 + x * sin + y * cos;
