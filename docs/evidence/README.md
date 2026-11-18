@@ -76,3 +76,5 @@ can make tendril motion less prominent; and generic animals still share body-fam
 shapes. Additional clips can enlarge atlases, so use the returned dimensions and
 consider offline baking/caching for large rosters. This is a procedural V2, not a
 hand-authored roster or a trained image/mesh model.
+
+The [skeleton mesh comparison](v2-skeleton-detail.png) shows the same seed and idle frame at 3× nearest-neighbor scale. The original is on the left. The reduced mesh is on the right.

@@ -1400,18 +1400,23 @@ fn generate_spec_internal(
     identity.update(world_scale::RECIPE_ID.as_bytes());
     let shade = options.profile == GenerationProfile::V2
         && spec.features.iter().any(|f| f == "SHADE");
-    if shade {
-        identity.update(v2::combat::SHADE_MOTION_RECIPE.as_bytes());
-        recipe_ids.push(v2::combat::SHADE_MOTION_RECIPE.into());
+    let skeleton =
+        render_style == RenderStyle::Mesh3d && render3d::uses_skeletal_mesh(&spec, &body);
+    let mut recipe_version = format!("{recipe_version}-{}", world_scale::RECIPE_ID);
+    recipe_ids.push(world_scale::RECIPE_ID.into());
+    for recipe in [
+        shade.then_some(v2::combat::SHADE_MOTION_RECIPE),
+        skeleton.then_some(render3d::SKELETON_MESH_RECIPE),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        identity.update(recipe.as_bytes());
+        recipe_ids.push(recipe.into());
+        recipe_version.push('-');
+        recipe_version.push_str(recipe);
     }
     let id = format!("monster-{}", hex_prefix(&identity.finalize(), 8));
-    recipe_ids.push(world_scale::RECIPE_ID.into());
-    let recipe_version = format!("{recipe_version}-{}", world_scale::RECIPE_ID);
-    let recipe_version = if shade {
-        format!("{recipe_version}-{}", v2::combat::SHADE_MOTION_RECIPE)
-    } else {
-        recipe_version
-    };
     let monster = proto::Monster {
         v2_profile,
         format_version: if render_style == RenderStyle::Mesh3d {

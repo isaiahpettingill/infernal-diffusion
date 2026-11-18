@@ -116,6 +116,7 @@ def main():
             'giant orc with a huge axe riding a giant spider', stack, 'skeleton',
             'giant dragon that breathes fire', 'mushroom summons hornets', 'shade humanoid',
             (stack + '.' + detail * 45)[:4000].rstrip(),
+            (Path(__file__).parent / 'benchmark-fixtures' / 'armored-rider.txt').read_text().strip(),
         )] + [('wolf', 'v1', False), (hybrid, 'v2', True)]
     elif args.suite:
         cases = [(prompt, profile, False) for profile in ['v1', 'v2']

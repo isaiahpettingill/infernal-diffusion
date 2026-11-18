@@ -1440,6 +1440,31 @@ fn v2_face_recipe(spec: &MonsterSpec, node: &Node) -> Option<&'static str> {
     }
 }
 
+pub(crate) const SKELETON_MESH_RECIPE: &str = "mesh.skeletal_detail@2";
+
+fn skeletal_part(spec: &MonsterSpec, node: &Node) -> Option<&'static str> {
+    if node.kind == "BONE_SPUR" {
+        return Some("long_bone");
+    }
+    if !v2_skeletal_node(spec, node) {
+        return None;
+    }
+    match node.kind.as_str() {
+        "HEAD" => Some("skull"),
+        "TORSO" => Some("ribs"),
+        "HAND" => Some("hand"),
+        "FOOT" => Some("foot"),
+        "LOBE" if node.id.contains("pelvis") => Some("pelvis"),
+        "LIMB" | "ARM" | "SHIN" | "NECK" | "SHOULDER" | "HIP" | "TAIL" => Some("long_bone"),
+        _ => None,
+    }
+}
+
+pub(crate) fn uses_skeletal_mesh(spec: &MonsterSpec, body: &Body) -> bool {
+    visual_v2(spec)
+        && body.nodes.iter().any(|node| skeletal_part(spec, node).is_some())
+}
+
 fn v2_mesh_override(spec: &MonsterSpec, node: &Node) -> Option<&'static MeshAsset> {
     if !visual_v2(spec) {
         return None;
@@ -1453,22 +1478,8 @@ fn v2_mesh_override(spec: &MonsterSpec, node: &Node) -> Option<&'static MeshAsse
             return Some(mesh);
         }
     }
-    if node.kind == "BONE_SPUR" {
-        return Some(v2_skeleton::mesh("long_bone"));
-    }
-    if v2_skeletal_node(spec, node) {
-        let part = match node.kind.as_str() {
-            "HEAD" => Some("skull"),
-            "TORSO" => Some("ribs"),
-            "HAND" => Some("hand"),
-            "FOOT" => Some("foot"),
-            "LOBE" if node.id.contains("pelvis") => Some("pelvis"),
-            "LIMB" | "ARM" | "SHIN" | "NECK" | "SHOULDER" | "HIP" | "TAIL" => Some("long_bone"),
-            _ => None,
-        };
-        if let Some(part) = part {
-            return Some(v2_skeleton::mesh(part));
-        }
+    if let Some(part) = skeletal_part(spec, node) {
+        return Some(v2_skeleton::mesh(part));
     }
     if node.id == "v2_hybrid_chest" {
         return Some(upright_torso());
