@@ -1,5 +1,7 @@
 # Renderer benchmarks
 
+[Mounted generation, long prompts, skeletons, dragons, summoners and shades](docs/benchmarks/mounted-generation.md)
+
 The production generator uses a CPU rasterizer and performs expensive work on
 the Godot extension's background worker. Its x64 library selects baseline,
 v2, or v3 raster kernels at runtime. The native renderer uses one thread on hosts with fewer than four logical cores.

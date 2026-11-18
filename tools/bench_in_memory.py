@@ -59,6 +59,11 @@ def worker(args):
                     lib.infernal_free_string(error)
                 raise RuntimeError(message)
         peak_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
+        if args.timing_only:
+            print(json.dumps(dict(prompt=args.prompt, profile=args.profile, seed=args.seed,
+                packages=lib.infernal_object_count(handle), seconds=durations,
+                cpu_seconds=cpu_durations, generation_peak_rss_bytes=peak_rss)))
+            return
         atlases = []
         for index in range(lib.infernal_object_count(handle)):
             for kind in range(3):
@@ -95,6 +100,7 @@ def main():
     p.add_argument('--runs', type=int, default=4)
     p.add_argument('--seed', type=int, default=42)
     p.add_argument('--compact', action='store_true')
+    p.add_argument('--timing-only', action='store_true', help='Skip atlas inspection so CPU samples cover generation')
     p.add_argument('--hybrid', action='store_true', help='Use the structured V2 hybrid API with JSON from --prompt')
     suites = p.add_mutually_exclusive_group()
     suites.add_argument('--stress-suite', action='store_true', help='Profile mounts, a nested riding stack, skeleton, dragon, summoner, shade, wolf, and hybrid')
@@ -129,6 +135,8 @@ def main():
             command.append('--hybrid')
         if args.compact:
             command.append('--compact')
+        if args.timing_only:
+            command.append('--timing-only')
         subprocess.run(command, check=True)
 
 
